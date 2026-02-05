@@ -477,6 +477,7 @@ export const DebugFooter = ({ onChange }: { onChange: () => void }) => {
         data-testid="debug-forward"
         aria-label="Move forward"
         type="button"
+        style={{ width: 28, height: 28, minWidth: 28 }}
         onClick={trashFrames}
       >
         <div
@@ -492,6 +493,7 @@ export const DebugFooter = ({ onChange }: { onChange: () => void }) => {
         data-testid="debug-forward"
         aria-label="Move forward"
         type="button"
+        style={{ width: 28, height: 28, minWidth: 28 }}
         onClick={moveBackward}
       >
         <div
@@ -507,6 +509,7 @@ export const DebugFooter = ({ onChange }: { onChange: () => void }) => {
         data-testid="debug-forward"
         aria-label="Move forward"
         type="button"
+        style={{ width: 28, height: 28, minWidth: 28 }}
         onClick={reset}
       >
         <div
@@ -522,6 +525,7 @@ export const DebugFooter = ({ onChange }: { onChange: () => void }) => {
         data-testid="debug-backward"
         aria-label="Move backward"
         type="button"
+        style={{ width: 28, height: 28, minWidth: 28 }}
         onClick={moveForward}
       >
         <div

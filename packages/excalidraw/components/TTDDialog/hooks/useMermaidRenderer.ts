@@ -20,6 +20,33 @@ const SLOW_THROTTLE_DELAY = 3000;
 const RENDER_SPEED_THRESHOLD = 100;
 const PARSE_FAIL_DELAY = 100;
 
+// Helper to extract mermaid code from markdown code blocks
+const extractMermaidCode = (text: string): string => {
+  const codeBlockStartIndex = text.indexOf("```");
+  if (codeBlockStartIndex !== -1) {
+    const start = codeBlockStartIndex + 3;
+    let content = text.slice(start);
+
+    // Remove language identifier (e.g. "mermaid")
+    const firstLineEnd = content.indexOf("\n");
+    if (firstLineEnd !== -1) {
+      const firstLine = content.slice(0, firstLineEnd).trim();
+      if (firstLine.toLowerCase() === "mermaid" || firstLine === "") {
+        content = content.slice(firstLineEnd);
+      }
+    }
+
+    // Remove closing backticks
+    const codeBlockEndIndex = content.lastIndexOf("```");
+    if (codeBlockEndIndex !== -1) {
+      content = content.slice(0, codeBlockEndIndex);
+    }
+
+    return content.trim();
+  }
+  return text;
+};
+
 interface UseMermaidRendererProps {
   mermaidToExcalidrawLib: MermaidToExcalidrawLibProps;
   canvasRef: React.RefObject<HTMLDivElement | null>;
@@ -160,12 +187,12 @@ export const useMermaidRenderer = ({
   // this hook is responsible for keep rendering during streaming
   useEffect(() => {
     if (lastAssistantMessage?.content && lastAssistantMessage?.isGenerating) {
-      throttledRenderMermaid(lastAssistantMessage.content);
+      throttledRenderMermaid(extractMermaidCode(lastAssistantMessage.content));
     } else if (!lastAssistantMessage?.isGenerating) {
       throttledRenderMermaid.flush();
       resetThrottleState();
       if (lastAssistantMessage?.content) {
-        throttledRenderMermaid(lastAssistantMessage.content);
+        throttledRenderMermaid(extractMermaidCode(lastAssistantMessage.content));
       }
     }
   }, [
@@ -186,7 +213,7 @@ export const useMermaidRenderer = ({
       return;
     }
 
-    renderMermaid(msg.content);
+    renderMermaid(extractMermaidCode(msg.content));
   }, [chatHistory?.id, renderMermaid, showPreview]);
 
   useEffect(() => {

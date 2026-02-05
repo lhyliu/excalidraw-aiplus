@@ -1,144 +1,142 @@
 import React, { useState, useCallback, useEffect } from "react";
 
-import { Dialog } from "./Dialog";
-import { t } from "../i18n";
-import { getAISettings, setAISettings } from "../services/aiService";
+import { getAISettings, setAISettings, type AISettings } from "../services/aiService";
 
-import type { AISettings } from "../services/aiService";
+import { Dialog } from "./Dialog";
 
 import "./AISettingsDialog.scss";
 
 interface AISettingsDialogProps {
-    onClose: () => void;
+  onClose: () => void;
 }
 
 export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
-    onClose,
+  onClose,
 }) => {
-    const [settings, setSettingsState] = useState<AISettings>({
-        apiUrl: "",
-        apiKey: "",
-        model: "gpt-4o-mini",
-    });
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
+  const [settings, setSettingsState] = useState<AISettings>({
+    apiUrl: "",
+    apiKey: "",
+    model: "gpt-4o-mini",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-    // Load existing settings on mount
-    useEffect(() => {
-        const existingSettings = getAISettings();
-        if (existingSettings) {
-            setSettingsState(existingSettings);
-        }
-    }, []);
+  // Load existing settings on mount
+  useEffect(() => {
+    const existingSettings = getAISettings();
+    if (existingSettings) {
+      setSettingsState(existingSettings);
+    }
+  }, []);
 
-    const handleChange = useCallback(
-        (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement>) => {
-            setSettingsState((prev) => ({
-                ...prev,
-                [field]: e.target.value,
-            }));
-            setError(null);
-            setSuccess(false);
-        },
-        [],
-    );
+  const handleChange = useCallback(
+    (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSettingsState((prev) => ({
+        ...prev,
+        [field]: e.target.value,
+      }));
+      setError(null);
+      setSuccess(false);
+    },
+    [],
+  );
 
-    const handleSave = useCallback(() => {
-        // Validate
-        if (!settings.apiUrl.trim()) {
-            setError("请输入API URL");
-            return;
-        }
-        if (!settings.apiKey.trim()) {
-            setError("请输入API Key");
-            return;
-        }
+  const handleSave = useCallback(() => {
+    // Validate
+    if (!settings.apiUrl.trim()) {
+      setError("请输入API URL");
+      return;
+    }
+    if (!settings.apiKey.trim()) {
+      setError("请输入API Key");
+      return;
+    }
 
-        setIsSaving(true);
-        setAISettings(settings);
-        setSuccess(true);
-        setIsSaving(false);
+    setIsSaving(true);
+    setAISettings(settings);
+    setSuccess(true);
+    setIsSaving(false);
 
-        // Close after a short delay to show success
-        setTimeout(() => {
-            onClose();
-        }, 500);
-    }, [settings, onClose]);
+    // Close after a short delay to show success
+    setTimeout(() => {
+      onClose();
+    }, 500);
+  }, [settings, onClose]);
 
-    return (
-        <Dialog
-            className="ai-settings-dialog"
-            onCloseRequest={onClose}
-            title="AI Settings"
-            size="small"
-        >
-            <div className="ai-settings-dialog__content">
-                <div className="ai-settings-dialog__field">
-                    <label htmlFor="ai-api-url">API URL</label>
-                    <input
-                        id="ai-api-url"
-                        type="text"
-                        value={settings.apiUrl}
-                        onChange={handleChange("apiUrl")}
-                        placeholder="https://api.openai.com"
-                    />
-                    <span className="ai-settings-dialog__hint">
-                        OpenAI兼容的API地址，例如 https://api.openai.com
-                    </span>
-                </div>
+  return (
+    <Dialog
+      className="ai-settings-dialog"
+      onCloseRequest={onClose}
+      title="AI Settings"
+      size="small"
+    >
+      <div className="ai-settings-dialog__content">
+        <div className="ai-settings-dialog__field">
+          <label htmlFor="ai-api-url">API URL</label>
+          <input
+            id="ai-api-url"
+            type="text"
+            value={settings.apiUrl}
+            onChange={handleChange("apiUrl")}
+            placeholder="https://api.openai.com"
+          />
+          <span className="ai-settings-dialog__hint">
+            OpenAI兼容的API地址，例如 https://api.openai.com
+          </span>
+        </div>
 
-                <div className="ai-settings-dialog__field">
-                    <label htmlFor="ai-api-key">API Key</label>
-                    <input
-                        id="ai-api-key"
-                        type="password"
-                        value={settings.apiKey}
-                        onChange={handleChange("apiKey")}
-                        placeholder="sk-..."
-                    />
-                    <span className="ai-settings-dialog__hint">
-                        您的API密钥，将存储在浏览器本地
-                    </span>
-                </div>
+        <div className="ai-settings-dialog__field">
+          <label htmlFor="ai-api-key">API Key</label>
+          <input
+            id="ai-api-key"
+            type="password"
+            value={settings.apiKey}
+            onChange={handleChange("apiKey")}
+            placeholder="sk-..."
+          />
+          <span className="ai-settings-dialog__hint">
+            您的API密钥，将存储在浏览器本地
+          </span>
+        </div>
 
-                <div className="ai-settings-dialog__field">
-                    <label htmlFor="ai-model">Model</label>
-                    <input
-                        id="ai-model"
-                        type="text"
-                        value={settings.model}
-                        onChange={handleChange("model")}
-                        placeholder="gpt-4o-mini"
-                    />
-                    <span className="ai-settings-dialog__hint">
-                        模型名称，例如 gpt-4o-mini, gpt-4o, deepseek-chat
-                    </span>
-                </div>
+        <div className="ai-settings-dialog__field">
+          <label htmlFor="ai-model">Model</label>
+          <input
+            id="ai-model"
+            type="text"
+            value={settings.model}
+            onChange={handleChange("model")}
+            placeholder="gpt-4o-mini"
+          />
+          <span className="ai-settings-dialog__hint">
+            模型名称，例如 gpt-4o-mini, gpt-4o, deepseek-chat
+          </span>
+        </div>
 
-                {error && <div className="ai-settings-dialog__error">{error}</div>}
-                {success && (
-                    <div className="ai-settings-dialog__success">设置已保存!</div>
-                )}
+        {error && <div className="ai-settings-dialog__error">{error}</div>}
+        {success && (
+          <div className="ai-settings-dialog__success">设置已保存!</div>
+        )}
 
-                <div className="ai-settings-dialog__actions">
-                    <button
-                        className="ai-settings-dialog__button ai-settings-dialog__button--secondary"
-                        onClick={onClose}
-                        type="button"
-                    >
-                        取消
-                    </button>
-                    <button
-                        className="ai-settings-dialog__button ai-settings-dialog__button--primary"
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        type="button"
-                    >
-                        {isSaving ? "保存中..." : "保存"}
-                    </button>
-                </div>
-            </div>
-        </Dialog>
-    );
+        <div className="ai-settings-dialog__actions">
+          <button
+            className="ai-settings-dialog__button ai-settings-dialog__button--secondary"
+            onClick={onClose}
+            type="button"
+          >
+            取消
+          </button>
+          <button
+            className="ai-settings-dialog__button ai-settings-dialog__button--primary"
+            onClick={handleSave}
+            disabled={isSaving}
+            type="button"
+          >
+            {isSaving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
 };

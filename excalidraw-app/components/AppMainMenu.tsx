@@ -1,24 +1,18 @@
-import {
-  loginIcon,
-  ExcalLogo,
-  eyeIcon,
-  OpenAIIcon,
-} from "@excalidraw/excalidraw/components/icons";
+import { OpenAIIcon } from "@excalidraw/excalidraw/components/icons";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React, { useState, useCallback } from "react";
-
-import { isDevEnv } from "@excalidraw/common";
-
-import type { Theme } from "@excalidraw/element/types";
-
-import { LanguageList } from "../app-language/LanguageList";
-import { isExcalidrawPlusSignedUser } from "../app_constants";
-
-import { saveDebugState } from "./DebugCanvas";
 
 import { AISettingsDialog } from "@excalidraw/excalidraw/components/AISettingsDialog";
 import { ArchitectureOptimizationDialog } from "@excalidraw/excalidraw/components/ArchitectureOptimizationDialog";
 import { useExcalidrawElements } from "@excalidraw/excalidraw/components/App";
+
+import type { Theme } from "@excalidraw/element/types";
+
+import { LanguageList } from "../app-language/LanguageList";
+import {
+  saveDebugState,
+  loadSavedDebugState,
+} from "./DebugCanvas";
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
@@ -60,7 +54,7 @@ export const AppMainMenu: React.FC<{
           icon={OpenAIIcon}
           onSelect={() => setShowArchitectureOptimization(true)}
         >
-          架构优化
+          AI架构助手
         </MainMenu.Item>
         <MainMenu.Item
           icon={OpenAIIcon}
@@ -68,41 +62,6 @@ export const AppMainMenu: React.FC<{
         >
           AI Settings
         </MainMenu.Item>
-        <MainMenu.Separator />
-        <MainMenu.ItemLink
-          icon={ExcalLogo}
-          href={`${import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
-          className=""
-        >
-          Excalidraw+
-        </MainMenu.ItemLink>
-        <MainMenu.DefaultItems.Socials />
-        <MainMenu.ItemLink
-          icon={loginIcon}
-          href={`${import.meta.env.VITE_APP_PLUS_APP}${isExcalidrawPlusSignedUser ? "" : "/sign-up"
-            }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
-          className="highlighted"
-        >
-          {isExcalidrawPlusSignedUser ? "Sign in" : "Sign up"}
-        </MainMenu.ItemLink>
-        {isDevEnv() && (
-          <MainMenu.Item
-            icon={eyeIcon}
-            onClick={() => {
-              if (window.visualDebug) {
-                delete window.visualDebug;
-                saveDebugState({ enabled: false });
-              } else {
-                window.visualDebug = { data: [] };
-                saveDebugState({ enabled: true });
-              }
-              props?.refresh();
-            }}
-          >
-            Visual Debug
-          </MainMenu.Item>
-        )}
         <MainMenu.Separator />
         <MainMenu.DefaultItems.ToggleTheme
           allowSystemTheme
@@ -113,6 +72,28 @@ export const AppMainMenu: React.FC<{
           <LanguageList style={{ width: "100%" }} />
         </MainMenu.ItemCustom>
         <MainMenu.DefaultItems.ChangeCanvasBackground />
+
+        {import.meta.env.DEV && (
+          <MainMenu.Item
+            onSelect={() => {
+              const current = loadSavedDebugState();
+              const next = !current.enabled;
+              saveDebugState({ enabled: next });
+              if (next) {
+                window.visualDebug = { data: [] };
+              } else {
+                delete window.visualDebug;
+              }
+              // Force reload to apply changes (since DebugCanvas checks on mount/render?)
+              // Actually App.tsx checks loadSavedDebugState on mount.
+              // Maybe we need to reload page? Or update state?
+              // For now, let's just toggle and reload if needed.
+              window.location.reload();
+            }}
+          >
+            Toggle Visual Debug
+          </MainMenu.Item>
+        )}
       </MainMenu>
 
       {showAISettings && (
@@ -129,4 +110,3 @@ export const AppMainMenu: React.FC<{
     </>
   );
 });
-

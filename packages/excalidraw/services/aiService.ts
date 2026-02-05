@@ -82,7 +82,7 @@ export const callAIStream = async (
   signal?: AbortSignal,
 ): Promise<{ success: boolean; error?: string }> => {
   const settings = getAISettings();
-  
+
   if (!settings?.apiUrl || !settings?.apiKey) {
     const error = new Error("AI settings not configured");
     callbacks.onError?.(error);
@@ -131,7 +131,9 @@ export const callAIStream = async (
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -139,8 +141,12 @@ export const callAIStream = async (
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed === "data: [DONE]") continue;
-        if (!trimmed.startsWith("data: ")) continue;
+        if (!trimmed || trimmed === "data: [DONE]") {
+          continue;
+        }
+        if (!trimmed.startsWith("data: ")) {
+          continue;
+        }
 
         try {
           const json = JSON.parse(trimmed.slice(6));
@@ -161,6 +167,17 @@ export const callAIStream = async (
       if (error.name === "AbortError") {
         return { success: false, error: "Request aborted" };
       }
+      if (
+        error.name === "TypeError" &&
+        (error.message === "Failed to fetch" ||
+          error.message.includes("NetworkError"))
+      ) {
+        return {
+          success: false,
+          error:
+            "连接失败 (Failed to fetch)。可能是因为：\n1. API地址不正确\n2. 网络问题\n3. 跨域限制 (CORS)\n请检查控制台(F12)获取详细错误信息。",
+        };
+      }
       callbacks.onError?.(error);
       return { success: false, error: error.message };
     }
@@ -171,9 +188,7 @@ export const callAIStream = async (
 /**
  * Extract diagram information for AI analysis
  */
-export const extractDiagramInfo = (
-  elements: readonly any[],
-): string => {
+export const extractDiagramInfo = (elements: readonly any[]): string => {
   const typeCount: Record<string, number> = {};
   const labels: string[] = [];
   const connections: Array<{ from: string; to: string }> = [];
@@ -182,7 +197,9 @@ export const extractDiagramInfo = (
   const idToLabel: Record<string, string> = {};
 
   for (const el of elements) {
-    if (el.isDeleted) continue;
+    if (el.isDeleted) {
+      continue;
+    }
 
     // Count types
     typeCount[el.type] = (typeCount[el.type] || 0) + 1;
@@ -208,7 +225,9 @@ export const extractDiagramInfo = (
 
   // Extract connections from arrows
   for (const el of elements) {
-    if (el.isDeleted) continue;
+    if (el.isDeleted) {
+      continue;
+    }
     if (el.type === "arrow" && el.startBinding && el.endBinding) {
       const from = idToLabel[el.startBinding.elementId] || "Unknown";
       const to = idToLabel[el.endBinding.elementId] || "Unknown";

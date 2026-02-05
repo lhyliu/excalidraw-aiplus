@@ -18,7 +18,11 @@ import { decodeSvgBase64Payload } from "../scene/export";
 
 import { base64ToString, stringToBase64, toByteString } from "./encode";
 import { nativeFileSystemSupported } from "./filesystem";
-import { isValidExcalidrawData, isValidLibrary } from "./json";
+import {
+  isValidExcalidrawData,
+  isValidLibrary,
+  setArchitectureChatHistory,
+} from "./json";
 import {
   restoreAppState,
   restoreElements,
@@ -157,6 +161,14 @@ export const loadSceneOrLibraryFromBlob = async (
       throw error;
     }
     if (isValidExcalidrawData(data)) {
+      // Restore architecture chat history if present in the file
+      if (
+        data.architectureChatHistory &&
+        Array.isArray(data.architectureChatHistory)
+      ) {
+        setArchitectureChatHistory(data.architectureChatHistory);
+      }
+
       return {
         type: MIME_TYPES.excalidraw,
         data: {

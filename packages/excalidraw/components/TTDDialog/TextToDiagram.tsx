@@ -32,6 +32,33 @@ import type {
   TTTDDialog,
 } from "./types";
 
+// Helper to extract mermaid code from markdown code blocks
+const extractMermaidCode = (text: string): string => {
+  const codeBlockStartIndex = text.indexOf("```");
+  if (codeBlockStartIndex !== -1) {
+    const start = codeBlockStartIndex + 3;
+    let content = text.slice(start);
+
+    // Remove language identifier (e.g. "mermaid")
+    const firstLineEnd = content.indexOf("\n");
+    if (firstLineEnd !== -1) {
+      const firstLine = content.slice(0, firstLineEnd).trim();
+      if (firstLine.toLowerCase() === "mermaid" || firstLine === "") {
+        content = content.slice(firstLineEnd);
+      }
+    }
+
+    // Remove closing backticks
+    const codeBlockEndIndex = content.lastIndexOf("```");
+    if (codeBlockEndIndex !== -1) {
+      content = content.slice(0, codeBlockEndIndex);
+    }
+
+    return content.trim();
+  }
+  return text;
+};
+
 const TextToDiagramContent = ({
   mermaidToExcalidrawLib,
   onTextSubmit,
@@ -81,7 +108,7 @@ const TextToDiagramContent = ({
 
   const onViewAsMermaid = () => {
     if (typeof lastAssistantMessage?.content === "string") {
-      saveMermaidDataToStorage(lastAssistantMessage.content);
+      saveMermaidDataToStorage(extractMermaidCode(lastAssistantMessage.content));
       setAppState({
         openDialog: { name: "ttd", tab: "mermaid" },
       });
@@ -91,7 +118,7 @@ const TextToDiagramContent = ({
   const handleMermaidTabClick = (message: TChat.ChatMessage) => {
     const mermaidContent = message.content || "";
     if (mermaidContent) {
-      saveMermaidDataToStorage(mermaidContent);
+      saveMermaidDataToStorage(extractMermaidCode(mermaidContent));
       setAppState({
         openDialog: { name: "ttd", tab: "mermaid" },
       });
@@ -192,11 +219,10 @@ const TextToDiagramContent = ({
 
   return (
     <div
-      className={`ttd-dialog-layout ${
-        showPreview
-          ? "ttd-dialog-layout--split"
-          : "ttd-dialog-layout--chat-only"
-      }`}
+      className={`ttd-dialog-layout ${showPreview
+        ? "ttd-dialog-layout--split"
+        : "ttd-dialog-layout--chat-only"
+        }`}
     >
       <TTDChatPanel
         chatId={chatHistory.id}

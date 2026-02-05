@@ -19,7 +19,35 @@ import type {
   ImportedDataState,
   ExportedLibraryData,
   ImportedLibraryData,
+  ArchitectureChatMessage,
 } from "./types";
+
+// Storage key for architecture chat history
+const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
+
+// Get chat history from localStorage
+export const getArchitectureChatHistory = (): ArchitectureChatMessage[] => {
+  try {
+    const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error("Failed to load chat history:", e);
+  }
+  return [];
+};
+
+// Set chat history to localStorage
+export const setArchitectureChatHistory = (
+  messages: ArchitectureChatMessage[],
+): void => {
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+  } catch (e) {
+    console.error("Failed to save chat history:", e);
+  }
+};
 
 /**
  * Strips out files which are only referenced by deleted elements
@@ -62,6 +90,9 @@ export const serializeAsJSON = (
         ? filterOutDeletedFiles(elements, files)
         : // will be stripped from JSON
           undefined,
+    // Include architecture chat history in local saves
+    architectureChatHistory:
+      type === "local" ? getArchitectureChatHistory() : undefined,
   };
 
   return JSON.stringify(data, null, 2);

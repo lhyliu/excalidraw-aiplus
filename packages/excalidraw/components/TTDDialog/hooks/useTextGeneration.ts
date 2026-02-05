@@ -191,7 +191,33 @@ export const useTextGeneration = ({
       }
 
       try {
-        await parseMermaidToExcalidraw(generatedResponse ?? "");
+        let textToParse = generatedResponse ?? "";
+
+        const codeBlockStartIndex = textToParse.indexOf("```");
+        if (codeBlockStartIndex !== -1) {
+          const start = codeBlockStartIndex + 3;
+          let content = textToParse.slice(start);
+
+          // Remove language identifier (e.g. "mermaid")
+          const firstLineEnd = content.indexOf("\n");
+          if (firstLineEnd !== -1) {
+            const firstLine = content.slice(0, firstLineEnd).trim();
+            if (firstLine.toLowerCase() === "mermaid" || firstLine === "") {
+              content = content.slice(firstLineEnd);
+            }
+          }
+
+          // Remove closing backticks
+          const codeBlockEndIndex = content.lastIndexOf("```");
+          if (codeBlockEndIndex !== -1) {
+            content = content.slice(0, codeBlockEndIndex);
+          }
+
+          textToParse = content.trim();
+        }
+
+        console.log("Parsing TTD text:", textToParse);
+        await parseMermaidToExcalidraw(textToParse);
         trackEvent("ai", "mermaid parse success", "ttd");
       } catch (error: any) {
         trackEvent("ai", "mermaid parse failed", "ttd");

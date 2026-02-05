@@ -11,6 +11,12 @@ import type {
   LibraryItems_anyVersion,
 } from "../types";
 
+export interface ArchitectureChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
 export interface ExportedDataState {
   type: string;
   version: number;
@@ -18,6 +24,7 @@ export interface ExportedDataState {
   elements: readonly ExcalidrawElement[];
   appState: ReturnType<typeof cleanAppStateForExport>;
   files: BinaryFiles | undefined;
+  architectureChatHistory?: ArchitectureChatMessage[];
 }
 
 /**
@@ -47,6 +54,7 @@ export interface ImportedDataState {
   scrollToContent?: boolean;
   libraryItems?: LibraryItems_anyVersion;
   files?: BinaryFiles;
+  architectureChatHistory?: ArchitectureChatMessage[];
 }
 
 export interface ExportedLibraryData {

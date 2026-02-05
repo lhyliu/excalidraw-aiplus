@@ -4,7 +4,8 @@ import {
   getTextFromElements,
   MIME_TYPES,
   TTDDialog,
-  TTDStreamFetch,
+  callAIStream,
+  RequestError,
 } from "@excalidraw/excalidraw";
 import { getDataURL } from "@excalidraw/excalidraw/data/blob";
 import { safelyParseJSON } from "@excalidraw/common";
@@ -41,8 +42,7 @@ export const AIComponents = ({
           const textFromFrameChildren = getTextFromElements(children);
 
           const response = await fetch(
-            `${
-              import.meta.env.VITE_APP_AI_BACKEND
+            `${import.meta.env.VITE_APP_AI_BACKEND
             }/v1/ai/diagram-to-code/generate`,
             {
               method: "POST",
@@ -74,8 +74,7 @@ export const AIComponents = ({
                   <div style="color:red">Too many requests today,</br>please try again tomorrow!</div>
                   </br>
                   </br>
-                  <div>You can also try <a href="${
-                    import.meta.env.VITE_APP_PLUS_LP
+                  <div>You can also try <a href="${import.meta.env.VITE_APP_PLUS_LP
                   }/plus?utm_source=excalidraw&utm_medium=app&utm_content=d2c" target="_blank" rel="noopener">Excalidraw+</a> to get more requests.</div>
                 </div>
                 </body>
@@ -105,18 +104,45 @@ export const AIComponents = ({
         onTextSubmit={async (props) => {
           const { onChunk, onStreamCreated, signal, messages } = props;
 
-          const result = await TTDStreamFetch({
-            url: `${
-              import.meta.env.VITE_APP_AI_BACKEND
-            }/v1/ai/text-to-diagram/chat-streaming`,
-            messages,
-            onChunk,
-            onStreamCreated,
-            extractRateLimits: true,
-            signal,
-          });
+          if (onStreamCreated) {
+            onStreamCreated();
+          }
 
-          return result;
+          let fullResponse = "";
+
+          const systemMessage = {
+            role: "system",
+            content:
+              "You are a helpful assistant that processes text and transforms it into a Mermaid diagram. " +
+              "Return ONLY the Mermaid code inside a markdown code block (```mermaid ... ```). " +
+              "Do not include any other explanations or text. " +
+              "If the user input is code, assume they want it converted to a diagram or fixed. " +
+              "Supported diagram types: flowchart, sequence, class, state, er, gantt, pie.",
+          };
+
+          const result = await callAIStream(
+            [systemMessage, ...messages] as any,
+            {
+              onChunk: (chunk) => {
+                fullResponse += chunk;
+                if (onChunk) {
+                  onChunk(chunk);
+                }
+              },
+            },
+            signal,
+          );
+
+          if (!result.success) {
+            return {
+              error: new RequestError({
+                message: result.error || "Failed to generate text",
+                status: 500,
+              }),
+            };
+          }
+
+          return { generatedResponse: fullResponse, error: null };
         }}
         persistenceAdapter={TTDIndexedDBAdapter}
       />
