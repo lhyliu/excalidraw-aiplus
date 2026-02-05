@@ -1,0 +1,267 @@
+/**
+ * AI Service Layer
+ * Manages API settings and streaming API calls for architecture optimization
+ */
+
+// Types
+export interface AISettings {
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export interface StreamCallbacks {
+  onChunk: (chunk: string) => void;
+  onComplete?: () => void;
+  onError?: (error: Error) => void;
+}
+
+// Constants
+const AI_SETTINGS_KEY = "excalidraw_ai_settings";
+const DEFAULT_MODEL = "gpt-4o-mini";
+
+/**
+ * Get AI settings from localStorage
+ */
+export const getAISettings = (): AISettings | null => {
+  try {
+    const saved = localStorage.getItem(AI_SETTINGS_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error("Failed to load AI settings:", e);
+  }
+  return null;
+};
+
+/**
+ * Save AI settings to localStorage
+ */
+export const setAISettings = (settings: AISettings): void => {
+  try {
+    localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.error("Failed to save AI settings:", e);
+  }
+};
+
+/**
+ * Check if AI is configured
+ */
+export const isAIConfigured = (): boolean => {
+  const settings = getAISettings();
+  return !!(settings?.apiUrl && settings?.apiKey);
+};
+
+/**
+ * Normalize API URL to ensure it ends with /chat/completions
+ */
+const normalizeApiUrl = (url: string): string => {
+  let normalized = url.trim();
+  // Remove trailing slash
+  if (normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+  // Add /chat/completions if not present
+  if (!normalized.endsWith("/chat/completions")) {
+    if (!normalized.endsWith("/v1")) {
+      normalized += "/v1";
+    }
+    normalized += "/chat/completions";
+  }
+  return normalized;
+};
+
+/**
+ * Call AI API with streaming support
+ */
+export const callAIStream = async (
+  messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<{ success: boolean; error?: string }> => {
+  const settings = getAISettings();
+  
+  if (!settings?.apiUrl || !settings?.apiKey) {
+    const error = new Error("AI settings not configured");
+    callbacks.onError?.(error);
+    return { success: false, error: error.message };
+  }
+
+  const apiUrl = normalizeApiUrl(settings.apiUrl);
+  const model = settings.model || DEFAULT_MODEL;
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${settings.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `API error: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorMessage;
+      } catch {
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("No response body");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
+        if (!trimmed.startsWith("data: ")) continue;
+
+        try {
+          const json = JSON.parse(trimmed.slice(6));
+          const content = json.choices?.[0]?.delta?.content;
+          if (content) {
+            callbacks.onChunk(content);
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    }
+
+    callbacks.onComplete?.();
+    return { success: true };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === "AbortError") {
+        return { success: false, error: "Request aborted" };
+      }
+      callbacks.onError?.(error);
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: "Unknown error" };
+  }
+};
+
+/**
+ * Extract diagram information for AI analysis
+ */
+export const extractDiagramInfo = (
+  elements: readonly any[],
+): string => {
+  const typeCount: Record<string, number> = {};
+  const labels: string[] = [];
+  const connections: Array<{ from: string; to: string }> = [];
+
+  // Build element ID to label map
+  const idToLabel: Record<string, string> = {};
+
+  for (const el of elements) {
+    if (el.isDeleted) continue;
+
+    // Count types
+    typeCount[el.type] = (typeCount[el.type] || 0) + 1;
+
+    // Extract labels from text elements
+    if (el.type === "text" && el.text) {
+      labels.push(el.text);
+      idToLabel[el.id] = el.text;
+    }
+
+    // Extract labels from shapes with text
+    if (el.boundElements) {
+      for (const bound of el.boundElements) {
+        if (bound.type === "text") {
+          const textEl = elements.find((e) => e.id === bound.id);
+          if (textEl?.text) {
+            idToLabel[el.id] = textEl.text;
+          }
+        }
+      }
+    }
+  }
+
+  // Extract connections from arrows
+  for (const el of elements) {
+    if (el.isDeleted) continue;
+    if (el.type === "arrow" && el.startBinding && el.endBinding) {
+      const from = idToLabel[el.startBinding.elementId] || "Unknown";
+      const to = idToLabel[el.endBinding.elementId] || "Unknown";
+      connections.push({ from, to });
+    }
+  }
+
+  // Build info string
+  let info = "## 图表元素统计\n";
+  for (const [type, count] of Object.entries(typeCount)) {
+    info += `- ${type}: ${count}个\n`;
+  }
+
+  if (labels.length > 0) {
+    info += "\n## 文本标签\n";
+    for (const label of labels.slice(0, 20)) {
+      info += `- ${label}\n`;
+    }
+    if (labels.length > 20) {
+      info += `- ... 及其他${labels.length - 20}个\n`;
+    }
+  }
+
+  if (connections.length > 0) {
+    info += "\n## 连接关系\n";
+    for (const conn of connections.slice(0, 20)) {
+      info += `- ${conn.from} → ${conn.to}\n`;
+    }
+    if (connections.length > 20) {
+      info += `- ... 及其他${connections.length - 20}条连接\n`;
+    }
+  }
+
+  return info;
+};
+
+/**
+ * Generate system prompt for architecture analysis
+ */
+export const getArchitectureAnalysisPrompt = (diagramInfo: string): string => {
+  return `你是一个专业的系统架构师。请分析以下架构图并提供优化建议。
+
+<图表信息>
+${diagramInfo}
+</图表信息>
+
+请从以下方面分析：
+1. 组件划分是否合理
+2. 组件间耦合度
+3. 可扩展性考虑
+4. 潜在的性能瓶颈
+5. 安全性建议
+6. 推荐的优化方向
+
+请用中文回答，使用清晰的结构和要点。`;
+};
