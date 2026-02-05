@@ -53,17 +53,23 @@ Full control over your AI provider.
 
 ## 🚀 Getting Started / 快速开始
 
-1. **Install Dependencies / 安装依赖**
+1. **Clone Repository / 克隆仓库**
+   ```bash
+   git clone https://github.com/lhyliu/excalidraw-aiplus.git
+   cd excalidraw-aiplus
+   ```
+
+2. **Install Dependencies / 安装依赖**
    ```bash
    npm install
    ```
 
-2. **Run Locally / 本地运行**
+3. **Run Locally / 本地运行**
    ```bash
    npm start
    ```
 
-3. **Configure AI / 配置 AI**
+4. **Configure AI / 配置 AI**
    - Open the application in browser (default `http://localhost:3001`).
      <br/>在浏览器打开应用（默认 `http://localhost:3001`）。
    - Click **Main Menu** (Hamburger icon) -> **AI Settings**.
