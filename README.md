@@ -1,124 +1,83 @@
-<a href="https://excalidraw.com/" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
-    <img alt="Excalidraw" src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" />
-  </picture>
-</a>
+# Excalidraw (AI Enhanced Edition) / AI 增强版
 
-<h4 align="center">
-  <a href="https://excalidraw.com">Excalidraw Editor</a> |
-  <a href="https://plus.excalidraw.com/blog">Blog</a> |
-  <a href="https://docs.excalidraw.com">Documentation</a> |
-  <a href="https://plus.excalidraw.com">Excalidraw+</a>
-</h4>
-
-<div align="center">
-  <h2>
-    An open source virtual hand-drawn style whiteboard. </br>
-    Collaborative and end-to-end encrypted. </br>
-  <br />
-  </h2>
-</div>
-
-<br />
 <p align="center">
-  <a href="https://github.com/excalidraw/excalidraw/blob/master/LICENSE">
-    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  /></a>
-  <a href="https://www.npmjs.com/package/@excalidraw/excalidraw">
-    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  /></a>
-  <a href="https://docs.excalidraw.com/docs/introduction/contributing">
-    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  /></a>
-  <a href="https://discord.gg/UexuTaE">
-    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widge=false"/></a>
-  <a href="https://deepwiki.com/excalidraw/excalidraw">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" /></a>
-  <a href="https://twitter.com/excalidraw">
-    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/></a>
+  <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" alt="Excalidraw" width="100%" />
 </p>
 
-<div align="center">
-  <figure>
-    <a href="https://excalidraw.com" target="_blank" rel="noopener">
-      <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png" alt="Product showcase" />
-    </a>
-    <figcaption>
-      <p align="center">
-        Create beautiful hand-drawn like diagrams, wireframes, or whatever you like.
-      </p>
-    </figcaption>
-  </figure>
-</div>
+This is a customized version of [Excalidraw](https://excalidraw.com) enhanced with local-first AI capabilities.
+<br/>
+这是一个增强了本地优先 AI 能力的 [Excalidraw](https://excalidraw.com) 定制版本。
 
-## Features
+## ✨ New AI Features / 新增 AI 功能
 
-The Excalidraw editor (npm package) supports:
+### 🤖 AI Architecture Assistant / AI 架构助手
+Analyze your architecture diagrams intelligently.
+智能分析您的架构图。
 
-- 💯&nbsp;Free & open-source.
-- 🎨&nbsp;Infinite, canvas-based whiteboard.
-- ✍️&nbsp;Hand-drawn like style.
-- 🌓&nbsp;Dark mode.
-- 🏗️&nbsp;Customizable.
-- 📷&nbsp;Image support.
-- 😀&nbsp;Shape libraries support.
-- 🌐&nbsp;Localization (i18n) support.
-- 🖼️&nbsp;Export to PNG, SVG & clipboard.
-- 💾&nbsp;Open format - export drawings as an `.excalidraw` json file.
-- ⚒️&nbsp;Wide range of tools - rectangle, circle, diamond, arrow, line, free-draw, eraser...
-- ➡️&nbsp;Arrow-binding & labeled arrows.
-- 🔙&nbsp;Undo / Redo.
-- 🔍&nbsp;Zoom and panning support.
+- **Smart Analysis**: Automatically extracts diagram elements (nodes, edges, text) to understand your system design.
+  <br/>**智能分析**：自动提取图表元素（节点、连线、文本）以理解系统设计。
+- **Optimization Advice**: Provides professional suggestions on Security, Availability, and Performance.
+  <br/>**优化建议**：提供关于安全性、可用性和性能的专业建议。
+- **Interactive Chat**: Refine the advice through a conversational interface.
+  <br/>**交互式对话**：通过对话界面进一步调整和细化建议。
+- **Cost Efficient**: Triggered on-demand to save tokens.
+  <br/>**成本高效**：按需触发，节省 Token 消耗。
 
-## Excalidraw.com
+### 📝 Text to Diagram (Unified) / 文字生成图表（统一版）
+Generate diagrams from natural language.
+通过自然语言生成图表。
 
-The app hosted at [excalidraw.com](https://excalidraw.com) is a minimal showcase of what you can build with Excalidraw. Its [source code](https://github.com/excalidraw/excalidraw/tree/master/excalidraw-app) is part of this repository as well, and the app features:
+- **Mermaid Support**: Flowcharts, Sequence, Class diagrams, and more.
+  <br/>**Mermaid 支持**：支持流程图、时序图、类图等多种图表。
+- **Robust Parsing**: Enhanced logic to handle various AI output formats (Markdown code blocks, loose text).
+  <br/>**增强解析**：增强了对各种 AI 输出格式（Markdown 代码块、纯文本）的处理逻辑。
+- **Unified Config**: Shares the same API credentials with the Architecture Assistant.
+  <br/>**统一配置**：与架构助手共享同一套 API 凭证。
 
-- 📡&nbsp;PWA support (works offline).
-- 🤼&nbsp;Real-time collaboration.
-- 🔒&nbsp;End-to-end encryption.
-- 💾&nbsp;Local-first support (autosaves to the browser).
-- 🔗&nbsp;Shareable links (export to a readonly link you can share with others).
+### ⚙️ Customizable AI Settings / 自定义 AI 设置
+Full control over your AI provider.
+完全掌控您的 AI 服务提供商。
 
-We'll be adding these features as drop-in plugins for the npm package in the future.
+- **Custom API Endpoint**: Works with OpenAI or any compatible provider (e.g., local LLMs).
+  <br/>**自定义 API 端点**：兼容 OpenAI 或任何兼容的提供商（如本地大模型）。
+- **Privacy First**: API Keys are stored locally in your browser (`localStorage`).
+  <br/>**隐私优先**：API 密钥仅存储在您的浏览器本地 (`localStorage`)。
+- **Model Selection**: Choose the model that fits your needs (e.g., `gpt-4o`, `claude-3-5-sonnet`).
+  <br/>**模型选择**：选择适合您需求的模型（如 `gpt-4o`, `claude-3-5-sonnet`）。
 
-## Quick start
+### 🛠️ Developer Tools / 开发者工具
+- **Visual Debugger**: Restored the visual rendering debugger. Toggle it via the Main Menu to inspect rendering frame-by-frame.
+  <br/>**可视化调试器**：恢复了渲染调试器。通过主菜单切换，可逐帧检查渲染过程。
+- **Clean UI**: Streamlined menu by removing non-essential integrations for a focused experience.
+  <br/>**简洁 UI**：移除了不必要的集成菜单，提供更专注的用户体验。
 
-**Note:** following instructions are for installing the Excalidraw [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw) when integrating Excalidraw into your own app. To run the repository locally for development, please refer to our [Development Guide](https://docs.excalidraw.com/docs/introduction/development).
+## 🚀 Getting Started / 快速开始
 
-Use `npm` or `yarn` to install the package.
+1. **Install Dependencies / 安装依赖**
+   ```bash
+   yarn
+   ```
 
-```bash
-npm install react react-dom @excalidraw/excalidraw
-# or
-yarn add react react-dom @excalidraw/excalidraw
-```
+2. **Run Locally / 本地运行**
+   ```bash
+   yarn start
+   ```
 
-Check out our [documentation](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/installation) for more details!
+3. **Configure AI / 配置 AI**
+   - Open the application in browser (default `http://localhost:3001`).
+     <br/>在浏览器打开应用（默认 `http://localhost:3001`）。
+   - Click **Main Menu** (Hamburger icon) -> **AI Settings**.
+     <br/>点击 **主菜单**（汉堡图标） -> **AI Settings**。
+   - Input your **API URL** and **API Key**.
+     <br/>输入您的 **API 地址** 和 **API 密钥**。
 
-## Contributing
+## 🤝 Original Excalidraw / 原版 Excalidraw
 
-- Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
-- Want to contribute? Check out our [contribution guide](https://docs.excalidraw.com/docs/introduction/contributing) or let us know on [Discord](https://discord.gg/UexuTaE).
-- Want to help with translations? See the [translation guide](https://docs.excalidraw.com/docs/introduction/contributing#translating).
+Excalidraw is a virtual whiteboard for sketching hand-drawn like diagrams.
+Excalidraw 是一个用于绘制手绘风格图表的虚拟白板。
 
-## Integrations
+- [Website / 官网](https://excalidraw.com)
+- [Documentation / 文档](https://docs.excalidraw.com)
+- [Contributing / 贡献指南](https://github.com/excalidraw/excalidraw/blob/master/CONTRIBUTING.md)
 
-- [VScode extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor)
-- [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw)
-
-## Who's integrating Excalidraw
-
-[Google Cloud](https://googlecloudcheatsheet.withgoogle.com/architecture) • [Meta](https://meta.com/) • [CodeSandbox](https://codesandbox.io/) • [Obsidian Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) • [Replit](https://replit.com/) • [Slite](https://slite.com/) • [Notion](https://notion.so/) • [HackerRank](https://www.hackerrank.com/) • and many others
-
-## Sponsors & support
-
-If you like the project, you can become a sponsor at [Open Collective](https://opencollective.com/excalidraw) or use [Excalidraw+](https://plus.excalidraw.com/).
-
-## Thank you for supporting Excalidraw
-
-[<img src="https://opencollective.com/excalidraw/tiers/sponsors/0/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/0/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/1/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/1/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/2/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/2/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/3/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/3/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/4/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/4/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/5/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/5/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/6/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/6/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/7/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/7/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/8/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/8/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/9/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/9/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/10/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/10/website)
-
-<a href="https://opencollective.com/excalidraw#category-CONTRIBUTE" target="_blank"><img src="https://opencollective.com/excalidraw/tiers/backers.svg?avatarHeight=32"/></a>
-
-Last but not least, we're thankful to these companies for offering their services for free:
-
-[![Vercel](./.github/assets/vercel.svg)](https://vercel.com) [![Sentry](./.github/assets/sentry.svg)](https://sentry.io) [![Crowdin](./.github/assets/crowdin.svg)](https://crowdin.com)
+License: MIT
