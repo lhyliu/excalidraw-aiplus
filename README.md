@@ -8,6 +8,14 @@ This is a customized version of [Excalidraw](https://excalidraw.com) enhanced wi
 <br/>
 这是一个增强了本地优先 AI 能力的 [Excalidraw](https://excalidraw.com) 定制版本。
 
+## ✅ What This Repo Is / 本仓库是什么
+- A fork of Excalidraw with local-first AI features integrated into the app UI.
+  <br/>基于 Excalidraw 的分支，集成了本地优先的 AI 功能。
+- AI features are opt-in and use your own API endpoint and key.
+  <br/>AI 功能为可选项，使用你自己的 API 地址与密钥。
+- Works with OpenAI-compatible providers (cloud or local).
+  <br/>兼容 OpenAI 风格接口（云端或本地）。
+
 ## ✨ New AI Features / 新增 AI 功能
 
 ### 🤖 AI Architecture Assistant / AI 架构助手
@@ -76,6 +84,46 @@ Full control over your AI provider.
      <br/>点击 **主菜单**（汉堡图标） -> **AI Settings**。
    - Input your **API URL** and **API Key**.
      <br/>输入您的 **API 地址** 和 **API 密钥**。
+
+## 🧩 AI Settings Example / AI 设置示例
+Fill the dialog fields as follows:
+<br/>按照下列方式填写弹窗字段：
+
+- **API URL**: `https://api.openai.com/v1` (or your compatible endpoint)
+  <br/>**API 地址**：`https://api.openai.com/v1`（或你的兼容接口地址）
+- **API Key**: `sk-...` (your own key)
+  <br/>**API 密钥**：`sk-...`（你的密钥）
+- **Model**: `gpt-4o` (example)
+  <br/>**模型**：`gpt-4o`（示例）
+
+If you are using a local or proxy endpoint, ensure it supports OpenAI-compatible chat/completions.
+<br/>如使用本地或代理端点，请确保其支持 OpenAI 兼容的 chat/completions 接口。
+
+## 📁 Repository Structure / 目录结构
+- `packages/excalidraw`: Core editor and UI.
+  <br/>核心编辑器与 UI。
+- `excalidraw-app`: App shell and integration layer.
+  <br/>应用外壳与集成层。
+- `packages/element`, `packages/common`, `packages/utils`: Shared packages.
+  <br/>共享基础包。
+- `examples/`: Example projects.
+  <br/>示例工程。
+- `dev-docs/`: Documentation site (optional).
+  <br/>文档站点（可选）。
+
+## 🧪 Useful Scripts / 常用脚本
+- `yarn start`: Run the app locally.
+  <br/>本地运行应用。
+- `yarn test`: Run tests.
+  <br/>运行测试。
+- `yarn build`: Build production assets.
+  <br/>构建生产包。
+
+## 🔒 Privacy & Data / 隐私与数据
+- API keys are stored in `localStorage` in your browser.
+  <br/>API Key 仅保存在浏览器本地 `localStorage`。
+- No keys are committed to the repo.
+  <br/>密钥不会被提交到仓库。
 
 ## 🤝 Original Excalidraw / 原版 Excalidraw
 
