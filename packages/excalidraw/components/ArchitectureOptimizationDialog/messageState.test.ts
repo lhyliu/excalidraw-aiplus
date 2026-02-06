@@ -40,7 +40,7 @@ describe("messagesReducer", () => {
   it("updates last matching message", () => {
     const next = messagesReducer(baseMessages, {
       type: "updateLast",
-      predicate: (m) => m.role === "assistant" && m.isGenerating,
+      predicate: (m) => m.role === "assistant" && Boolean(m.isGenerating),
       patch: { isGenerating: false },
     });
     expect(next[1].isGenerating).toBe(false);

@@ -13,6 +13,8 @@ import {
   DEFAULT_CATEGORIES,
 } from "@excalidraw/excalidraw/components/CommandPalette/CommandPalette";
 import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
+import { AISettingsDialog } from "@excalidraw/excalidraw/components/AISettingsDialog";
+import { ArchitectureOptimizationDialog } from "@excalidraw/excalidraw/components/ArchitectureOptimizationDialog";
 import { OverwriteConfirmDialog } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirm";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
 import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/ShareableLinkDialog";
@@ -142,7 +144,6 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
 import "./index.scss";
 
-import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
@@ -408,6 +409,9 @@ const ExcalidrawWrapper = () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
+  const [showArchitectureOptimization, setShowArchitectureOptimization] =
+    useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   useHandleLibrary({
     excalidrawAPI,
@@ -890,9 +894,13 @@ const ExcalidrawWrapper = () => {
           return (
             <div className="excalidraw-ui-top-right">
               {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
-                />
+                <button
+                  type="button"
+                  className="plus-banner"
+                  onClick={() => setShowArchitectureOptimization(true)}
+                >
+                  AI架构助手
+                </button>
               )}
 
               {collabError.message && <CollabError collabError={collabError} />}
@@ -921,6 +929,16 @@ const ExcalidrawWrapper = () => {
           setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
         />
+        {showAISettings && (
+          <AISettingsDialog onClose={() => setShowAISettings(false)} />
+        )}
+        {showArchitectureOptimization && excalidrawAPI && (
+          <ArchitectureOptimizationDialog
+            elements={excalidrawAPI.getSceneElements()}
+            onClose={() => setShowArchitectureOptimization(false)}
+            onOpenAISettings={() => setShowAISettings(true)}
+          />
+        )}
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}

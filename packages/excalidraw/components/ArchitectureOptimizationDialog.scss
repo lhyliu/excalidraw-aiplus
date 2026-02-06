@@ -2,8 +2,9 @@
     .architecture-optimization-dialog__content {
         display: flex;
         flex-direction: column;
-        height: 70vh;
-        max-height: 600px;
+        height: 85vh;
+        max-height: 850px;
+        min-height: 0;
     }
 
     .architecture-optimization-dialog__not-configured {
@@ -35,6 +36,36 @@
         &:hover {
             opacity: 0.9;
         }
+    }
+
+    .architecture-optimization-dialog__split {
+        display: flex;
+        gap: 1rem;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .architecture-optimization-dialog__panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border: 1px solid var(--color-border-outline-variant);
+        border-radius: 0.75rem;
+        background: var(--color-surface-low);
+    }
+
+    .architecture-optimization-dialog__panel--chat {
+        flex: 0 0 45%;
+        overflow: hidden;
+    }
+
+    .architecture-optimization-dialog__panel--preview {
+        flex: 1;
+        padding: 1rem;
+        gap: 1rem;
+        position: relative;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .architecture-optimization-dialog__messages {
@@ -117,6 +148,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
+        background: var(--color-surface-high);
     }
 
     .architecture-optimization-dialog__input-toolbar {
@@ -306,83 +338,112 @@
         }
     }
 
-    // Result Overlay
-    .architecture-optimization-dialog__result-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(4px);
+    .architecture-optimization-dialog__scheme-tabs {
         display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 100;
-        padding: 1rem;
-        animation: fadeIn 0.3s ease-out;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border-outline-variant);
+        flex-shrink: 0;
     }
 
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-
-    .architecture-optimization-dialog__result-content {
-        background: var(--color-surface-low);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        max-width: 90%;
-        max-height: 90%;
-        overflow: hidden;
+    .architecture-optimization-dialog__scheme-tab {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        animation: slideUp 0.3s ease-out;
+        gap: 0.25rem;
+        padding: 0.5rem 0.75rem;
+        min-width: 140px;
+        border-radius: 0.5rem;
+        border: 1px solid var(--color-border-outline-variant);
+        background: var(--color-surface-low);
+        color: var(--color-on-surface);
+        cursor: pointer;
+        transition: all 0.2s ease;
 
-        h3 {
-            margin: 0;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--color-on-surface);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-
-            &::before {
-                content: "✨";
-            }
-        }
-
-        h4 {
-            margin: 0 0 0.5rem;
-            font-size: 1rem;
-            font-weight: 500;
-            color: var(--color-text-secondary);
+        &:hover {
+            background: var(--color-surface-mid);
         }
     }
 
-    @keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
+    .architecture-optimization-dialog__scheme-tab--active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.12);
+    }
+
+    .architecture-optimization-dialog__scheme-tab-version {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-primary);
+    }
+
+    .architecture-optimization-dialog__scheme-tab-summary {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .architecture-optimization-dialog__preview-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+    }
+
+    .architecture-optimization-dialog__scheme-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+
+        label {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+
+        input {
+            flex: 1;
+            padding: 0.4rem 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--color-border-outline-variant);
+            background: var(--color-surface-low);
+            color: var(--color-on-surface);
+            font-size: 0.85rem;
+
+            &:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.12);
+            }
         }
+    }
+
+    .architecture-optimization-dialog__compare-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        color: var(--color-text-secondary);
+        user-select: none;
+    }
+
+    .architecture-optimization-dialog__compare-select {
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--color-border-outline-variant);
+        background: var(--color-surface-low);
+        color: var(--color-on-surface);
+        font-size: 0.8rem;
     }
 
     .architecture-optimization-dialog__result-summary {
         background: var(--color-surface-mid);
         border-radius: 0.5rem;
         padding: 1rem;
-        max-height: 150px;
+        max-height: clamp(200px, 28vh, 360px);
         overflow-y: auto;
 
         pre {
@@ -397,15 +458,48 @@
 
     .architecture-optimization-dialog__result-preview {
         flex: 1;
-        min-height: 200px;
-        max-height: 300px;
+        min-height: 0;
+        max-height: none;
         overflow: hidden;
         display: flex;
         flex-direction: column;
+
+        h4 {
+            margin: 0 0 0.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+        }
+    }
+
+    .architecture-optimization-dialog__preview-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .architecture-optimization-dialog__preview-grid--compare {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .architecture-optimization-dialog__preview-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-height: 0;
+    }
+
+    .architecture-optimization-dialog__preview-label {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+        font-weight: 600;
     }
 
     .architecture-optimization-dialog__preview-canvas {
         flex: 1;
+        min-height: 0;
         background: var(--default-bg-color, #fff);
         border-radius: 0.5rem;
         border: 1px solid var(--color-border-outline-variant);
@@ -458,11 +552,88 @@
         }
     }
 
-    .architecture-optimization-dialog__result-actions {
+    .architecture-optimization-dialog__accordion {
+        border: 1px solid var(--color-border-outline-variant);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--color-surface-mid);
+
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--color-on-surface);
+            list-style: none;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+    }
+
+    .architecture-optimization-dialog__accordion[open] {
+        max-height: clamp(240px, 32vh, 420px);
+        overflow: hidden;
+    }
+
+    .architecture-optimization-dialog__accordion[open]
+        .architecture-optimization-dialog__result-summary {
+        max-height: none;
+        height: 100%;
+    }
+
+    .architecture-optimization-dialog__preview-actions {
+        position: sticky;
+        bottom: 0;
+        padding: 0.75rem 0 0.5rem;
+        background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0) 0%,
+            var(--color-surface-low) 45%
+        );
         display: flex;
-        gap: 0.75rem;
         justify-content: flex-end;
-        padding-top: 0.5rem;
-        border-top: 1px solid var(--color-border-outline-variant);
+    }
+
+    .architecture-optimization-dialog__panel--preview {
+        > * {
+            flex-shrink: 0;
+        }
+    }
+
+    .architecture-optimization-dialog__panel--preview
+        .architecture-optimization-dialog__result-preview,
+    .architecture-optimization-dialog__panel--preview
+        .architecture-optimization-dialog__accordion {
+        overflow: auto;
+    }
+
+    .architecture-optimization-dialog__panel--preview
+        .architecture-optimization-dialog__result-preview {
+        flex: 1;
+        min-height: 200px;
+    }
+
+    .architecture-optimization-dialog__empty {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: var(--color-text-secondary);
+        padding: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+        .architecture-optimization-dialog__split {
+            flex-direction: column;
+        }
+
+        .architecture-optimization-dialog__panel--chat {
+            flex: 1;
+        }
+
+        .architecture-optimization-dialog__panel--preview {
+            flex: 1;
+        }
     }
 }

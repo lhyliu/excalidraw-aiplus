@@ -1,10 +1,22 @@
 import React, { useState, useCallback, useRef, useEffect, useReducer } from "react";
 
+import {
+  FONT_FAMILY,
+  getFontString,
+  getLineHeight,
+  sceneCoordsToViewportCoords,
+} from "@excalidraw/common";
 import type {
   NonDeletedExcalidrawElement,
   ExcalidrawElement,
+  StrokeStyle,
   Theme,
 } from "@excalidraw/element/types";
+import {
+  getCommonBounds,
+  newTextElement,
+  wrapText,
+} from "@excalidraw/element";
 
 import { useApp } from "../components/App";
 import { useUIAppState } from "../context/ui-appState";
@@ -23,7 +35,10 @@ import {
 import { Dialog } from "./Dialog";
 import { useAIStream } from "./hooks/useAIStream";
 
-import { messagesReducer, type Message } from "./ArchitectureOptimizationDialog/messageState";
+import {
+  messagesReducer,
+  type Message,
+} from "./ArchitectureOptimizationDialog/messageState";
 
 import "./ArchitectureOptimizationDialog.scss";
 
@@ -35,6 +50,7 @@ interface ArchitectureOptimizationDialogProps {
 
 // Storage key for persisting chat history
 const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
+const SCHEMES_STORAGE_KEY = "excalidraw_architecture_schemes";
 
 // Load chat history from localStorage
 const loadChatHistory = (): Message[] => {
@@ -62,10 +78,34 @@ const saveChatHistory = (messages: Message[]): void => {
   }
 };
 
-interface OptimizationResult {
+interface Scheme {
+  id: string;
+  version: number;
   summary: string;
   mermaid: string;
+  shortSummary: string;
+  title?: string;
 }
+
+const loadSchemes = (): Scheme[] => {
+  try {
+    const saved = localStorage.getItem(SCHEMES_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved) as Scheme[];
+    }
+  } catch (e) {
+    console.error("Failed to load schemes:", e);
+  }
+  return [];
+};
+
+const saveSchemes = (schemes: Scheme[]): void => {
+  try {
+    localStorage.setItem(SCHEMES_STORAGE_KEY, JSON.stringify(schemes));
+  } catch (e) {
+    console.error("Failed to save schemes:", e);
+  }
+};
 
 export const ArchitectureOptimizationDialog: React.FC<
   ArchitectureOptimizationDialogProps
@@ -77,8 +117,17 @@ export const ArchitectureOptimizationDialog: React.FC<
     () => loadChatHistory(),
   );
   const [inputValue, setInputValue] = useState("");
-  const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
+  const [schemes, setSchemes] = useState<Scheme[]>(() => loadSchemes());
+  const [activeSchemeId, setActiveSchemeId] = useState<string | null>(() => {
+    const savedSchemes = loadSchemes();
+    return savedSchemes.length > 0 ? savedSchemes[savedSchemes.length - 1].id : null;
+  });
+  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [compareSchemeId, setCompareSchemeId] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<Error | null>(null);
+  const [comparePreviewError, setComparePreviewError] = useState<Error | null>(
+    null,
+  );
 
   const [mermaidToExcalidrawLib, setMermaidToExcalidrawLib] =
     useState<MermaidToExcalidrawLibProps>({
@@ -88,15 +137,37 @@ export const ArchitectureOptimizationDialog: React.FC<
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previewCanvasRef = useRef<HTMLDivElement>(null);
+  const comparePreviewCanvasRef = useRef<HTMLDivElement>(null);
   const previewRetryRef = useRef(0);
-  const parsedData = useRef<{
-    elements: readonly NonDeletedExcalidrawElement[];
-    files: BinaryFiles | null;
-  }>({ elements: [], files: null });
+  const schemeDataRefs = useRef<
+    Record<
+      string,
+      React.MutableRefObject<{
+        elements: readonly NonDeletedExcalidrawElement[];
+        files: BinaryFiles | null;
+      }>
+    >
+  >({});
 
   const app = useApp();
   const uiAppState = useUIAppState();
   const { run: runStream, abort: abortStream, isStreaming } = useAIStream();
+
+  const getSchemeDataRef = useCallback((schemeId: string) => {
+    if (!schemeDataRefs.current[schemeId]) {
+      schemeDataRefs.current[schemeId] = {
+        current: { elements: [], files: null },
+      };
+    }
+    return schemeDataRefs.current[schemeId];
+  }, []);
+
+  const activeScheme =
+    schemes.find((scheme) => scheme.id === activeSchemeId) ||
+    schemes[schemes.length - 1] ||
+    null;
+  const compareScheme =
+    schemes.find((scheme) => scheme.id === compareSchemeId) || null;
 
   useEffect(() => {
     const fn = async () => {
@@ -106,40 +177,99 @@ export const ArchitectureOptimizationDialog: React.FC<
     fn();
   }, [mermaidToExcalidrawLib.api]);
 
+  useEffect(() => {
+    if (schemes.length === 0) {
+      setActiveSchemeId(null);
+      setCompareSchemeId(null);
+      return;
+    }
+    if (!activeSchemeId) {
+      setActiveSchemeId(schemes[schemes.length - 1].id);
+    }
+  }, [schemes, activeSchemeId]);
+
+  useEffect(() => {
+    if (!isCompareMode) {
+      return;
+    }
+    if (!activeScheme || schemes.length < 2) {
+      setCompareSchemeId(null);
+      return;
+    }
+    if (!compareSchemeId || compareSchemeId === activeScheme.id) {
+      const fallback =
+        schemes.find((scheme) => scheme.id !== activeScheme.id) ||
+        schemes[0] ||
+        null;
+      setCompareSchemeId(fallback ? fallback.id : null);
+    }
+  }, [activeScheme, compareSchemeId, isCompareMode, schemes]);
+
+  useEffect(() => {
+    saveSchemes(schemes);
+  }, [schemes]);
+
   // Render preview when result changes
   useEffect(() => {
-    const renderPreview = async () => {
-      if (!optimizationResult?.mermaid || !mermaidToExcalidrawLib.loaded || !previewCanvasRef.current) return;
+    const renderPreview = async (
+      scheme: Scheme | null,
+      canvasRef: React.RefObject<HTMLDivElement | null>,
+      setError: (err: Error | null) => void,
+    ) => {
+      if (
+        !scheme?.mermaid ||
+        !mermaidToExcalidrawLib.loaded ||
+        !canvasRef.current
+      )
+        return;
 
-      const parent = previewCanvasRef.current.parentElement;
+      const parent = canvasRef.current.parentElement;
       if (!parent || parent.offsetWidth === 0 || parent.offsetHeight === 0) {
         if (previewRetryRef.current < 5) {
           previewRetryRef.current += 1;
-          requestAnimationFrame(renderPreview);
+          requestAnimationFrame(() => renderPreview(scheme, canvasRef, setError));
         } else {
-          setPreviewError(new Error("Preview container has no size"));
+          setError(new Error("Preview container has no size"));
         }
         return;
       }
 
+      const dataRef = getSchemeDataRef(scheme.id);
+
       await convertMermaidToExcalidraw({
-        canvasRef: previewCanvasRef,
+        canvasRef,
         mermaidToExcalidrawLib,
-        mermaidDefinition: optimizationResult.mermaid,
+        mermaidDefinition: scheme.mermaid,
         setError: (err) => {
-          setPreviewError(err);
+          setError(err);
           if (err) {
             console.error("Mermaid preview error", err);
           }
         },
-        data: parsedData,
+        data: dataRef,
         theme: uiAppState.theme as Theme,
       });
     };
+
     previewRetryRef.current = 0;
     setPreviewError(null);
-    renderPreview();
-  }, [optimizationResult, mermaidToExcalidrawLib.loaded, uiAppState.theme]);
+    setComparePreviewError(null);
+    renderPreview(activeScheme, previewCanvasRef, setPreviewError);
+    if (isCompareMode) {
+      renderPreview(
+        compareScheme,
+        comparePreviewCanvasRef,
+        setComparePreviewError,
+      );
+    }
+  }, [
+    activeScheme,
+    compareScheme,
+    isCompareMode,
+    getSchemeDataRef,
+    mermaidToExcalidrawLib.loaded,
+    uiAppState.theme,
+  ]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -333,7 +463,7 @@ export const ArchitectureOptimizationDialog: React.FC<
     abortStream();
     dispatchMessages({
       type: "updateLast",
-      predicate: (m) => m.role === "assistant" && m.isGenerating,
+      predicate: (m) => m.role === "assistant" && Boolean(m.isGenerating),
       patch: { isGenerating: false, error: "Request aborted" },
     });
   }, [abortStream]);
@@ -351,6 +481,28 @@ export const ArchitectureOptimizationDialog: React.FC<
       }
     },
     [handleSendMessage],
+  );
+
+  const handleRenameScheme = useCallback((schemeId: string, title: string) => {
+    setSchemes((prev) =>
+      prev.map((scheme) =>
+        scheme.id === schemeId ? { ...scheme, title } : scheme,
+      ),
+    );
+  }, []);
+
+  const handleToggleCompare = useCallback(
+    (checked: boolean) => {
+      setIsCompareMode(checked);
+      if (checked && !compareSchemeId && schemes.length > 1) {
+        const fallback =
+          schemes.find((scheme) => scheme.id !== activeScheme?.id) ||
+          schemes[0] ||
+          null;
+        setCompareSchemeId(fallback ? fallback.id : null);
+      }
+    },
+    [activeScheme?.id, compareSchemeId, schemes],
   );
 
   const handleGeneratePlan = useCallback(async () => {
@@ -426,7 +578,23 @@ export const ArchitectureOptimizationDialog: React.FC<
         return;
       }
 
-      setOptimizationResult(result);
+      const shortSummary =
+        result.summary.trim().split("\n").find(Boolean)?.trim() ||
+        "优化方案";
+      setSchemes((prev) => {
+        const nextVersion =
+          prev.length > 0 ? prev[prev.length - 1].version + 1 : 1;
+        const scheme: Scheme = {
+          id: `scheme-${Date.now()}`,
+          version: nextVersion,
+          summary: result.summary,
+          mermaid: result.mermaid,
+          shortSummary,
+          title: "",
+        };
+        setActiveSchemeId(scheme.id);
+        return [...prev, scheme];
+      });
 
       // Remove the temporary generating message
       dispatchMessages({ type: "remove", id: assistantMsgId });
@@ -447,63 +615,105 @@ export const ArchitectureOptimizationDialog: React.FC<
     }
   }, [elements, messages, runStream, isStreaming]);
 
-  const handleInsertDiagram = () => {
-    if (!parsedData.current.elements || parsedData.current.elements.length === 0) return;
+  const insertSchemeToCanvas = useCallback(
+    (scheme: Scheme) => {
+      const dataRef = getSchemeDataRef(scheme.id);
+      if (!dataRef.current.elements || dataRef.current.elements.length === 0)
+        return;
 
-    const newElements = parsedData.current.elements;
-    const files = parsedData.current.files;
+      const newElements = dataRef.current.elements;
+      const files = dataRef.current.files;
 
-    // Calculate bounding box of reference elements (props.elements or all non-deleted)
-    const referenceElements = elements.length > 0 ? elements : app.scene.getNonDeletedElements();
+      const referenceElements =
+        app.scene.getNonDeletedElements().length > 0
+          ? app.scene.getNonDeletedElements()
+          : elements;
 
-    let maxX = -Infinity;
-    let minY = Infinity;
+      const hasReference = referenceElements.length > 0;
+      const [, refMinY, refMaxX] = hasReference
+        ? getCommonBounds(referenceElements)
+        : [0, 0, 0, 0];
+      const [newMinX, newMinY, newMaxX, newMaxY] =
+        getCommonBounds(newElements);
+      const newWidth = newMaxX - newMinX;
+      const newHeight = newMaxY - newMinY;
 
-    if (referenceElements.length > 0) {
-      for (const element of referenceElements) {
-        maxX = Math.max(maxX, element.x + element.width);
-        minY = Math.min(minY, element.y);
-      }
-    } else {
-      maxX = 0;
-      minY = 0;
-    }
+      const title = scheme.title?.trim() || `方案 ${scheme.version}`;
+      const summaryText = `${title}\n\n${scheme.summary.trim()}`;
+      const fontFamily = FONT_FAMILY.Assistant;
+      const fontSize = 16;
+      const lineHeight = getLineHeight(fontFamily);
+      const maxTextWidth = Math.max(260, Math.min(520, newWidth));
+      const wrappedText = wrapText(
+        summaryText,
+        getFontString({ fontFamily, fontSize }),
+        maxTextWidth,
+      );
+      const textElement = newTextElement({
+        x: newMinX,
+        y: newMaxY + 48,
+        text: wrappedText,
+        originalText: summaryText,
+        fontSize,
+        fontFamily,
+        lineHeight,
+        textAlign: "left",
+        verticalAlign: "top",
+        autoResize: false,
+        strokeColor: "#1f2937",
+        backgroundColor: "transparent",
+      });
 
-    if (maxX === -Infinity) maxX = 0;
-    if (minY === Infinity) minY = 0;
+      const styledElements: NonDeletedExcalidrawElement[] =
+        newElements.map<NonDeletedExcalidrawElement>((el) => {
+        if (
+          "strokeStyle" in el &&
+          "strokeColor" in el &&
+          "backgroundColor" in el
+        ) {
+          return {
+            ...el,
+            strokeStyle: "dashed" as StrokeStyle,
+            strokeColor: "#6366f1",
+            backgroundColor:
+              el.backgroundColor === "transparent"
+                ? "transparent"
+                : "rgba(99, 102, 241, 0.08)",
+          };
+        }
+        return el;
+      });
 
-    const PADDING = 100;
-    const INSERT_X = maxX + PADDING;
-    const INSERT_Y = minY;
+      const combinedElements: readonly ExcalidrawElement[] = [
+        ...styledElements,
+        textElement,
+      ];
+      const [combinedMinX, combinedMinY, combinedMaxX, combinedMaxY] =
+        getCommonBounds(combinedElements);
+      const combinedWidth = combinedMaxX - combinedMinX;
+      const combinedHeight = combinedMaxY - combinedMinY;
 
-    // Calculate bounding box of NEW elements to find their top-left
-    let newMinX = Infinity;
-    let newMinY = Infinity;
-    for (const element of newElements) {
-      newMinX = Math.min(newMinX, element.x);
-      newMinY = Math.min(newMinY, element.y);
-    }
+      const PADDING = 160;
+      const targetLeft = hasReference ? refMaxX + PADDING : 0;
+      const targetTop = hasReference ? refMinY : 0;
+      const targetCenterX = targetLeft + combinedWidth / 2;
+      const targetCenterY = targetTop + combinedHeight / 2;
+      const { x: clientX, y: clientY } = sceneCoordsToViewportCoords(
+        { sceneX: targetCenterX, sceneY: targetCenterY },
+        app.state,
+      );
 
-    // Shift new elements
-    const shiftedElements = newElements.map(el => ({
-      ...el,
-      x: el.x - newMinX + INSERT_X,
-      y: el.y - newMinY + INSERT_Y,
-    }));
+      app.addElementsFromPasteOrLibrary({
+        elements: combinedElements,
+        files,
+        position: { clientX, clientY },
+        fitToContent: false,
+      });
 
-    app.addElementsFromPasteOrLibrary({
-      elements: shiftedElements,
-      files,
-      position: "center",
-      fitToContent: false
-    });
-
-    onClose();
-  };
-
-  const handleCloseResult = () => {
-    setOptimizationResult(null);
-  };
+      onClose();
+    },
+    [app, elements, getSchemeDataRef, onClose],
+  );
 
 
   // Show configuration prompt if AI is not configured
@@ -536,137 +746,260 @@ export const ArchitectureOptimizationDialog: React.FC<
       size="wide"
     >
       <div className="architecture-optimization-dialog__content">
-        <div className="architecture-optimization-dialog__messages">
-          {messages.length === 0 ? (
-            <div className="architecture-optimization-dialog__welcome">
-              <h3>🏗️ AI架构助手</h3>
-              <p>分析您的架构图并提供专业的优化建议。</p>
-              <div className="architecture-optimization-dialog__welcome-actions">
-                <button
-                  className="architecture-optimization-dialog__button architecture-optimization-dialog__button--primary"
-                  onClick={handleStartAnalysis}
-                  disabled={isStreaming}
-                >
-                  开始分析当前架构
-                </button>
-              </div>
-              <p className="architecture-optimization-dialog__welcome-hint">
-                或直接在下方输入您的问题
-              </p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`architecture-optimization-dialog__message architecture-optimization-dialog__message--${message.role}`}
-              >
-                <div className="architecture-optimization-dialog__message-content">
-                  {message.content}
-                  {message.isGenerating && (
-                    <span className="architecture-optimization-dialog__cursor">
-                      ▌
-                    </span>
-                  )}
-                </div>
-                {message.error && (
-                  <div className="architecture-optimization-dialog__message-error">
-                    错误: {message.error}
+        <div className="architecture-optimization-dialog__split">
+          <div className="architecture-optimization-dialog__panel architecture-optimization-dialog__panel--chat">
+            <div className="architecture-optimization-dialog__messages">
+              {messages.length === 0 ? (
+                <div className="architecture-optimization-dialog__welcome">
+                  <h3>🏗️ AI架构助手</h3>
+                  <p>分析您的架构图并提供专业的优化建议。</p>
+                  <div className="architecture-optimization-dialog__welcome-actions">
+                    <button
+                      className="architecture-optimization-dialog__button architecture-optimization-dialog__button--primary"
+                      onClick={handleStartAnalysis}
+                      disabled={isStreaming}
+                    >
+                      开始分析当前架构
+                    </button>
                   </div>
+                  <p className="architecture-optimization-dialog__welcome-hint">
+                    或直接在下方输入您的问题
+                  </p>
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`architecture-optimization-dialog__message architecture-optimization-dialog__message--${message.role}`}
+                  >
+                    <div className="architecture-optimization-dialog__message-content">
+                      {message.content}
+                      {message.isGenerating && (
+                        <span className="architecture-optimization-dialog__cursor">
+                          ▌
+                        </span>
+                      )}
+                    </div>
+                    {message.error && (
+                      <div className="architecture-optimization-dialog__message-error">
+                        错误: {message.error}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="architecture-optimization-dialog__input-area">
+              {messages.length > 0 && (
+                <div className="architecture-optimization-dialog__input-toolbar">
+                  <button
+                    className="architecture-optimization-dialog__clear-button"
+                    onClick={handleClearHistory}
+                    disabled={isStreaming}
+                    title="清除对话历史"
+                  >
+                    🗑️ 清除
+                  </button>
+                  <button
+                    className="architecture-optimization-dialog__action-button"
+                    onClick={handleGeneratePlan}
+                    disabled={isStreaming}
+                    title="生成优化方案及新图表"
+                  >
+                    ✨ 生成优化方案
+                  </button>
+                </div>
+              )}
+              <textarea
+                className="architecture-optimization-dialog__input"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="输入您的问题，例如：如何提高这个架构的可扩展性？"
+                disabled={isStreaming}
+                rows={2}
+              />
+              <div className="architecture-optimization-dialog__input-actions">
+                {isStreaming ? (
+                  <button
+                    className="architecture-optimization-dialog__button architecture-optimization-dialog__button--abort"
+                    onClick={handleAbort}
+                  >
+                    停止
+                  </button>
+                ) : (
+                  <button
+                    className="architecture-optimization-dialog__button architecture-optimization-dialog__button--send"
+                    onClick={handleSendMessage}
+                    disabled={!inputValue.trim()}
+                  >
+                    发送
+                  </button>
                 )}
               </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+            </div>
+          </div>
 
-        <div className="architecture-optimization-dialog__input-area">
-          {messages.length > 0 && (
-            <div className="architecture-optimization-dialog__input-toolbar">
+          <div className="architecture-optimization-dialog__panel architecture-optimization-dialog__panel--preview">
+            <div className="architecture-optimization-dialog__scheme-tabs">
+              {schemes.map((scheme) => {
+                const isActive = scheme.id === activeScheme?.id;
+                const tabTitle = scheme.title?.trim() || scheme.shortSummary;
+                return (
+                  <button
+                    key={scheme.id}
+                    className={`architecture-optimization-dialog__scheme-tab ${
+                      isActive
+                        ? "architecture-optimization-dialog__scheme-tab--active"
+                        : ""
+                    }`}
+                    onClick={() => setActiveSchemeId(scheme.id)}
+                    type="button"
+                  >
+                    <span className="architecture-optimization-dialog__scheme-tab-version">
+                      方案 {scheme.version}
+                    </span>
+                    <span className="architecture-optimization-dialog__scheme-tab-summary">
+                      {tabTitle}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeScheme ? (
+              <>
+                <div className="architecture-optimization-dialog__preview-toolbar">
+                  <div className="architecture-optimization-dialog__scheme-title">
+                    <label htmlFor="scheme-title">方案名称</label>
+                    <input
+                      id="scheme-title"
+                      type="text"
+                      value={activeScheme.title || ""}
+                      onChange={(e) =>
+                        handleRenameScheme(activeScheme.id, e.target.value)
+                      }
+                      placeholder="为方案起个名字"
+                    />
+                  </div>
+                  <label className="architecture-optimization-dialog__compare-toggle">
+                    <input
+                      type="checkbox"
+                      checked={isCompareMode}
+                      onChange={(e) => handleToggleCompare(e.target.checked)}
+                      disabled={schemes.length < 2}
+                    />
+                    对比模式
+                  </label>
+                  {isCompareMode && (
+                    <select
+                      className="architecture-optimization-dialog__compare-select"
+                      value={compareScheme?.id || ""}
+                      onChange={(e) => setCompareSchemeId(e.target.value)}
+                      disabled={schemes.length < 2}
+                    >
+                      {!compareScheme && (
+                        <option value="">请选择对比方案</option>
+                      )}
+                      {schemes
+                        .filter((scheme) => scheme.id !== activeScheme.id)
+                        .map((scheme) => (
+                          <option key={scheme.id} value={scheme.id}>
+                            方案 {scheme.version} ·{" "}
+                            {scheme.title?.trim() || scheme.shortSummary}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="architecture-optimization-dialog__result-preview">
+                  <h4>新架构预览 (Mermaid)</h4>
+                  <div
+                    className={`architecture-optimization-dialog__preview-grid ${
+                      isCompareMode
+                        ? "architecture-optimization-dialog__preview-grid--compare"
+                        : ""
+                    }`}
+                  >
+                    <div className="architecture-optimization-dialog__preview-card">
+                      <div className="architecture-optimization-dialog__preview-label">
+                        当前方案
+                      </div>
+                      <div className="architecture-optimization-dialog__preview-canvas">
+                        <div
+                          ref={previewCanvasRef}
+                          className="architecture-optimization-dialog__preview-canvas-inner"
+                        />
+                        {previewError && (
+                          <div className="architecture-optimization-dialog__preview-error">
+                            <div>无法渲染预览：{previewError.message}</div>
+                            {activeScheme?.mermaid && (
+                              <pre className="architecture-optimization-dialog__preview-error-mermaid">
+                                {activeScheme.mermaid}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {isCompareMode && compareScheme && (
+                      <div className="architecture-optimization-dialog__preview-card">
+                        <div className="architecture-optimization-dialog__preview-label">
+                          对比方案
+                        </div>
+                        <div className="architecture-optimization-dialog__preview-canvas">
+                          <div
+                            ref={comparePreviewCanvasRef}
+                            className="architecture-optimization-dialog__preview-canvas-inner"
+                          />
+                          {comparePreviewError && (
+                            <div className="architecture-optimization-dialog__preview-error">
+                              <div>
+                                无法渲染预览：{comparePreviewError.message}
+                              </div>
+                              {compareScheme?.mermaid && (
+                                <pre className="architecture-optimization-dialog__preview-error-mermaid">
+                                  {compareScheme.mermaid}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <details className="architecture-optimization-dialog__accordion">
+                  <summary>优化方案建议</summary>
+                  <div className="architecture-optimization-dialog__result-summary">
+                    <pre>{activeScheme.summary}</pre>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <div className="architecture-optimization-dialog__empty">
+                暂无优化方案，点击“生成优化方案”开始。
+              </div>
+            )}
+
+            <div className="architecture-optimization-dialog__preview-actions">
               <button
-                className="architecture-optimization-dialog__clear-button"
-                onClick={handleClearHistory}
-                disabled={isStreaming}
-                title="清除对话历史"
+                onClick={() =>
+                  activeScheme ? insertSchemeToCanvas(activeScheme) : null
+                }
+                className="architecture-optimization-dialog__button--primary"
+                disabled={!activeScheme}
               >
-                🗑️ 清除
-              </button>
-              <button
-                className="architecture-optimization-dialog__action-button"
-                onClick={handleGeneratePlan}
-                disabled={isStreaming}
-                title="生成优化方案及新图表"
-              >
-                ✨ 生成优化方案
+                插入到主图旁
               </button>
             </div>
-          )}
-          <textarea
-            className="architecture-optimization-dialog__input"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="输入您的问题，例如：如何提高这个架构的可扩展性？"
-            disabled={isStreaming}
-            rows={2}
-          />
-          <div className="architecture-optimization-dialog__input-actions">
-            {isStreaming ? (
-              <button
-                className="architecture-optimization-dialog__button architecture-optimization-dialog__button--abort"
-                onClick={handleAbort}
-              >
-                停止
-              </button>
-            ) : (
-              <button
-                className="architecture-optimization-dialog__button architecture-optimization-dialog__button--send"
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim()}
-              >
-                发送
-              </button>
-            )}
           </div>
         </div>
       </div>
-
-      {optimizationResult && (
-        <div className="architecture-optimization-dialog__result-overlay">
-          <div className="architecture-optimization-dialog__result-content">
-            <h3>优化方案建议</h3>
-            <div className="architecture-optimization-dialog__result-summary">
-              <pre>{optimizationResult.summary}</pre>
-            </div>
-            <div className="architecture-optimization-dialog__result-preview">
-              <h4>新架构预览 (Mermaid)</h4>
-              <div className="architecture-optimization-dialog__preview-canvas">
-                <div
-                  ref={previewCanvasRef}
-                  className="architecture-optimization-dialog__preview-canvas-inner"
-                />
-                {previewError && (
-                  <div className="architecture-optimization-dialog__preview-error">
-                    <div>无法渲染预览：{previewError.message}</div>
-                    {optimizationResult?.mermaid && (
-                      <pre className="architecture-optimization-dialog__preview-error-mermaid">
-                        {optimizationResult.mermaid}
-                      </pre>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="architecture-optimization-dialog__result-actions">
-              <button onClick={handleInsertDiagram} className="architecture-optimization-dialog__button--primary">
-                插入并对比
-              </button>
-              <button onClick={handleCloseResult} className="architecture-optimization-dialog__button--secondary">
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Dialog>
   );
 };

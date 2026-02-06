@@ -9,10 +9,8 @@ import { useExcalidrawElements } from "@excalidraw/excalidraw/components/App";
 import type { Theme } from "@excalidraw/element/types";
 
 import { LanguageList } from "../app-language/LanguageList";
-import {
-  saveDebugState,
-  loadSavedDebugState,
-} from "./DebugCanvas";
+
+import { loadSavedDebugState, saveDebugState } from "./DebugCanvas";
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
