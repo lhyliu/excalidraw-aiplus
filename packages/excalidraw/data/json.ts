@@ -20,10 +20,12 @@ import type {
   ExportedLibraryData,
   ImportedLibraryData,
   ArchitectureChatMessage,
+  ArchitectureScheme,
 } from "./types";
 
 // Storage key for architecture chat history
 const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
+const SCHEMES_STORAGE_KEY = "excalidraw_architecture_schemes";
 
 // Get chat history from localStorage
 export const getArchitectureChatHistory = (): ArchitectureChatMessage[] => {
@@ -46,6 +48,26 @@ export const setArchitectureChatHistory = (
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
   } catch (e) {
     console.error("Failed to save chat history:", e);
+  }
+};
+
+export const getArchitectureSchemes = (): ArchitectureScheme[] => {
+  try {
+    const saved = localStorage.getItem(SCHEMES_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error("Failed to load schemes:", e);
+  }
+  return [];
+};
+
+export const setArchitectureSchemes = (schemes: ArchitectureScheme[]): void => {
+  try {
+    localStorage.setItem(SCHEMES_STORAGE_KEY, JSON.stringify(schemes));
+  } catch (e) {
+    console.error("Failed to save schemes:", e);
   }
 };
 
@@ -93,6 +115,7 @@ export const serializeAsJSON = (
     // Include architecture chat history in local saves
     architectureChatHistory:
       type === "local" ? getArchitectureChatHistory() : undefined,
+    architectureSchemes: type === "local" ? getArchitectureSchemes() : undefined,
   };
 
   return JSON.stringify(data, null, 2);

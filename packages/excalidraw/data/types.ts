@@ -17,6 +17,15 @@ export interface ArchitectureChatMessage {
   content: string;
 }
 
+export interface ArchitectureScheme {
+  id: string;
+  version: number;
+  summary: string;
+  mermaid: string;
+  shortSummary: string;
+  title?: string;
+}
+
 export interface ExportedDataState {
   type: string;
   version: number;
@@ -25,6 +34,7 @@ export interface ExportedDataState {
   appState: ReturnType<typeof cleanAppStateForExport>;
   files: BinaryFiles | undefined;
   architectureChatHistory?: ArchitectureChatMessage[];
+  architectureSchemes?: ArchitectureScheme[];
 }
 
 /**
@@ -55,6 +65,7 @@ export interface ImportedDataState {
   libraryItems?: LibraryItems_anyVersion;
   files?: BinaryFiles;
   architectureChatHistory?: ArchitectureChatMessage[];
+  architectureSchemes?: ArchitectureScheme[];
 }
 
 export interface ExportedLibraryData {

@@ -22,6 +22,7 @@ import {
   isValidExcalidrawData,
   isValidLibrary,
   setArchitectureChatHistory,
+  setArchitectureSchemes,
 } from "./json";
 import {
   restoreAppState,
@@ -167,6 +168,12 @@ export const loadSceneOrLibraryFromBlob = async (
         Array.isArray(data.architectureChatHistory)
       ) {
         setArchitectureChatHistory(data.architectureChatHistory);
+      }
+      if (
+        data.architectureSchemes &&
+        Array.isArray(data.architectureSchemes)
+      ) {
+        setArchitectureSchemes(data.architectureSchemes);
       }
 
       return {
