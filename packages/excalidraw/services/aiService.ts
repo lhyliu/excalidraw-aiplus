@@ -12,9 +12,16 @@ export interface AISettings {
 
 export interface StreamCallbacks {
   onChunk: (chunk: string) => void;
+  onReasoning?: (chunk: string) => void;
   onComplete?: () => void;
   onError?: (error: Error) => void;
+  includeReasoning?: boolean;
 }
+
+export type AIMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
 
 // Constants
 const AI_SETTINGS_KEY = "excalidraw_ai_settings";
@@ -57,7 +64,7 @@ export const isAIConfigured = (): boolean => {
 /**
  * Normalize API URL to ensure it ends with /chat/completions
  */
-const normalizeApiUrl = (url: string): string => {
+const normalizeApiUrl = (url: string, preferResponses = false): string => {
   let normalized = url.trim();
   // Remove trailing slash
   if (normalized.endsWith("/")) {
@@ -73,10 +80,16 @@ const normalizeApiUrl = (url: string): string => {
   // or looks like a complete path (e.g. has /api/v...)
   // If so, just append /chat/completions (unless it was caught above)
   if (/\/v\d+(?:\/|$)/i.test(normalized) || normalized.includes("/api/")) {
+    if (preferResponses) {
+      return normalized + "/responses";
+    }
     return normalized + "/chat/completions";
   }
 
   // Default: assume standard OpenAI-like base and add /v1
+  if (preferResponses) {
+    return normalized + "/v1/responses";
+  }
   return normalized + "/v1/chat/completions";
 };
 
@@ -84,7 +97,7 @@ const normalizeApiUrl = (url: string): string => {
  * Call AI API with streaming support
  */
 export const callAIStream = async (
-  messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
+  messages: AIMessage[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
   customSettings?: AISettings,
@@ -97,7 +110,7 @@ export const callAIStream = async (
     return { success: false, error: error.message };
   }
 
-  const apiUrl = normalizeApiUrl(settings.apiUrl);
+  const apiUrl = normalizeApiUrl(settings.apiUrl, !!callbacks.includeReasoning);
   const model = settings.model || DEFAULT_MODEL;
 
   // Construct payload based on endpoint type
@@ -117,6 +130,9 @@ export const callAIStream = async (
         },
       ],
     }));
+    if (callbacks.includeReasoning) {
+      payload.thinking = { type: "enabled" };
+    }
   } else {
     // Standard OpenAI format
     payload.messages = messages;
@@ -155,7 +171,7 @@ export const callAIStream = async (
     const decoder = new TextDecoder();
     let buffer = "";
 
-    while (true) {
+  while (true) {
       const { done, value } = await reader.read();
       if (done) {
         break;
@@ -174,34 +190,74 @@ export const callAIStream = async (
         if (trimmed.startsWith("event:")) {
           continue;
         }
-        if (!trimmed.startsWith("data: ")) {
+        if (!trimmed.startsWith("data:")) {
           continue;
         }
 
         try {
-          const json = JSON.parse(trimmed.slice(6));
+          const json = JSON.parse(trimmed.replace(/^data:\s?/, ""));
           let content: string | undefined;
+          let reasoning: string | undefined;
 
           // Try OpenAI format first
           content = json.choices?.[0]?.delta?.content;
-
-          // Volcengine /responses format: reasoning_summary_text or output_text
-          if (!content && json.type?.includes("delta") && json.delta) {
-            content = json.delta;
+          if (callbacks.includeReasoning) {
+            reasoning =
+              json.choices?.[0]?.delta?.reasoning ||
+              json.choices?.[0]?.delta?.reasoning_content ||
+              json.choices?.[0]?.delta?.reasoning_summary;
           }
 
-          // Alternative: response.output_text.delta
-          if (!content && json.type === "response.output_text.delta" && json.delta) {
-            content = json.delta;
+          // Volcengine /responses format
+          // IMPORTANT: Skip reasoning_summary events - only capture output_text
+          if (json.type) {
+            // Only accept actual output text, not reasoning
+            if (json.type === "response.output_text.delta" && json.delta) {
+              content = json.delta;
+            }
+            // Also accept content_part delta
+            if (json.type === "response.content_part.delta" && json.delta?.text) {
+              content = json.delta.text;
+            }
+            if (callbacks.includeReasoning) {
+              if (
+                json.type === "response.reasoning_summary_text.delta" ||
+                json.type === "response.reasoning_text.delta"
+              ) {
+                reasoning = json.delta || json.delta?.text;
+              } else if (json.type === "response.reasoning_summary_part.added") {
+                reasoning = json.part?.text || json.part?.summary_text;
+              } else if (
+                json.type === "response.reasoning_summary_text.done" ||
+                json.type === "response.reasoning_text.done"
+              ) {
+                reasoning = json.text;
+              } else if (typeof json.type === "string" && json.type.includes("reasoning")) {
+                reasoning =
+                  json.delta ||
+                  json.delta?.text ||
+                  json.text ||
+                  json.part?.text ||
+                  json.part?.summary_text;
+              }
+            }
+            // Skip these event types:
+            // - response.reasoning_summary_text.delta (chain of thought)
+            // - response.reasoning_summary_text.done
+            // - response.in_progress
+            // - response.created
           }
 
-          // Another fallback for content_block_delta
-          if (!content && json.delta?.text) {
+          // Another fallback for content_block_delta (Anthropic format)
+          if (!content && json.delta?.text && json.type === "content_block_delta") {
             content = json.delta.text;
           }
 
           if (content) {
             callbacks.onChunk(content);
+          }
+          if (reasoning) {
+            callbacks.onReasoning?.(reasoning);
           }
         } catch {
           // Skip invalid JSON lines
@@ -221,16 +277,34 @@ export const callAIStream = async (
         (error.message === "Failed to fetch" ||
           error.message.includes("NetworkError"))
       ) {
+        const wrapped = new Error(
+          "连接失败 (Failed to fetch)。可能是因为：\n1. API地址不正确\n2. 网络问题\n3. 跨域限制 (CORS)\n请检查控制台(F12)获取详细错误信息。",
+        );
+        callbacks.onError?.(wrapped);
         return {
           success: false,
-          error:
-            "连接失败 (Failed to fetch)。可能是因为：\n1. API地址不正确\n2. 网络问题\n3. 跨域限制 (CORS)\n请检查控制台(F12)获取详细错误信息。",
+          error: wrapped.message,
         };
       }
       callbacks.onError?.(error);
       return { success: false, error: error.message };
     }
     return { success: false, error: "Unknown error" };
+  }
+};
+
+/**
+ * Run AI stream and throw on failure for consistent error handling.
+ */
+export const runAIStream = async (
+  messages: AIMessage[],
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+  customSettings?: AISettings,
+): Promise<void> => {
+  const result = await callAIStream(messages, callbacks, signal, customSettings);
+  if (!result.success) {
+    throw new Error(result.error || "Unknown error");
   }
 };
 
@@ -332,4 +406,109 @@ ${diagramInfo}
 6. 推荐的优化方向
 
 请用中文回答，使用清晰的结构和要点。`;
+};
+
+/**
+ * Generate system prompt for architecture optimization plan
+ */
+export const getOptimizationPlanPrompt = (
+  diagramInfo: string,
+  chatHistory: string,
+): string => {
+  return `你是一个专业的系统架构师。根据当前架构图信息和我们的对话记录，生成一个优化方案。
+
+<当前架构图信息>
+${diagramInfo}
+</当前架构图信息>
+
+<对话历史>
+${chatHistory}
+</对话历史>
+
+你的任务是：
+1. 总结对话中讨论的优化建议
+2. 生成一个有效的Mermaid图表代码，表示优化后的新架构
+
+【重要】输出格式要求：
+你必须严格按照以下格式输出，不要添加任何其他内容：
+
+## 变更总结
+- [变更1]
+- [变更2]
+- [变更3]
+
+\`\`\`mermaid
+graph TD
+    A[组件1] --> B[组件2]
+    B --> C[组件3]
+\`\`\`
+
+注意事项：
+- Mermaid代码必须是有效的flowchart/graph语法
+- 必须包含完整的架构，而不仅仅是变更部分
+- 使用中文标签
+- 确保代码在三个反引号内，并标记为mermaid`;
+};
+
+/**
+ * Generate optimization plan (summary + new diagram)
+ */
+export const generateOptimizationPlan = async (
+  messages: AIMessage[],
+  diagramInfo: string,
+  onChunk: (data: { summary?: string; mermaid?: string; reasoning?: string }) => void,
+  signal?: AbortSignal,
+): Promise<{ summary: string; mermaid: string }> => {
+  const chatHistory = messages
+    .filter((m) => m.content && !m.content.includes("base64")) // Filter out large payloads if any
+    .map((m) => `${m.role}: ${m.content}`)
+    .join("\n");
+
+  const systemPrompt = getOptimizationPlanPrompt(diagramInfo, chatHistory);
+
+  let fullResponse = "";
+
+  await runAIStream(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "请根据以上对话内容，生成优化后的架构方案。必须包含变更总结和Mermaid代码块。" },
+    ],
+    {
+      onChunk: (chunk) => {
+        fullResponse += chunk;
+        onChunk({ summary: fullResponse });
+      },
+      onReasoning: (chunk) => {
+        onChunk({ reasoning: chunk });
+      },
+      includeReasoning: true,
+    },
+    signal,
+  );
+
+  // Parse result - try multiple patterns
+  let mermaidMatch = fullResponse.match(/```mermaid\s*([\s\S]*?)```/);
+  if (!mermaidMatch) {
+    // Try without mermaid tag
+    mermaidMatch = fullResponse.match(/```\s*(graph\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/);
+  }
+  if (!mermaidMatch) {
+    // Try flowchart syntax
+    mermaidMatch = fullResponse.match(/```\s*(flowchart\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/);
+  }
+
+  const mermaid = mermaidMatch ? mermaidMatch[1].trim() : "";
+
+  // Summary is everything before the mermaid block
+  const summaryPart = mermaidMatch
+    ? fullResponse.substring(0, mermaidMatch.index).trim()
+    : fullResponse;
+
+  // Clean up summary markdown headers if present
+  const summary = summaryPart
+    .replace(/^## 变更总结\s*/i, "")
+    .replace(/^## Summary\s*/i, "")
+    .trim();
+
+  return { summary, mermaid };
 };

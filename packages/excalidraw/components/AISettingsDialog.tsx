@@ -3,11 +3,12 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
   getAISettings,
   setAISettings,
-  callAIStream,
   type AISettings,
+  runAIStream,
 } from "../services/aiService";
 
 import { Dialog } from "./Dialog";
+import { useAIStream } from "./hooks/useAIStream";
 
 import "./AISettingsDialog.scss";
 
@@ -26,8 +27,8 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
+  const { run: runStream, isStreaming } = useAIStream();
 
   // Load existing settings on mount
   useEffect(() => {
@@ -60,22 +61,22 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
       return;
     }
 
-    setIsTesting(true);
     setError(null);
     setTestSuccess(null);
     setSuccess(false);
 
     try {
-      const result = await callAIStream(
-        [{ role: "user", content: "Hi" }],
-        {
-          onChunk: () => { },
-          onError: () => { },
-        },
-        undefined,
-        settings,
+      const result = await runStream((signal) =>
+        runAIStream(
+          [{ role: "user", content: "Hi" }],
+          {
+            onChunk: () => { },
+            onError: () => { },
+          },
+          signal,
+          settings,
+        ),
       );
-
       if (result.success) {
         setTestSuccess("连接成功! (Connection successful)");
       } else {
@@ -83,10 +84,8 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "连接失败 (Connection failed)");
-    } finally {
-      setIsTesting(false);
     }
-  }, [settings]);
+  }, [settings, runStream]);
 
   const handleSave = useCallback(() => {
     // Validate
@@ -180,10 +179,10 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             <button
               className="ai-settings-dialog__button ai-settings-dialog__button--secondary"
               onClick={handleTest}
-              disabled={isSaving || isTesting}
+              disabled={isSaving || isStreaming}
               type="button"
             >
-              {isTesting ? "测试中..." : "测试连接"}
+              {isStreaming ? "测试中..." : "测试连接"}
             </button>
           </div>
           <button
