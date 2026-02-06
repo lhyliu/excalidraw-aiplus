@@ -63,14 +63,21 @@ const normalizeApiUrl = (url: string): string => {
   if (normalized.endsWith("/")) {
     normalized = normalized.slice(0, -1);
   }
-  // Add /chat/completions if not present
-  if (!normalized.endsWith("/chat/completions")) {
-    if (!normalized.endsWith("/v1")) {
-      normalized += "/v1";
-    }
-    normalized += "/chat/completions";
+  // Specific endpoints that are definitely full URLs
+  // /responses is common for some providers (e.g. Volcengine)
+  if (normalized.endsWith("/chat/completions") || normalized.endsWith("/responses")) {
+    return normalized;
   }
-  return normalized;
+
+  // Check if it already has a version segment like /v1, /v2, /v3...
+  // or looks like a complete path (e.g. has /api/v...)
+  // If so, just append /chat/completions (unless it was caught above)
+  if (/\/v\d+(?:\/|$)/i.test(normalized) || normalized.includes("/api/")) {
+    return normalized + "/chat/completions";
+  }
+
+  // Default: assume standard OpenAI-like base and add /v1
+  return normalized + "/v1/chat/completions";
 };
 
 /**
@@ -80,8 +87,9 @@ export const callAIStream = async (
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
+  customSettings?: AISettings,
 ): Promise<{ success: boolean; error?: string }> => {
-  const settings = getAISettings();
+  const settings = customSettings || getAISettings();
 
   if (!settings?.apiUrl || !settings?.apiKey) {
     const error = new Error("AI settings not configured");
@@ -92,6 +100,28 @@ export const callAIStream = async (
   const apiUrl = normalizeApiUrl(settings.apiUrl);
   const model = settings.model || DEFAULT_MODEL;
 
+  // Construct payload based on endpoint type
+  let payload: any = {
+    model,
+    stream: true,
+  };
+
+  // Volcengine /responses endpoint uses "input" instead of "messages"
+  if (apiUrl.endsWith("/responses")) {
+    payload.input = messages.map((msg) => ({
+      role: msg.role,
+      content: [
+        {
+          type: "input_text",
+          text: msg.content,
+        },
+      ],
+    }));
+  } else {
+    // Standard OpenAI format
+    payload.messages = messages;
+  }
+
   try {
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -99,11 +129,7 @@ export const callAIStream = async (
         "Content-Type": "application/json",
         Authorization: `Bearer ${settings.apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-      }),
+      body: JSON.stringify(payload),
       signal,
     });
 
@@ -144,13 +170,36 @@ export const callAIStream = async (
         if (!trimmed || trimmed === "data: [DONE]") {
           continue;
         }
+        // Skip event type lines (Volcengine format)
+        if (trimmed.startsWith("event:")) {
+          continue;
+        }
         if (!trimmed.startsWith("data: ")) {
           continue;
         }
 
         try {
           const json = JSON.parse(trimmed.slice(6));
-          const content = json.choices?.[0]?.delta?.content;
+          let content: string | undefined;
+
+          // Try OpenAI format first
+          content = json.choices?.[0]?.delta?.content;
+
+          // Volcengine /responses format: reasoning_summary_text or output_text
+          if (!content && json.type?.includes("delta") && json.delta) {
+            content = json.delta;
+          }
+
+          // Alternative: response.output_text.delta
+          if (!content && json.type === "response.output_text.delta" && json.delta) {
+            content = json.delta;
+          }
+
+          // Another fallback for content_block_delta
+          if (!content && json.delta?.text) {
+            content = json.delta.text;
+          }
+
           if (content) {
             callbacks.onChunk(content);
           }

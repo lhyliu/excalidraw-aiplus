@@ -1,6 +1,11 @@
 import React, { useState, useCallback, useEffect } from "react";
 
-import { getAISettings, setAISettings, type AISettings } from "../services/aiService";
+import {
+  getAISettings,
+  setAISettings,
+  callAIStream,
+  type AISettings,
+} from "../services/aiService";
 
 import { Dialog } from "./Dialog";
 
@@ -21,6 +26,8 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
   // Load existing settings on mount
   useEffect(() => {
@@ -41,6 +48,45 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
     },
     [],
   );
+
+  const handleTest = useCallback(async () => {
+    // Validate
+    if (!settings.apiUrl.trim()) {
+      setError("请输入API URL");
+      return;
+    }
+    if (!settings.apiKey.trim()) {
+      setError("请输入API Key");
+      return;
+    }
+
+    setIsTesting(true);
+    setError(null);
+    setTestSuccess(null);
+    setSuccess(false);
+
+    try {
+      const result = await callAIStream(
+        [{ role: "user", content: "Hi" }],
+        {
+          onChunk: () => { },
+          onError: () => { },
+        },
+        undefined,
+        settings,
+      );
+
+      if (result.success) {
+        setTestSuccess("连接成功! (Connection successful)");
+      } else {
+        setError(result.error || "连接失败 (Connection failed)");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "连接失败 (Connection failed)");
+    } finally {
+      setIsTesting(false);
+    }
+  }, [settings]);
 
   const handleSave = useCallback(() => {
     // Validate
@@ -82,7 +128,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             placeholder="https://api.openai.com"
           />
           <span className="ai-settings-dialog__hint">
-            OpenAI兼容的API地址，例如 https://api.openai.com
+            支持基础地址 (如 https://api.openai.com) 或完整 Endpoint (如 .../chat/completions, .../responses)
           </span>
         </div>
 
@@ -115,6 +161,9 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
         </div>
 
         {error && <div className="ai-settings-dialog__error">{error}</div>}
+        {testSuccess && (
+          <div className="ai-settings-dialog__success">{testSuccess}</div>
+        )}
         {success && (
           <div className="ai-settings-dialog__success">设置已保存!</div>
         )}
@@ -127,6 +176,16 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
           >
             取消
           </button>
+          <div style={{ flex: 1 }}>
+            <button
+              className="ai-settings-dialog__button ai-settings-dialog__button--secondary"
+              onClick={handleTest}
+              disabled={isSaving || isTesting}
+              type="button"
+            >
+              {isTesting ? "测试中..." : "测试连接"}
+            </button>
+          </div>
           <button
             className="ai-settings-dialog__button ai-settings-dialog__button--primary"
             onClick={handleSave}

@@ -61,12 +61,12 @@ Full control over your AI provider.
 
 2. **Install Dependencies / 安装依赖**
    ```bash
-   npm install
+   yarn install
    ```
 
 3. **Run Locally / 本地运行**
    ```bash
-   npm start
+   yarn start
    ```
 
 4. **Configure AI / 配置 AI**

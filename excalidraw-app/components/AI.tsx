@@ -113,11 +113,16 @@ export const AIComponents = ({
           const systemMessage = {
             role: "system",
             content:
-              "You are a helpful assistant that processes text and transforms it into a Mermaid diagram. " +
-              "Return ONLY the Mermaid code inside a markdown code block (```mermaid ... ```). " +
-              "Do not include any other explanations or text. " +
-              "If the user input is code, assume they want it converted to a diagram or fixed. " +
-              "Supported diagram types: flowchart, sequence, class, state, er, gantt, pie.",
+              "You are a specialized assistant that generates Mermaid diagrams from text. " +
+              "You must output ONLY the Mermaid code strictly within a markdown code block. " +
+              "Format:\n" +
+              "```mermaid\n" +
+              "<mermaid code here>\n" +
+              "```\n" +
+              "Do NOT include any conversational text, explanations, or preambles. " +
+              "Do NOT include any text before or after the code block. " +
+              "Allowed diagram types: flowchart, sequence, class, state, er, gantt, pie. " +
+              "If the user provides code, convert or fix it as a diagram.",
           };
 
           const result = await callAIStream(
