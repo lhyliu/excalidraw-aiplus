@@ -90,17 +90,17 @@ const normalizeApiUrl = (url: string, preferResponses = false): string => {
   // These are base URLs that need the endpoint path appended
   if (/\/v\d+(?:\/|$)/i.test(normalized) || normalized.includes("/api/")) {
     if (preferResponses) {
-      return normalized + "/responses";
+      return `${normalized}/responses`;
     }
-    return normalized + "/chat/completions";
+    return `${normalized}/chat/completions`;
   }
 
   // Case 3: Domain-only or simple base URL (e.g., https://api.openai.com)
   // Add standard OpenAI-style version and endpoint path
   if (preferResponses) {
-    return normalized + "/v1/responses";
+    return `${normalized}/v1/responses`;
   }
-  return normalized + "/v1/chat/completions";
+  return `${normalized}/v1/chat/completions`;
 };
 
 /**
@@ -124,7 +124,7 @@ export const callAIStream = async (
   const model = settings.model || DEFAULT_MODEL;
 
   // Construct payload based on endpoint type
-  let payload: any = {
+  const payload: any = {
     model,
     stream: true,
   };
@@ -432,7 +432,13 @@ ${diagramInfo}
 5. 安全性建议
 6. 推荐的优化方向
 
-请用中文回答，使用清晰的结构和要点。`;
+输出要求（必须遵守）：
+- 仅输出 5 条建议，按重要性排序
+- 每条一行，格式：- [分类] 建议标题：一句行动建议
+- 每条不超过 60 个中文字符
+- 不要输出长段落、背景解释、重复内容
+- 分类只能使用：性能 / 安全 / 成本 / 扩展性 / 可靠性
+`;
 };
 
 /**
@@ -474,7 +480,9 @@ graph TD
 - Mermaid代码必须是有效的flowchart/graph语法
 - 必须包含完整的架构，而不仅仅是变更部分
 - 使用中文标签
-- 确保代码在三个反引号内，并标记为mermaid`;
+- 确保代码在三个反引号内，并标记为mermaid
+- “变更总结”最多 6 条，每条不超过 50 个中文字符
+- 只保留可执行变更，不要长篇解释`;
 };
 
 /**

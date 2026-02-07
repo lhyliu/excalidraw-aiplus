@@ -216,7 +216,6 @@ export const useTextGeneration = ({
           textToParse = content.trim();
         }
 
-        console.log("Parsing TTD text:", textToParse);
         await parseMermaidToExcalidraw(textToParse);
         trackEvent("ai", "mermaid parse success", "ttd");
       } catch (error: any) {

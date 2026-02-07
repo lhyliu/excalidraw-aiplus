@@ -21,6 +21,7 @@ import { nativeFileSystemSupported } from "./filesystem";
 import {
   isValidExcalidrawData,
   isValidLibrary,
+  setArchitectureAssistantState,
   setArchitectureChatHistory,
   setArchitectureSchemes,
 } from "./json";
@@ -167,13 +168,22 @@ export const loadSceneOrLibraryFromBlob = async (
         data.architectureChatHistory &&
         Array.isArray(data.architectureChatHistory)
       ) {
-        setArchitectureChatHistory(data.architectureChatHistory);
+        setArchitectureChatHistory(
+          data.architectureChatHistory,
+          data.appState?.name ?? undefined,
+        );
       }
-      if (
-        data.architectureSchemes &&
-        Array.isArray(data.architectureSchemes)
-      ) {
-        setArchitectureSchemes(data.architectureSchemes);
+      if (data.architectureSchemes && Array.isArray(data.architectureSchemes)) {
+        setArchitectureSchemes(
+          data.architectureSchemes,
+          data.appState?.name ?? undefined,
+        );
+      }
+      if (data.architectureAssistantState) {
+        setArchitectureAssistantState(
+          data.architectureAssistantState,
+          data.appState?.name ?? undefined,
+        );
       }
 
       return {

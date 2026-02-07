@@ -21,16 +21,24 @@ import type {
   ImportedLibraryData,
   ArchitectureChatMessage,
   ArchitectureScheme,
+  ArchitectureAssistantState,
 } from "./types";
 
 // Storage key for architecture chat history
 const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
 const SCHEMES_STORAGE_KEY = "excalidraw_architecture_schemes";
+const ASSISTANT_STATE_STORAGE_KEY = "excalidraw_architecture_assistant_state";
+const getScopedStorageKey = (baseKey: string, scope?: string) =>
+  scope ? `${baseKey}::${scope}` : baseKey;
 
 // Get chat history from localStorage
-export const getArchitectureChatHistory = (): ArchitectureChatMessage[] => {
+export const getArchitectureChatHistory = (
+  scope?: string,
+): ArchitectureChatMessage[] => {
   try {
-    const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+    const saved =
+      localStorage.getItem(getScopedStorageKey(CHAT_STORAGE_KEY, scope)) ||
+      localStorage.getItem(CHAT_STORAGE_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
@@ -43,17 +51,25 @@ export const getArchitectureChatHistory = (): ArchitectureChatMessage[] => {
 // Set chat history to localStorage
 export const setArchitectureChatHistory = (
   messages: ArchitectureChatMessage[],
+  scope?: string,
 ): void => {
   try {
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    localStorage.setItem(
+      getScopedStorageKey(CHAT_STORAGE_KEY, scope),
+      JSON.stringify(messages),
+    );
   } catch (e) {
     console.error("Failed to save chat history:", e);
   }
 };
 
-export const getArchitectureSchemes = (): ArchitectureScheme[] => {
+export const getArchitectureSchemes = (
+  scope?: string,
+): ArchitectureScheme[] => {
   try {
-    const saved = localStorage.getItem(SCHEMES_STORAGE_KEY);
+    const saved =
+      localStorage.getItem(getScopedStorageKey(SCHEMES_STORAGE_KEY, scope)) ||
+      localStorage.getItem(SCHEMES_STORAGE_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
@@ -63,11 +79,48 @@ export const getArchitectureSchemes = (): ArchitectureScheme[] => {
   return [];
 };
 
-export const setArchitectureSchemes = (schemes: ArchitectureScheme[]): void => {
+export const setArchitectureSchemes = (
+  schemes: ArchitectureScheme[],
+  scope?: string,
+): void => {
   try {
-    localStorage.setItem(SCHEMES_STORAGE_KEY, JSON.stringify(schemes));
+    localStorage.setItem(
+      getScopedStorageKey(SCHEMES_STORAGE_KEY, scope),
+      JSON.stringify(schemes),
+    );
   } catch (e) {
     console.error("Failed to save schemes:", e);
+  }
+};
+
+export const getArchitectureAssistantState = (
+  scope?: string,
+): ArchitectureAssistantState | null => {
+  try {
+    const saved =
+      localStorage.getItem(
+        getScopedStorageKey(ASSISTANT_STATE_STORAGE_KEY, scope),
+      ) || localStorage.getItem(ASSISTANT_STATE_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved) as ArchitectureAssistantState;
+    }
+  } catch (e) {
+    console.error("Failed to load architecture assistant state:", e);
+  }
+  return null;
+};
+
+export const setArchitectureAssistantState = (
+  state: ArchitectureAssistantState,
+  scope?: string,
+): void => {
+  try {
+    localStorage.setItem(
+      getScopedStorageKey(ASSISTANT_STATE_STORAGE_KEY, scope),
+      JSON.stringify(state),
+    );
+  } catch (e) {
+    console.error("Failed to save architecture assistant state:", e);
   }
 };
 
@@ -98,6 +151,7 @@ export const serializeAsJSON = (
   files: BinaryFiles,
   type: "local" | "database",
 ): string => {
+  const storageScope = appState.name?.trim();
   const data: ExportedDataState = {
     type: EXPORT_DATA_TYPES.excalidraw,
     version: VERSIONS.excalidraw,
@@ -114,8 +168,13 @@ export const serializeAsJSON = (
           undefined,
     // Include architecture chat history in local saves
     architectureChatHistory:
-      type === "local" ? getArchitectureChatHistory() : undefined,
-    architectureSchemes: type === "local" ? getArchitectureSchemes() : undefined,
+      type === "local" ? getArchitectureChatHistory(storageScope) : undefined,
+    architectureSchemes:
+      type === "local" ? getArchitectureSchemes(storageScope) : undefined,
+    architectureAssistantState:
+      type === "local"
+        ? getArchitectureAssistantState(storageScope) || undefined
+        : undefined,
   };
 
   return JSON.stringify(data, null, 2);

@@ -74,13 +74,11 @@ export const ChatMessage: React.FC<{
           </div>
           <div className="chat-message__body">
             <div className="chat-message__text">
-              {customOverride ? (
-                customOverride
-              ) : message.warningType === "messageLimitExceeded" ? (
-                t("chat.rateLimit.messageLimit")
-              ) : (
-                t("chat.rateLimit.generalRateLimit")
-              )}
+              {customOverride
+                ? customOverride
+                : message.warningType === "messageLimitExceeded"
+                ? t("chat.rateLimit.messageLimit")
+                : t("chat.rateLimit.generalRateLimit")}
             </div>
           </div>
         </div>

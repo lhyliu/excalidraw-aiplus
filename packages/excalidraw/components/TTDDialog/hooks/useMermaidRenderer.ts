@@ -192,7 +192,9 @@ export const useMermaidRenderer = ({
       throttledRenderMermaid.flush();
       resetThrottleState();
       if (lastAssistantMessage?.content) {
-        throttledRenderMermaid(extractMermaidCode(lastAssistantMessage.content));
+        throttledRenderMermaid(
+          extractMermaidCode(lastAssistantMessage.content),
+        );
       }
     }
   }, [

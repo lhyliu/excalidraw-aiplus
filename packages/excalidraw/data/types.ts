@@ -24,6 +24,55 @@ export interface ArchitectureScheme {
   mermaid: string;
   shortSummary: string;
   title?: string;
+  sourceCombinationId?: string | null;
+  sourceSuggestionIds?: string[];
+  sourceSuggestionSnapshot?: Array<{
+    id: string;
+    category: ArchitectureSuggestionCategory;
+    title: string;
+    content: string;
+    fullContent: string;
+    note?: string;
+  }>;
+}
+
+export type ArchitectureSuggestionCategory =
+  | "performance"
+  | "security"
+  | "cost"
+  | "scalability"
+  | "reliability";
+
+export interface ArchitecturePoolSuggestion {
+  id: string;
+  category: ArchitectureSuggestionCategory;
+  title: string;
+  content: string;
+  fullContent: string;
+  selected: boolean;
+  archived?: boolean;
+  note?: string;
+}
+
+export type ArchitectureStyle = "standard" | "minimal" | "detailed";
+
+export interface ArchitectureAssistantState {
+  suggestionPool: ArchitecturePoolSuggestion[];
+  suggestionCombinations?: Array<{
+    id: string;
+    name: string;
+    suggestionIds: string[];
+    createdAt: number;
+  }>;
+  activeCombinationId?: string | null;
+  architectureStyle: ArchitectureStyle;
+  skipUpdateConfirm?: boolean;
+  suggestionSearchKeyword?: string;
+  showArchivedSuggestions?: boolean;
+  draftInput?: string;
+  activeSchemeId?: string | null;
+  isPreviewPage?: boolean;
+  isCompareMode?: boolean;
 }
 
 export interface ExportedDataState {
@@ -35,6 +84,7 @@ export interface ExportedDataState {
   files: BinaryFiles | undefined;
   architectureChatHistory?: ArchitectureChatMessage[];
   architectureSchemes?: ArchitectureScheme[];
+  architectureAssistantState?: ArchitectureAssistantState;
 }
 
 /**
@@ -66,6 +116,7 @@ export interface ImportedDataState {
   files?: BinaryFiles;
   architectureChatHistory?: ArchitectureChatMessage[];
   architectureSchemes?: ArchitectureScheme[];
+  architectureAssistantState?: ArchitectureAssistantState;
 }
 
 export interface ExportedLibraryData {

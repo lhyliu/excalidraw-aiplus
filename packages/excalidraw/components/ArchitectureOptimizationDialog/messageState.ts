@@ -10,11 +10,18 @@ export type MessagesAction =
   | { type: "add"; messages: Message[] }
   | { type: "update"; id: string; patch: Partial<Message> }
   | { type: "append"; id: string; chunk: string }
-  | { type: "updateLast"; patch: Partial<Message>; predicate?: (m: Message) => boolean }
+  | {
+      type: "updateLast";
+      patch: Partial<Message>;
+      predicate?: (m: Message) => boolean;
+    }
   | { type: "remove"; id: string }
   | { type: "replace"; messages: Message[] };
 
-export const messagesReducer = (state: Message[], action: MessagesAction): Message[] => {
+export const messagesReducer = (
+  state: Message[],
+  action: MessagesAction,
+): Message[] => {
   switch (action.type) {
     case "add":
       return [...state, ...action.messages];
@@ -29,9 +36,9 @@ export const messagesReducer = (state: Message[], action: MessagesAction): Messa
           : msg,
       );
     case "updateLast": {
-      const index = [...state].reverse().findIndex((m) =>
-        action.predicate ? action.predicate(m) : true,
-      );
+      const index = [...state]
+        .reverse()
+        .findIndex((m) => (action.predicate ? action.predicate(m) : true));
       if (index === -1) {
         return state;
       }

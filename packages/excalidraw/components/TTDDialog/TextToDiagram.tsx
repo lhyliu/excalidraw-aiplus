@@ -108,7 +108,9 @@ const TextToDiagramContent = ({
 
   const onViewAsMermaid = () => {
     if (typeof lastAssistantMessage?.content === "string") {
-      saveMermaidDataToStorage(extractMermaidCode(lastAssistantMessage.content));
+      saveMermaidDataToStorage(
+        extractMermaidCode(lastAssistantMessage.content),
+      );
       setAppState({
         openDialog: { name: "ttd", tab: "mermaid" },
       });
@@ -219,10 +221,11 @@ const TextToDiagramContent = ({
 
   return (
     <div
-      className={`ttd-dialog-layout ${showPreview
-        ? "ttd-dialog-layout--split"
-        : "ttd-dialog-layout--chat-only"
-        }`}
+      className={`ttd-dialog-layout ${
+        showPreview
+          ? "ttd-dialog-layout--split"
+          : "ttd-dialog-layout--chat-only"
+      }`}
     >
       <TTDChatPanel
         chatId={chatHistory.id}

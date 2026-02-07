@@ -16,7 +16,9 @@ export const useAIStream = () => {
   const [isStreaming, setIsStreaming] = useState(false);
 
   const run = useCallback(
-    async <T,>(task: (signal: AbortSignal) => Promise<T>): Promise<RunResult<T>> => {
+    async <T>(
+      task: (signal: AbortSignal) => Promise<T>,
+    ): Promise<RunResult<T>> => {
       if (isStreaming) {
         return { success: false, error: "Request in progress" };
       }

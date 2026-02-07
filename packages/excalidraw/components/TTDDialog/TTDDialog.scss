@@ -59,16 +59,39 @@ $fullScreenModalBreakpoint: 600px;
     color: var(--color-on-surface);
     font-size: 0.875rem;
     margin: 0;
-    padding: 0 1rem;
+    padding: 0 1.25rem;
     background-color: transparent;
     border: 0;
-    height: 2.875rem;
+    height: 3rem;
     font-weight: 600;
     font-family: inherit;
     letter-spacing: 0.4px;
+    position: relative;
+    transition: all 0.25s ease;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-primary);
+      background: rgba(var(--color-primary-rgb), 0.05);
+    }
 
     &[data-state="active"] {
-      border-bottom: 2px solid var(--color-primary);
+      color: var(--color-primary);
+
+      &::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 1rem;
+        right: 1rem;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--color-primary),
+          rgba(168, 85, 247, 0.8)
+        );
+        border-radius: 2px 2px 0 0;
+      }
     }
 
     &__content {
@@ -77,15 +100,34 @@ $fullScreenModalBreakpoint: 600px;
     }
 
     &__badge {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 1px 6px;
+      padding: 2px 8px;
       margin-left: 10px;
       font-size: 10px;
+      font-weight: 700;
       border-radius: 12px;
-      background: var(--color-promo);
-      color: var(--color-surface-lowest);
+      background: linear-gradient(
+        135deg,
+        var(--color-promo, #8b5cf6) 0%,
+        rgba(168, 85, 247, 0.9) 100%
+      );
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+  }
+
+  @keyframes badgePulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0);
     }
   }
 
@@ -484,6 +526,7 @@ $fullScreenModalBreakpoint: 600px;
       &:hover {
         background-color: var(--color-primary-darker);
       }
+
       &:active {
         background-color: var(--color-primary-darkest);
       }
@@ -634,6 +677,7 @@ $fullScreenModalBreakpoint: 600px;
         svg {
           color: var(--color-on-surface);
         }
+
         &:hover svg {
           color: var(--color-danger);
         }
