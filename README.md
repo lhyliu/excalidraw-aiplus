@@ -19,9 +19,14 @@ This is a customized version of [Excalidraw](https://excalidraw.com) enhanced wi
 Analyze your architecture diagrams intelligently. 智能分析您的架构图。
 
 - **Smart Analysis**: Automatically extracts diagram elements (nodes, edges, text) to understand your system design. <br/>**智能分析**：自动提取图表元素（节点、连线、文本）以理解系统设计。
-- **Optimization Advice**: Provides professional suggestions on Security, Availability, and Performance. <br/>**优化建议**：提供关于安全性、可用性和性能的专业建议。
+- **Optimization Advice**: Generates 5 structured suggestions with fixed categories (性能/安全/成本/扩展性/可靠性). <br/>**优化建议**：输出 5 条结构化建议，分类固定（性能/安全/成本/扩展性/可靠性）。
 - **Interactive Chat**: Refine the advice through a conversational interface. <br/>**交互式对话**：通过对话界面进一步调整和细化建议。
+- **Reasoning Separation**: AI reasoning and final answer are rendered separately; reasoning auto-collapses after completion. <br/>**思考分离**：AI 思考过程与正式答复分开展示，完成后自动折叠思考区。
+- **Suggestion Recovery**: After clearing the pool, one-click recovery from the latest AI conclusion is supported. <br/>**建议恢复**：清空建议池后支持从最近一次 AI 结论一键恢复建议。
+- **Preview Summary**: Preview page includes an AI summary panel with on-demand “regenerate summary”. <br/>**预览总结**：预览页新增 AI 总结区，支持“重新生成总结”。
 - **Cost Efficient**: Triggered on-demand to save tokens. <br/>**成本高效**：按需触发，节省 Token 消耗。
+
+Design spec: `AI_ARCHITECTURE_ASSISTANT.md`
 
 ### 📝 Text to Diagram (Unified) / 文字生成图表（统一版）
 
@@ -92,6 +97,7 @@ If you are using a local or proxy endpoint, ensure it supports OpenAI-compatible
 
 - `yarn start`: Run the app locally. <br/>本地运行应用。
 - `yarn test`: Run tests. <br/>运行测试。
+- `yarn test:architecture`: Run architecture-assistant focused regression scripts. <br/>运行架构助手专项回归脚本。
 - `yarn build`: Build production assets. <br/>构建生产包。
 
 ## 🔒 Privacy & Data / 隐私与数据

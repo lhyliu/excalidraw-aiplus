@@ -19,6 +19,9 @@ interface ChatPanelProps {
   onUploadImage: () => void;
   onAbort: () => void;
   onSendMessage: () => void;
+  canReactivateLastSuggestions: boolean;
+  lastConclusionPreview: string;
+  onReactivateLastSuggestions: () => void;
 }
 
 export const ChatPanel = ({
@@ -35,6 +38,9 @@ export const ChatPanel = ({
   onUploadImage,
   onAbort,
   onSendMessage,
+  canReactivateLastSuggestions,
+  lastConclusionPreview,
+  onReactivateLastSuggestions,
 }: ChatPanelProps) => (
   <div className="architecture-optimization-dialog__chat-body">
     <div className="architecture-optimization-dialog__messages">
@@ -75,6 +81,19 @@ export const ChatPanel = ({
             key={message.id}
             className={`architecture-optimization-dialog__message architecture-optimization-dialog__message--${message.role}`}
           >
+            {message.role === "assistant" && message.reasoning && (
+              <details
+                className="architecture-optimization-dialog__message-reasoning"
+                open={message.isGenerating}
+              >
+                <summary>
+                  {message.isGenerating ? "AI思考中..." : "AI思考（点击展开）"}
+                </summary>
+                <div className="architecture-optimization-dialog__message-reasoning-content">
+                  {message.reasoning}
+                </div>
+              </details>
+            )}
             <div className="architecture-optimization-dialog__message-content">
               {message.content}
               {message.isGenerating && (
@@ -90,6 +109,21 @@ export const ChatPanel = ({
             )}
           </div>
         ))
+      )}
+      {canReactivateLastSuggestions && (
+        <div className="architecture-optimization-dialog__reactivate-suggestions">
+          <div className="architecture-optimization-dialog__reactivate-suggestions-text">
+            建议列表已清空，可从最近结论重新激活
+            {lastConclusionPreview ? `：${lastConclusionPreview}` : ""}
+          </div>
+          <button
+            className="architecture-optimization-dialog__reactivate-suggestions-btn"
+            onClick={onReactivateLastSuggestions}
+            disabled={isStreaming}
+          >
+            恢复上次建议
+          </button>
+        </div>
       )}
       <div ref={messagesEndRef} />
     </div>

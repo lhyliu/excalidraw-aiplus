@@ -720,24 +720,18 @@ export const ArchitectureOptimizationDialog: React.FC<
         {
           onChunk: (chunk) => {
             contentBuffer += chunk;
-            const display = `${
-              reasoningBuffer ? `思考中：\n${reasoningBuffer}\n\n` : ""
-            }${contentBuffer}`;
             dispatchMessages({
               type: "update",
               id: assistantMsgId,
-              patch: { content: display },
+              patch: { content: contentBuffer },
             });
           },
           onReasoning: (chunk) => {
             reasoningBuffer += chunk;
-            const display = `${
-              reasoningBuffer ? `思考中：\n${reasoningBuffer}\n\n` : ""
-            }${contentBuffer}`;
             dispatchMessages({
               type: "update",
               id: assistantMsgId,
-              patch: { content: display },
+              patch: { reasoning: reasoningBuffer },
             });
           },
           onComplete: () => {
@@ -854,24 +848,18 @@ export const ArchitectureOptimizationDialog: React.FC<
         {
           onChunk: (chunk) => {
             contentBuffer += chunk;
-            const display = `${
-              reasoningBuffer ? `思考中：\n${reasoningBuffer}\n\n` : ""
-            }${contentBuffer}`;
             dispatchMessages({
               type: "update",
               id: assistantMsgId,
-              patch: { content: display },
+              patch: { content: contentBuffer },
             });
           },
           onReasoning: (chunk) => {
             reasoningBuffer += chunk;
-            const display = `${
-              reasoningBuffer ? `思考中：\n${reasoningBuffer}\n\n` : ""
-            }${contentBuffer}`;
             dispatchMessages({
               type: "update",
               id: assistantMsgId,
-              patch: { content: display },
+              patch: { reasoning: reasoningBuffer },
             });
           },
           onComplete: () => {
@@ -946,7 +934,7 @@ export const ArchitectureOptimizationDialog: React.FC<
   // === Semi-automatic workflow handlers ===
 
   // Extract suggestions from AI response and add to pool
-  function extractSuggestionsToPool(content: string) {
+  function extractSuggestionsToPool(content: string): number {
     const parsed = parseSuggestions(content);
     const newSuggestions: PoolSuggestion[] = parsed.map((s, idx) => ({
       id: `pool-${Date.now()}-${idx}`,
@@ -958,6 +946,7 @@ export const ArchitectureOptimizationDialog: React.FC<
       archived: false,
     }));
 
+    let addedCount = 0;
     setSuggestionPool((prev) => {
       // Avoid duplicates by checking content similarity
       const existing = new Set(prev.map((p) => p.content.slice(0, 50)));
@@ -965,9 +954,24 @@ export const ArchitectureOptimizationDialog: React.FC<
         (s) =>
           !existing.has(compactSuggestionContent(s.fullContent).slice(0, 50)),
       );
+      addedCount = unique.length;
       return [...prev, ...unique];
     });
+    return addedCount;
   }
+
+  const lastAssistantConclusion = useMemo(() => {
+    const latestAssistant = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          !message.isGenerating &&
+          !message.error &&
+          message.content.trim().length > 0,
+      );
+    return latestAssistant?.content.trim() ?? "";
+  }, [messages]);
 
   // Toggle suggestion selection
   const toggleSuggestionSelection = useCallback((id: string) => {
@@ -1142,6 +1146,19 @@ export const ArchitectureOptimizationDialog: React.FC<
     setSuggestionToast("建议列表已清空");
   }, [suggestionPool.length, suggestionCombinations.length]);
 
+  const handleReactivateLastSuggestions = useCallback(() => {
+    if (isStreaming || !lastAssistantConclusion.trim()) {
+      return;
+    }
+    const addedCount = extractSuggestionsToPool(lastAssistantConclusion);
+    if (addedCount > 0) {
+      setSuggestionToast(`已从最近结论恢复 ${addedCount} 条建议`);
+      setIsPreviewPage(false);
+      return;
+    }
+    setSuggestionToast("最近结论中的建议已全部存在，无需恢复");
+  }, [isStreaming, lastAssistantConclusion]);
+
   useEffect(() => {
     if (!activeCombinationId) {
       return;
@@ -1229,13 +1246,13 @@ export const ArchitectureOptimizationDialog: React.FC<
               if (chunk.summary) {
                 summaryBuffer = chunk.summary;
               }
-              const display = `${
-                reasoningBuffer ? `思考中：\n${reasoningBuffer}\n\n` : ""
-              }${summaryBuffer || "正在生成..."}`;
               dispatchMessages({
                 type: "update",
                 id: assistantMsgId,
-                patch: { content: display },
+                patch: {
+                  content: summaryBuffer || "正在生成...",
+                  reasoning: reasoningBuffer || undefined,
+                },
               });
             },
             signal,
@@ -1686,6 +1703,109 @@ export const ArchitectureOptimizationDialog: React.FC<
     selectedSuggestionSnapshot,
   ]);
 
+  const handleRegenerateSummary = useCallback(async () => {
+    if (!activeScheme || isStreaming) {
+      return;
+    }
+
+    const schemeId = activeScheme.id;
+    const originalSummary = activeScheme.summary;
+    const suggestionContext = parseSuggestions(activeScheme.summary)
+      .slice(0, 6)
+      .map((item, index) => `${index + 1}. ${item.content}`)
+      .join("\n");
+
+    const summaryPrompt = `请基于以下“目标架构图（Mermaid）”和“当前建议”，输出一份更清晰的方案总结。
+
+要求：
+- 仅输出 5 条要点，按优先级排序
+- 每条一行，格式：- [分类] 一句话行动建议
+- 每条不超过 55 个中文字符
+- 分类仅使用：性能 / 安全 / 成本 / 扩展性 / 可靠性
+- 不要输出 Mermaid，不要长段落解释
+
+<目标架构图 Mermaid>
+${activeScheme.mermaid}
+</目标架构图 Mermaid>
+
+<当前建议>
+${suggestionContext || originalSummary}
+</当前建议>`;
+
+    let summaryBuffer = "";
+    const streamResult = await runStream((signal) =>
+      runAIStream(
+        [
+          {
+            role: "system",
+            content: "你是资深系统架构师，擅长把复杂方案总结为可执行清单。",
+          },
+          { role: "user", content: summaryPrompt },
+        ],
+        {
+          onChunk: (chunk) => {
+            summaryBuffer += chunk;
+            const interimSummary = summaryBuffer.trimStart();
+            setSchemes((prev) =>
+              prev.map((scheme) =>
+                scheme.id === schemeId
+                  ? {
+                      ...scheme,
+                      summary: interimSummary || "正在生成总结...",
+                    }
+                  : scheme,
+              ),
+            );
+          },
+        },
+        signal,
+      ),
+    );
+
+    if (!streamResult.success) {
+      setSchemes((prev) =>
+        prev.map((scheme) =>
+          scheme.id === schemeId
+            ? { ...scheme, summary: originalSummary }
+            : scheme,
+        ),
+      );
+      setSuggestionToast("重新生成总结失败");
+      return;
+    }
+
+    const finalSummary = summaryBuffer.trim();
+    if (!finalSummary) {
+      setSchemes((prev) =>
+        prev.map((scheme) =>
+          scheme.id === schemeId
+            ? { ...scheme, summary: originalSummary }
+            : scheme,
+        ),
+      );
+      setSuggestionToast("AI未返回有效总结");
+      return;
+    }
+
+    const shortSummary =
+      finalSummary
+        .split("\n")
+        .find((line) => line.trim())
+        ?.trim() || "优化方案";
+    setSchemes((prev) =>
+      prev.map((scheme) =>
+        scheme.id === schemeId
+          ? {
+              ...scheme,
+              summary: finalSummary,
+              shortSummary,
+            }
+          : scheme,
+      ),
+    );
+    setSuggestionToast("AI总结已更新");
+  }, [activeScheme, isStreaming, runStream]);
+
   const handleSelectScheme = useCallback(
     (schemeId: string) => {
       setActiveSchemeId(schemeId);
@@ -1878,6 +1998,15 @@ export const ArchitectureOptimizationDialog: React.FC<
               onUploadImage={handleUploadImage}
               onAbort={handleAbort}
               onSendMessage={handleSendMessage}
+              canReactivateLastSuggestions={
+                suggestionPool.length === 0 &&
+                !isStreaming &&
+                lastAssistantConclusion.length > 0
+              }
+              lastConclusionPreview={
+                lastAssistantConclusion.split("\n")[0] || ""
+              }
+              onReactivateLastSuggestions={handleReactivateLastSuggestions}
             />
           </div>
 
@@ -1983,6 +2112,8 @@ export const ArchitectureOptimizationDialog: React.FC<
                 onGeneratePlan={handleGeneratePlan}
                 isStreaming={isStreaming}
                 hasMessages={messages.length > 0}
+                onRegenerateSummary={handleRegenerateSummary}
+                isSummaryRefreshing={isStreaming}
               />
             )}
           </div>

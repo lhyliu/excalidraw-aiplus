@@ -50,6 +50,8 @@ interface PreviewPageProps {
   onGeneratePlan: () => void;
   isStreaming: boolean;
   hasMessages: boolean;
+  onRegenerateSummary: () => void;
+  isSummaryRefreshing: boolean;
 }
 
 export const PreviewPage = ({
@@ -87,7 +89,21 @@ export const PreviewPage = ({
   onGeneratePlan,
   isStreaming,
   hasMessages,
+  onRegenerateSummary,
+  isSummaryRefreshing,
 }: PreviewPageProps) => {
+  const summaryParagraphs = activeScheme?.summary
+    ? activeScheme.summary
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+
+  const summaryHighlights =
+    activeSchemeSuggestions.length > 0
+      ? activeSchemeSuggestions.slice(0, 4).map((item) => item.content)
+      : summaryParagraphs.slice(0, 4);
+
   if (!activeScheme) {
     return (
       <div className="architecture-optimization-dialog__empty">
@@ -251,6 +267,41 @@ export const PreviewPage = ({
             </div>
           )}
         </div>
+
+        <section className="architecture-optimization-dialog__ai-summary">
+          <div className="architecture-optimization-dialog__ai-summary-header">
+            <h5>AI方案总结</h5>
+            <div className="architecture-optimization-dialog__ai-summary-meta">
+              <span>{summaryHighlights.length} 条核心要点</span>
+              <button
+                className="architecture-optimization-dialog__ai-summary-refresh"
+                onClick={onRegenerateSummary}
+                disabled={isSummaryRefreshing || isStreaming}
+              >
+                {isSummaryRefreshing ? "总结中..." : "重新生成总结"}
+              </button>
+            </div>
+          </div>
+          <div className="architecture-optimization-dialog__ai-summary-content">
+            {summaryHighlights.length > 0 ? (
+              <ul className="architecture-optimization-dialog__ai-summary-list">
+                {summaryHighlights.map((item, index) => (
+                  <li key={`${activeScheme.id}-summary-${index}`}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="architecture-optimization-dialog__ai-summary-empty">
+                暂无总结内容，请重新生成方案。
+              </p>
+            )}
+            {activeScheme.summary && (
+              <details className="architecture-optimization-dialog__ai-summary-raw">
+                <summary>查看完整 AI 总结</summary>
+                <pre>{activeScheme.summary}</pre>
+              </details>
+            )}
+          </div>
+        </section>
       </div>
 
       <div className={`ao-drawer ${isDrawerOpen ? "ao-drawer--open" : ""}`}>

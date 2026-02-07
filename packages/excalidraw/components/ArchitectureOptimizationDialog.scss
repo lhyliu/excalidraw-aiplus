@@ -1850,6 +1850,126 @@
   column-gap: 0.875rem;
 }
 
+.architecture-optimization-dialog__ai-summary {
+  flex: 0 0 clamp(140px, 22vh, 260px);
+  min-height: 120px;
+  margin-top: 0.625rem;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.14);
+  border-radius: 0.875rem;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ao-primary-rgb), 0.05) 0%,
+    rgba(255, 255, 255, 0.85) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.architecture-optimization-dialog__ai-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid rgba(var(--ao-primary-rgb), 0.12);
+
+  h5 {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--color-on-surface);
+  }
+}
+
+.architecture-optimization-dialog__ai-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  span {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    color: var(--color-text-secondary);
+  }
+}
+
+.architecture-optimization-dialog__ai-summary-refresh {
+  height: 1.625rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.28);
+  background: rgba(var(--ao-primary-rgb), 0.08);
+  color: var(--ao-primary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--ao-transition-fast);
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--ao-primary-rgb), 0.15);
+    border-color: rgba(var(--ao-primary-rgb), 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.architecture-optimization-dialog__ai-summary-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.architecture-optimization-dialog__ai-summary-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+
+  li {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-on-surface);
+    word-break: break-word;
+  }
+}
+
+.architecture-optimization-dialog__ai-summary-empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.architecture-optimization-dialog__ai-summary-raw {
+  border-top: 1px dashed rgba(var(--ao-primary-rgb), 0.2);
+  padding-top: 0.5rem;
+
+  summary {
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--ao-primary);
+    user-select: none;
+  }
+
+  pre {
+    margin: 0.5rem 0 0;
+    font-family: inherit;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+  }
+}
+
 .architecture-optimization-dialog__preview-card {
   display: flex;
   flex-direction: column;
@@ -1994,6 +2114,10 @@
 
   .architecture-optimization-dialog__preview-grid--compare {
     grid-template-columns: 1fr;
+  }
+
+  .architecture-optimization-dialog__ai-summary {
+    flex-basis: clamp(120px, 24vh, 220px);
   }
 }
 
@@ -2154,14 +2278,14 @@
 // Floating Command Bar Input
 .architecture-optimization-dialog__input {
   flex: 1;
-  padding: 1rem 1.25rem;
-  border: 1px solid rgba(var(--color-primary-rgb), 0.1);
-  border-radius: 2rem; // Capsule shape
-  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.15);
+  border-radius: 0.75rem;
+  font-size: 0.9375rem;
   font-family: inherit;
 
   // Glassmorphism
-  background: rgba(var(--color-surface-lowest-rgb), 0.6);
+  background: rgba(var(--color-surface-lowest-rgb), 0.7);
   backdrop-filter: blur(16px);
   color: var(--color-on-surface);
 
@@ -2211,16 +2335,61 @@
   height: auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-gutter: stable;
-  padding: 1rem 0.9rem 0.5rem;
+  padding: 0.875rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.875rem;
   scroll-behavior: smooth;
   background: rgba(248, 250, 255, 0.6);
   border: 1px solid rgba(var(--ao-primary-rgb), 0.08);
-  border-radius: 0.9rem;
+  border-radius: 0.75rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.architecture-optimization-dialog__reactivate-suggestions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  border: 1px dashed rgba(var(--ao-primary-rgb), 0.34);
+  background: rgba(var(--ao-primary-rgb), 0.06);
+}
+
+.architecture-optimization-dialog__reactivate-suggestions-text {
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.architecture-optimization-dialog__reactivate-suggestions-btn {
+  flex-shrink: 0;
+  height: 1.75rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.34);
+  background: rgba(var(--ao-primary-rgb), 0.1);
+  color: var(--ao-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--ao-transition-fast);
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--ao-primary-rgb), 0.18);
+    border-color: rgba(var(--ao-primary-rgb), 0.48);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .architecture-optimization-dialog__message {
@@ -2304,6 +2473,36 @@
   word-break: break-word;
   position: relative;
   z-index: 1;
+}
+
+.architecture-optimization-dialog__message-reasoning {
+  margin: 0 0 0.65rem;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.16);
+  border-radius: 0.625rem;
+  background: rgba(var(--ao-primary-rgb), 0.05);
+  overflow: hidden;
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ao-primary);
+    padding: 0.45rem 0.6rem;
+    user-select: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+}
+
+.architecture-optimization-dialog__message-reasoning-content {
+  padding: 0 0.6rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
 }
 
 .architecture-optimization-dialog__cursor {
@@ -2940,10 +3139,10 @@
   }
 
   &__generate-btn {
-    flex: 1 1 auto;
-    width: 100%;
-    padding: 0.875rem 1.5rem;
-    font-size: 0.9375rem;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: #fff;
     background: linear-gradient(
@@ -2977,8 +3176,8 @@
     }
 
     svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
     }
   }
 
@@ -2988,8 +3187,9 @@
   }
 
   &__update-btn {
-    flex: 0 0 auto;
-    padding: 0.875rem 1rem;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.75rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--ao-primary);
@@ -2997,6 +3197,9 @@
     border: 1px solid rgba(var(--ao-primary-rgb), 0.28);
     border-radius: var(--ao-radius-button);
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all var(--ao-transition-fast);
 
     &:hover:not(:disabled) {
@@ -3356,4 +3559,163 @@
     align-items: center;
     justify-content: center;
   }
+}
+
+// ============================================
+// 小屏幕响应式优化 (600px以下全屏)
+// ============================================
+@media (max-width: 600px) {
+  .excalidraw .Modal.architecture-optimization-dialog {
+    padding: 0;
+  }
+
+  .excalidraw .Modal.architecture-optimization-dialog .Modal__content {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .architecture-optimization-dialog {
+    border-radius: 0;
+  }
+
+  .architecture-optimization-dialog .architecture-optimization-dialog__split {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .architecture-optimization-dialog
+    .architecture-optimization-dialog__panel--chat {
+    flex: 0 0 auto;
+    max-width: 100%;
+    max-height: 45vh;
+    min-height: 200px;
+  }
+
+  .architecture-optimization-dialog
+    .architecture-optimization-dialog__panel--preview {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0.75rem;
+  }
+
+  .ao-generation-console {
+    padding: 0.75rem;
+  }
+
+  .ao-generation-console__actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .ao-generation-console__generate-btn,
+  .ao-generation-console__update-btn {
+    width: 100%;
+  }
+
+  .ao-generation-console__style-selector {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+  }
+
+  .ao-suggestion-pool__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ao-suggestion-pool__search {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+// ============================================
+// 中等屏幕响应式优化 (600px-960px)
+// ============================================
+@media (min-width: 601px) and (max-width: 960px) {
+  .excalidraw .Modal.architecture-optimization-dialog .Modal__content {
+    width: 98vw;
+    max-width: 98vw;
+    height: 95dvh;
+    max-height: 95dvh;
+  }
+
+  .architecture-optimization-dialog .architecture-optimization-dialog__split {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .architecture-optimization-dialog
+    .architecture-optimization-dialog__panel--chat {
+    flex: 0 0 auto;
+    max-width: 100%;
+    max-height: 40vh;
+    min-height: 220px;
+  }
+
+  .architecture-optimization-dialog
+    .architecture-optimization-dialog__panel--preview {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .ao-generation-console__actions {
+    flex-wrap: wrap;
+  }
+
+  .ao-generation-console__generate-btn,
+  .ao-generation-console__update-btn {
+    flex: 1 1 45%;
+    min-width: 140px;
+  }
+}
+
+// ============================================
+// Critical layout fix: keep controls visible
+// ============================================
+.excalidraw .Dialog.architecture-optimization-dialog .Island {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.excalidraw .Dialog.architecture-optimization-dialog .Dialog__content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+}
+
+.excalidraw
+  .Dialog.architecture-optimization-dialog
+  .architecture-optimization-dialog {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+}
+
+.excalidraw
+  .Dialog.architecture-optimization-dialog
+  .architecture-optimization-dialog__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.excalidraw .Dialog.architecture-optimization-dialog .ao-workflow-panel,
+.excalidraw
+  .Dialog.architecture-optimization-dialog
+  .ao-workflow-panel--expanded {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
 }
