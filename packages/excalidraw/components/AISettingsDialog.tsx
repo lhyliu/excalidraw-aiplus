@@ -22,7 +22,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
   const [settings, setSettingsState] = useState<AISettings>({
     apiUrl: "",
     apiKey: "",
-    model: "gpt-4o-mini",
+    model: "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
         runAIStream(
           [{ role: "user", content: "Hi" }],
           {
-            onChunk: () => { },
-            onError: () => { },
+            onChunk: () => {},
+            onError: () => {},
           },
           signal,
           settings,
@@ -124,10 +124,11 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             type="text"
             value={settings.apiUrl}
             onChange={handleChange("apiUrl")}
-            placeholder="https://api.openai.com"
+            placeholder="如 https://api.openai.com 或完整地址 .../chat/completions"
           />
           <span className="ai-settings-dialog__hint">
-            支持基础地址 (如 https://api.openai.com) 或完整 Endpoint (如 .../chat/completions, .../responses)
+            支持仅填域名自动补全（如 api.openai.com →
+            /v1/chat/completions），或填写完整地址
           </span>
         </div>
 
@@ -152,7 +153,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             type="text"
             value={settings.model}
             onChange={handleChange("model")}
-            placeholder="gpt-4o-mini"
+            placeholder="gpt-4o-mini, gpt-4o, deepseek-chat"
           />
           <span className="ai-settings-dialog__hint">
             模型名称，例如 gpt-4o-mini, gpt-4o, deepseek-chat

@@ -63,22 +63,31 @@ export const isAIConfigured = (): boolean => {
 
 /**
  * Normalize API URL to ensure it ends with /chat/completions
+ * Supports both domain-only input and full endpoint URLs
+ *
+ * Examples:
+ * - "https://api.openai.com" -> "https://api.openai.com/v1/chat/completions"
+ * - "https://api.openai.com/v1" -> "https://api.openai.com/v1/chat/completions"
+ * - "https://api.openai.com/v1/chat/completions" -> "https://api.openai.com/v1/chat/completions" (unchanged)
  */
 const normalizeApiUrl = (url: string, preferResponses = false): string => {
   let normalized = url.trim();
+
   // Remove trailing slash
   if (normalized.endsWith("/")) {
     normalized = normalized.slice(0, -1);
   }
-  // Specific endpoints that are definitely full URLs
-  // /responses is common for some providers (e.g. Volcengine)
-  if (normalized.endsWith("/chat/completions") || normalized.endsWith("/responses")) {
+
+  // Case 1: Already a complete endpoint URL - use as-is
+  if (
+    normalized.endsWith("/chat/completions") ||
+    normalized.endsWith("/responses")
+  ) {
     return normalized;
   }
 
-  // Check if it already has a version segment like /v1, /v2, /v3...
-  // or looks like a complete path (e.g. has /api/v...)
-  // If so, just append /chat/completions (unless it was caught above)
+  // Case 2: URL has version path (e.g., /v1, /v2) or /api/ prefix
+  // These are base URLs that need the endpoint path appended
   if (/\/v\d+(?:\/|$)/i.test(normalized) || normalized.includes("/api/")) {
     if (preferResponses) {
       return normalized + "/responses";
@@ -86,7 +95,8 @@ const normalizeApiUrl = (url: string, preferResponses = false): string => {
     return normalized + "/chat/completions";
   }
 
-  // Default: assume standard OpenAI-like base and add /v1
+  // Case 3: Domain-only or simple base URL (e.g., https://api.openai.com)
+  // Add standard OpenAI-style version and endpoint path
   if (preferResponses) {
     return normalized + "/v1/responses";
   }
@@ -171,7 +181,7 @@ export const callAIStream = async (
     const decoder = new TextDecoder();
     let buffer = "";
 
-  while (true) {
+    while (true) {
       const { done, value } = await reader.read();
       if (done) {
         break;
@@ -216,7 +226,10 @@ export const callAIStream = async (
               content = json.delta;
             }
             // Also accept content_part delta
-            if (json.type === "response.content_part.delta" && json.delta?.text) {
+            if (
+              json.type === "response.content_part.delta" &&
+              json.delta?.text
+            ) {
               content = json.delta.text;
             }
             if (callbacks.includeReasoning) {
@@ -225,14 +238,19 @@ export const callAIStream = async (
                 json.type === "response.reasoning_text.delta"
               ) {
                 reasoning = json.delta || json.delta?.text;
-              } else if (json.type === "response.reasoning_summary_part.added") {
+              } else if (
+                json.type === "response.reasoning_summary_part.added"
+              ) {
                 reasoning = json.part?.text || json.part?.summary_text;
               } else if (
                 json.type === "response.reasoning_summary_text.done" ||
                 json.type === "response.reasoning_text.done"
               ) {
                 reasoning = json.text;
-              } else if (typeof json.type === "string" && json.type.includes("reasoning")) {
+              } else if (
+                typeof json.type === "string" &&
+                json.type.includes("reasoning")
+              ) {
                 reasoning =
                   json.delta ||
                   json.delta?.text ||
@@ -249,7 +267,11 @@ export const callAIStream = async (
           }
 
           // Another fallback for content_block_delta (Anthropic format)
-          if (!content && json.delta?.text && json.type === "content_block_delta") {
+          if (
+            !content &&
+            json.delta?.text &&
+            json.type === "content_block_delta"
+          ) {
             content = json.delta.text;
           }
 
@@ -302,7 +324,12 @@ export const runAIStream = async (
   signal?: AbortSignal,
   customSettings?: AISettings,
 ): Promise<void> => {
-  const result = await callAIStream(messages, callbacks, signal, customSettings);
+  const result = await callAIStream(
+    messages,
+    callbacks,
+    signal,
+    customSettings,
+  );
   if (!result.success) {
     throw new Error(result.error || "Unknown error");
   }
@@ -456,7 +483,11 @@ graph TD
 export const generateOptimizationPlan = async (
   messages: AIMessage[],
   diagramInfo: string,
-  onChunk: (data: { summary?: string; mermaid?: string; reasoning?: string }) => void,
+  onChunk: (data: {
+    summary?: string;
+    mermaid?: string;
+    reasoning?: string;
+  }) => void,
   signal?: AbortSignal,
 ): Promise<{ summary: string; mermaid: string }> => {
   const chatHistory = messages
@@ -471,7 +502,11 @@ export const generateOptimizationPlan = async (
   await runAIStream(
     [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "请根据以上对话内容，生成优化后的架构方案。必须包含变更总结和Mermaid代码块。" },
+      {
+        role: "user",
+        content:
+          "请根据以上对话内容，生成优化后的架构方案。必须包含变更总结和Mermaid代码块。",
+      },
     ],
     {
       onChunk: (chunk) => {
@@ -490,11 +525,15 @@ export const generateOptimizationPlan = async (
   let mermaidMatch = fullResponse.match(/```mermaid\s*([\s\S]*?)```/);
   if (!mermaidMatch) {
     // Try without mermaid tag
-    mermaidMatch = fullResponse.match(/```\s*(graph\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/);
+    mermaidMatch = fullResponse.match(
+      /```\s*(graph\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/,
+    );
   }
   if (!mermaidMatch) {
     // Try flowchart syntax
-    mermaidMatch = fullResponse.match(/```\s*(flowchart\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/);
+    mermaidMatch = fullResponse.match(
+      /```\s*(flowchart\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/,
+    );
   }
 
   const mermaid = mermaidMatch ? mermaidMatch[1].trim() : "";
