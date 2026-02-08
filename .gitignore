@@ -11,6 +11,7 @@
 .vscode
 .yarn
 *.log
+.tmp-trace.txt
 *.tgz
 build
 dist

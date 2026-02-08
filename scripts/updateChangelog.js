@@ -16,10 +16,19 @@ const headerForType = {
   feat: "Features",
   fix: "Fixes",
   style: "Styles",
-  refactor: " Refactor",
+  refactor: "Refactor",
   perf: "Performance",
   build: "Build",
 };
+
+const existingPullRequestNumbers = new Set(
+  Array.from(
+    existingChangeLog.matchAll(
+      /\[#(\d+)\]\(https:\/\/github\.com\/excalidraw\/excalidraw\/pull\/\d+\)/g,
+    ),
+    (match) => match[1],
+  ),
+);
 
 const badCommits = [];
 const getCommitHashForLastVersion = async () => {
@@ -29,18 +38,26 @@ const getCommitHashForLastVersion = async () => {
       `git log --format=format:"%H" --grep=${commitMessage}`,
     );
     // take commit hash from latest release
-    return stdout.split(/\r?\n/)[0];
+    return stdout.split(/\r?\n/)[0] || null;
   } catch (error) {
-    console.error(error);
+    throw new Error(
+      `Failed to read git history for changelog generation: ${error.message}`,
+    );
   }
 };
 
 const getLibraryCommitsSinceLastRelease = async () => {
   const commitHash = await getCommitHashForLastVersion();
+  if (!commitHash) {
+    throw new Error(
+      'Unable to locate previous release commit. Expected commit message containing "release @excalidraw/excalidraw".',
+    );
+  }
+
   const { stdout } = await exec(
     `git log --pretty=format:%s ${commitHash}...master`,
   );
-  const commitsSinceLastRelease = stdout.split("\n");
+  const commitsSinceLastRelease = stdout ? stdout.split("\n") : [];
   const commitList = {};
   supportedTypes.forEach((type) => {
     commitList[type] = [];
@@ -60,7 +77,7 @@ const getLibraryCommitsSinceLastRelease = async () => {
       const prNumber = prMatch[1];
 
       // return if the changelog already contains the pr number which would happen for package updates
-      if (existingChangeLog.includes(prNumber)) {
+      if (existingPullRequestNumbers.has(prNumber)) {
         return;
       }
       const prMarkdown = `[#${prNumber}](https://github.com/excalidraw/excalidraw/pull/${prNumber})`;
