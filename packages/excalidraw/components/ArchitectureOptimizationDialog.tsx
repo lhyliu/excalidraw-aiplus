@@ -38,6 +38,7 @@ import {
   generateOptimizationPlan,
   isAIConfigured,
   runAIStream,
+  sanitizeMermaidDefinition,
 } from "../services/aiService";
 
 import { convertMermaidToExcalidraw } from "./TTDDialog/common";
@@ -45,6 +46,7 @@ import { convertMermaidToExcalidraw } from "./TTDDialog/common";
 import { Dialog } from "./Dialog";
 import { ChatPanel } from "./ArchitectureOptimizationDialog/ChatPanel";
 import {
+  buildSuggestionDedupKey,
   categoryLabels,
   compactSuggestionContent,
   extractTitle,
@@ -54,6 +56,13 @@ import {
 import { PreviewPage } from "./ArchitectureOptimizationDialog/PreviewPage";
 import { SchemeTabs } from "./ArchitectureOptimizationDialog/SchemeTabs";
 import { WorkflowPage } from "./ArchitectureOptimizationDialog/WorkflowPage";
+import { adjustInputComposerTextareaHeight } from "./ArchitectureOptimizationDialog/inputComposer";
+import {
+  buildPlanExecutionOptions,
+  buildGenerationSnapshot,
+  buildPlanHistoryMessages,
+} from "./ArchitectureOptimizationDialog/planGenerationContext";
+import { validateGenerationResult } from "./ArchitectureOptimizationDialog/validation";
 import { useAIStream } from "./hooks/useAIStream";
 
 import {
@@ -85,6 +94,7 @@ const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
 const SCHEMES_STORAGE_KEY = "excalidraw_architecture_schemes";
 const ASSISTANT_STATE_STORAGE_KEY = "excalidraw_architecture_assistant_state";
 const ARCHITECTURE_DIALOG_WIDTH = 1500;
+const SCHEME_UNDO_TIMEOUT_MS = 12000;
 
 const getScopedStorageKey = (baseKey: string, scope?: string) =>
   scope ? `${baseKey}::${scope}` : baseKey;
@@ -218,6 +228,12 @@ export const ArchitectureOptimizationDialog: React.FC<
     timeoutId: number;
   } | null>(null);
   const [showUndoToast, setShowUndoToast] = useState(false);
+  const [isClearSchemesDialogOpen, setIsClearSchemesDialogOpen] =
+    useState(false);
+  const [clearSchemesAlsoClearSelected, setClearSchemesAlsoClearSelected] =
+    useState(false);
+  const [clearSchemesAlsoClearPool, setClearSchemesAlsoClearPool] =
+    useState(false);
 
   // Advanced workbench state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -478,11 +494,15 @@ export const ArchitectureOptimizationDialog: React.FC<
       setError: (err: Error | null) => void,
       autoFit = false,
     ) => {
-      if (
-        !scheme?.mermaid ||
-        !mermaidToExcalidrawLib.loaded ||
-        !canvasRef.current
-      ) {
+      if (!canvasRef.current) {
+        return;
+      }
+      if (!scheme?.mermaid?.trim()) {
+        setError(new Error("当前方案缺少 Mermaid 代码"));
+        return;
+      }
+      if (!mermaidToExcalidrawLib.loaded) {
+        setError(new Error("Mermaid 渲染引擎尚未就绪，请稍后重试"));
         return;
       }
 
@@ -505,7 +525,7 @@ export const ArchitectureOptimizationDialog: React.FC<
       setRenderingSchemes((prev) => new Set(prev).add(scheme.id));
 
       try {
-        await convertMermaidToExcalidraw({
+        const firstTry = await convertMermaidToExcalidraw({
           canvasRef,
           mermaidToExcalidrawLib,
           mermaidDefinition: scheme.mermaid,
@@ -518,6 +538,24 @@ export const ArchitectureOptimizationDialog: React.FC<
           data: dataRef,
           theme: uiAppState.theme as Theme,
         });
+        if (!firstTry.success) {
+          const sanitized = sanitizeMermaidDefinition(scheme.mermaid);
+          if (sanitized && sanitized !== scheme.mermaid) {
+            await convertMermaidToExcalidraw({
+              canvasRef,
+              mermaidToExcalidrawLib,
+              mermaidDefinition: sanitized,
+              setError: (err) => {
+                setError(err);
+                if (err) {
+                  console.error("Mermaid preview fallback error", err);
+                }
+              },
+              data: dataRef,
+              theme: uiAppState.theme as Theme,
+            });
+          }
+        }
         if (autoFit) {
           scheduleFitPreview(canvasRef, scheme.id);
         }
@@ -744,15 +782,17 @@ export const ArchitectureOptimizationDialog: React.FC<
               const parsed = parseSuggestions(contentBuffer);
               setSuggestionPool((prev) => {
                 const existing = new Set(
-                  prev.map((p) => p.content.slice(0, 50)),
+                  prev.map((p) => buildSuggestionDedupKey(p.category, p.fullContent)),
                 );
                 const unique = parsed
-                  .filter(
-                    (s) =>
-                      !existing.has(
-                        compactSuggestionContent(s.content).slice(0, 50),
-                      ),
-                  )
+                  .filter((s) => {
+                    const key = buildSuggestionDedupKey(s.category, s.content);
+                    if (existing.has(key)) {
+                      return false;
+                    }
+                    existing.add(key);
+                    return true;
+                  })
                   .map((s, idx) => ({
                     id: `pool-${Date.now()}-${idx}`,
                     category: s.category,
@@ -948,11 +988,18 @@ export const ArchitectureOptimizationDialog: React.FC<
 
     let addedCount = 0;
     setSuggestionPool((prev) => {
-      // Avoid duplicates by checking content similarity
-      const existing = new Set(prev.map((p) => p.content.slice(0, 50)));
+      const existing = new Set(
+        prev.map((p) => buildSuggestionDedupKey(p.category, p.fullContent)),
+      );
       const unique = newSuggestions.filter(
-        (s) =>
-          !existing.has(compactSuggestionContent(s.fullContent).slice(0, 50)),
+        (s) => {
+          const key = buildSuggestionDedupKey(s.category, s.fullContent);
+          if (existing.has(key)) {
+            return false;
+          }
+          existing.add(key);
+          return true;
+        },
       );
       addedCount = unique.length;
       return [...prev, ...unique];
@@ -990,9 +1037,11 @@ export const ArchitectureOptimizationDialog: React.FC<
   const applySuggestionToPool = useCallback((suggestion: Suggestion) => {
     let isExisting = false;
     const compactSuggestion = compactSuggestionContent(suggestion.content);
+    const nextKey = buildSuggestionDedupKey(suggestion.category, compactSuggestion);
     setSuggestionPool((prev) => {
       const existing = prev.find(
-        (item) => item.content.slice(0, 50) === compactSuggestion.slice(0, 50),
+        (item) =>
+          buildSuggestionDedupKey(item.category, item.fullContent) === nextKey,
       );
       if (existing) {
         isExisting = true;
@@ -1060,6 +1109,10 @@ export const ArchitectureOptimizationDialog: React.FC<
     setActiveCombinationId(null);
   }, []);
 
+  const confirmClear = useCallback((target: string) => {
+    return window.confirm(`将清空${target}，该操作不可恢复。是否继续？`);
+  }, []);
+
   const handleToggleExpandedSuggestion = useCallback((id: string) => {
     setExpandedSuggestionIds((prev) => {
       const next = new Set(prev);
@@ -1071,29 +1124,6 @@ export const ArchitectureOptimizationDialog: React.FC<
       return next;
     });
   }, []);
-
-  const handleSaveCombination = useCallback(() => {
-    if (selectedSuggestionIds.length === 0) {
-      setSuggestionToast("请先勾选建议再保存组合");
-      return;
-    }
-    const name = window
-      .prompt("请输入组合名称", `组合 ${suggestionCombinations.length + 1}`)
-      ?.trim();
-    if (!name) {
-      return;
-    }
-
-    const combination: SuggestionCombination = {
-      id: `comb-${Date.now()}`,
-      name,
-      suggestionIds: selectedSuggestionIds,
-      createdAt: Date.now(),
-    };
-    setSuggestionCombinations((prev) => [...prev, combination]);
-    setActiveCombinationId(combination.id);
-    setSuggestionToast(`已保存组合：${name}`);
-  }, [selectedSuggestionIds, suggestionCombinations.length]);
 
   const applyCombination = useCallback(
     (combinationId: string) => {
@@ -1112,13 +1142,6 @@ export const ArchitectureOptimizationDialog: React.FC<
     [suggestionCombinations],
   );
 
-  const removeCombination = useCallback((combinationId: string) => {
-    setSuggestionCombinations((prev) =>
-      prev.filter((combination) => combination.id !== combinationId),
-    );
-    setActiveCombinationId((prev) => (prev === combinationId ? null : prev));
-  }, []);
-
   const archiveSuggestion = useCallback((id: string) => {
     setSuggestionPool((prev) =>
       prev.map((s) =>
@@ -1129,22 +1152,68 @@ export const ArchitectureOptimizationDialog: React.FC<
   }, []);
 
   const clearSuggestionPool = useCallback(() => {
-    if (suggestionPool.length === 0 && suggestionCombinations.length === 0) {
+    if (suggestionPool.length === 0) {
       return;
     }
-    const confirmed = window.confirm(
-      "将清空建议列表及所有组合，该操作不可恢复。是否继续？",
-    );
-    if (!confirmed) {
+    if (!confirmClear("列表")) {
       return;
     }
     setSuggestionPool([]);
-    setSuggestionCombinations([]);
     setActiveCombinationId(null);
     setExpandedSuggestionIds(new Set());
     setEditingSuggestionId(null);
-    setSuggestionToast("建议列表已清空");
-  }, [suggestionPool.length, suggestionCombinations.length]);
+    setSuggestionToast("列表已清空");
+  }, [suggestionPool.length, confirmClear]);
+
+  const clearSchemes = useCallback(() => {
+    if (schemes.length === 0) {
+      return;
+    }
+    setIsClearSchemesDialogOpen(true);
+  }, [schemes.length]);
+
+  const confirmClearSchemes = useCallback(() => {
+    setSchemes([]);
+    setActiveSchemeId(null);
+    setIsPreviewPage(false);
+    setIsCompareMode(false);
+    setPreviewError(null);
+    setOriginalPreviewError(null);
+    if (clearSchemesAlsoClearPool) {
+      setSuggestionPool([]);
+      setExpandedSuggestionIds(new Set());
+      setEditingSuggestionId(null);
+      setActiveCombinationId(null);
+    } else if (clearSchemesAlsoClearSelected) {
+      setSuggestionPool((prev) => prev.map((s) => ({ ...s, selected: false })));
+      setActiveCombinationId(null);
+    }
+    if (deletedSchemesBuffer) {
+      clearTimeout(deletedSchemesBuffer.timeoutId);
+      setDeletedSchemesBuffer(null);
+      setShowUndoToast(false);
+    }
+    setIsClearSchemesDialogOpen(false);
+    const keepSuggestions =
+      !clearSchemesAlsoClearSelected && !clearSchemesAlsoClearPool;
+    const toastText = keepSuggestions
+      ? "已清空方案，建议流与已选建议已保留"
+      : clearSchemesAlsoClearPool
+      ? "已清空方案和建议项目"
+      : "已清空方案和已选建议";
+    setSuggestionToast(toastText);
+    if (suggestionToastTimerRef.current) {
+      clearTimeout(suggestionToastTimerRef.current);
+    }
+    suggestionToastTimerRef.current = window.setTimeout(() => {
+      setSuggestionToast(null);
+      suggestionToastTimerRef.current = null;
+    }, 2200);
+  }, [
+    clearSchemesAlsoClearPool,
+    clearSchemesAlsoClearSelected,
+    deletedSchemesBuffer,
+  ]);
 
   const handleReactivateLastSuggestions = useCallback(() => {
     if (isStreaming || !lastAssistantConclusion.trim()) {
@@ -1183,20 +1252,22 @@ export const ArchitectureOptimizationDialog: React.FC<
   const runPlanGeneration = useCallback(
     async (
       extraContext?: string,
-      options?: {
-        targetSchemeId?: string | null;
-        forceCreate?: boolean;
-        sourceCombinationId?: string | null;
-        sourceSuggestionIds?: string[];
-        sourceSuggestionSnapshot?: Array<{
-          id: string;
-          category: SuggestionCategory;
-          title: string;
-          content: string;
-          fullContent: string;
-          note?: string;
-        }>;
-      },
+        options?: {
+          targetSchemeId?: string | null;
+          forceCreate?: boolean;
+          includeHistory?: boolean;
+          sourceCombinationId?: string | null;
+          sourceSuggestionIds?: string[];
+          sourceSuggestionSnapshot?: Array<{
+            id: string;
+            category: SuggestionCategory;
+            title: string;
+            content: string;
+            fullContent: string;
+            note?: string;
+          }>;
+          generationSnapshot?: Scheme["generationSnapshot"];
+        },
     ): Promise<{ schemeId: string; wasUpdated: boolean } | null> => {
       if (isStreaming || (messages.length === 0 && !extraContext?.trim())) {
         return null;
@@ -1218,51 +1289,71 @@ export const ArchitectureOptimizationDialog: React.FC<
       });
 
       try {
-        // Messages history
-        const historyMessages = messages
-          .filter((m) => !m.error && !m.isGenerating)
-          .map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
-
-        if (extraContext?.trim()) {
-          historyMessages.push({
-            role: "user",
-            content: extraContext.trim(),
-          });
-        }
+        const historyMessages = buildPlanHistoryMessages(
+          messages,
+          extraContext,
+          options?.includeHistory !== false,
+        );
 
         let reasoningBuffer = "";
         let summaryBuffer = "";
-        const streamResult = await runStream((signal) =>
-          generateOptimizationPlan(
-            historyMessages,
-            diagramInfo,
-            (chunk) => {
-              if (chunk.reasoning) {
-                reasoningBuffer += chunk.reasoning;
-              }
-              if (chunk.summary) {
-                summaryBuffer = chunk.summary;
-              }
-              dispatchMessages({
-                type: "update",
-                id: assistantMsgId,
-                patch: {
-                  content: summaryBuffer || "正在生成...",
-                  reasoning: reasoningBuffer || undefined,
-                },
-              });
-            },
-            signal,
-          ),
-        );
+        const runGenerationRequest = async (correctionInstruction?: string) => {
+          const requestMessages = [...historyMessages];
+          if (correctionInstruction) {
+            requestMessages.push({
+              role: "user",
+              content: correctionInstruction,
+            });
+          }
+          const streamResult = await runStream((signal) =>
+            generateOptimizationPlan(
+              requestMessages,
+              diagramInfo,
+              (chunk) => {
+                if (chunk.reasoning) {
+                  reasoningBuffer += chunk.reasoning;
+                }
+                if (chunk.summary) {
+                  summaryBuffer = chunk.summary;
+                }
+                dispatchMessages({
+                  type: "update",
+                  id: assistantMsgId,
+                  patch: {
+                    content: summaryBuffer || "正在生成...",
+                    reasoning: reasoningBuffer || undefined,
+                  },
+                });
+              },
+              signal,
+            ),
+          );
+          if (!streamResult.success) {
+            throw new Error(streamResult.error || "Unknown error");
+          }
+          return streamResult.data;
+        };
 
-        if (!streamResult.success) {
-          throw new Error(streamResult.error || "Unknown error");
+        let result = await runGenerationRequest();
+        let validation = validateGenerationResult({
+          summary: result.summary,
+          mermaid: result.mermaid,
+          snapshot: options?.generationSnapshot,
+        });
+
+        if (!validation.ok) {
+          result = await runGenerationRequest(
+            `请严格修正上一版输出：${validation.reason}。仅返回符合约束的新结果，不要解释。`,
+          );
+          validation = validateGenerationResult({
+            summary: result.summary,
+            mermaid: result.mermaid,
+            snapshot: options?.generationSnapshot,
+          });
+          if (!validation.ok) {
+            throw new Error(validation.reason);
+          }
         }
-        const result = streamResult.data;
 
         // Validate result
         if (!result.mermaid || result.mermaid.trim() === "") {
@@ -1307,12 +1398,14 @@ export const ArchitectureOptimizationDialog: React.FC<
                 ? {
                     ...scheme,
                     summary: result.summary,
+                    fullSummary: result.fullSummary,
                     mermaid: result.mermaid,
                     shortSummary,
                     sourceCombinationId: options?.sourceCombinationId ?? null,
                     sourceSuggestionIds: options?.sourceSuggestionIds ?? [],
                     sourceSuggestionSnapshot:
                       options?.sourceSuggestionSnapshot ?? [],
+                    generationSnapshot: options?.generationSnapshot,
                   }
                 : scheme,
             );
@@ -1329,12 +1422,14 @@ export const ArchitectureOptimizationDialog: React.FC<
             id: createdSchemeId,
             version: nextVersion,
             summary: result.summary,
+            fullSummary: result.fullSummary,
             mermaid: result.mermaid,
             shortSummary,
             title: "",
             sourceCombinationId: options?.sourceCombinationId ?? null,
             sourceSuggestionIds: options?.sourceSuggestionIds ?? [],
             sourceSuggestionSnapshot: options?.sourceSuggestionSnapshot ?? [],
+            generationSnapshot: options?.generationSnapshot,
           };
           return [...prev, scheme];
         });
@@ -1375,96 +1470,91 @@ export const ArchitectureOptimizationDialog: React.FC<
     [elements, messages, runStream, isStreaming, activeSchemeId, schemes],
   );
 
-  // Generate architecture from selected suggestions
-  const buildGenerationPrompt = useCallback(() => {
-    if (selectedSuggestions.length === 0) {
-      return;
-    }
-
-    const context = selectedSuggestions
-      .map(
-        (s) =>
-          `- [${categoryLabels[s.category]}] ${s.content}${
-            s.note ? ` (备注: ${s.note})` : ""
-          }`,
-      )
-      .join("\n");
-
-    const stylePrompt =
-      architectureStyle === "minimal"
-        ? "生成极简风格的架构图，只包含核心组件。"
-        : architectureStyle === "detailed"
-        ? "生成详细的架构图，包含所有子组件和连接。"
-        : "生成标准风格的架构图。";
-
-    return `基于以下已选优化建议，${stylePrompt}\n\n已选建议：\n${context}`;
-  }, [selectedSuggestions, architectureStyle]);
-
-  const generateNewFromSelected = useCallback(async () => {
-    const prompt = buildGenerationPrompt();
-    if (!prompt) {
-      return;
-    }
-
-    const result = await runPlanGeneration(prompt, {
-      targetSchemeId: activeSchemeId,
-      forceCreate: true,
-      sourceCombinationId: activeCombinationId,
-      sourceSuggestionIds: selectedSuggestionIds,
-      sourceSuggestionSnapshot: selectedSuggestionSnapshot,
-    });
-    if (result?.schemeId) {
-      setActiveSchemeId(result.schemeId);
-      setIsPreviewPage(true);
-    }
-  }, [
-    buildGenerationPrompt,
-    runPlanGeneration,
-    activeSchemeId,
-    activeCombinationId,
-    selectedSuggestionIds,
-    selectedSuggestionSnapshot,
-  ]);
-
-  const updateCurrentFromSelected = useCallback(async () => {
-    const prompt = buildGenerationPrompt();
-    if (!prompt || !activeSchemeId) {
-      return;
-    }
-
-    if (!skipUpdateConfirm) {
-      const confirmed = window.confirm(
-        "将覆盖当前方案内容，历史内容不可自动恢复。是否继续？",
-      );
-      if (!confirmed) {
+  const buildGenerationPromptFromSnapshot = useCallback(
+    (snapshot: ReturnType<typeof buildGenerationSnapshot>) => {
+      if (snapshot.selectedItems.length === 0) {
         return;
       }
-      const dontAskAgain = window.confirm("后续更新当前方案时不再提示？");
-      if (dontAskAgain) {
-        setSkipUpdateConfirm(true);
-      }
-    }
 
-    const result = await runPlanGeneration(prompt, {
-      targetSchemeId: activeSchemeId,
-      forceCreate: false,
-      sourceCombinationId: activeCombinationId,
-      sourceSuggestionIds: selectedSuggestionIds,
-      sourceSuggestionSnapshot: selectedSuggestionSnapshot,
-    });
-    if (result?.schemeId) {
-      setActiveSchemeId(result.schemeId);
-      setIsPreviewPage(true);
-    }
-  }, [
-    buildGenerationPrompt,
-    activeSchemeId,
-    skipUpdateConfirm,
-    runPlanGeneration,
-    activeCombinationId,
-    selectedSuggestionIds,
-    selectedSuggestionSnapshot,
-  ]);
+      const context = snapshot.selectedItems
+        .map(
+          (s) =>
+            `- [${categoryLabels[s.category]}] ${s.content}${
+              s.note ? ` (备注: ${s.note})` : ""
+            }`,
+        )
+        .join("\n");
+
+      const stylePrompt =
+        snapshot.style === "minimal"
+          ? "生成极简风格的架构图，只包含核心组件。"
+          : snapshot.style === "detailed"
+          ? "生成详细的架构图，包含所有子组件和连接。"
+          : "生成标准风格的架构图。";
+
+      return `基于以下已选优化建议，${stylePrompt}\n\n已选建议：\n${context}`;
+    },
+    [],
+  );
+
+  const runSelectedPlanGeneration = useCallback(
+    async (mode: "create" | "update") => {
+      const isUpdateMode = mode === "update";
+      if (isUpdateMode && !activeSchemeId) {
+        return;
+      }
+
+      if (isUpdateMode && !skipUpdateConfirm) {
+        const confirmed = window.confirm(
+          "将覆盖当前方案内容，历史内容不可自动恢复。是否继续？",
+        );
+        if (!confirmed) {
+          return;
+        }
+        const dontAskAgain = window.confirm("后续更新当前方案时不再提示？");
+        if (dontAskAgain) {
+          setSkipUpdateConfirm(true);
+        }
+      }
+
+      const snapshot = buildGenerationSnapshot(
+        selectedSuggestions,
+        architectureStyle,
+        activeSchemeId,
+        activeCombinationId,
+      );
+      const prompt = buildGenerationPromptFromSnapshot(snapshot);
+      if (!prompt) {
+        return;
+      }
+
+      const result = await runPlanGeneration(
+        prompt,
+        buildPlanExecutionOptions(snapshot, activeSchemeId, mode),
+      );
+      if (result?.schemeId) {
+        setActiveSchemeId(result.schemeId);
+        setIsPreviewPage(true);
+      }
+    },
+    [
+      activeCombinationId,
+      activeSchemeId,
+      architectureStyle,
+      buildGenerationPromptFromSnapshot,
+      runPlanGeneration,
+      selectedSuggestions,
+      skipUpdateConfirm,
+    ],
+  );
+
+  const generateNewFromSelected = useCallback(async () => {
+    await runSelectedPlanGeneration("create");
+  }, [runSelectedPlanGeneration]);
+
+  const updateCurrentFromSelected = useCallback(async () => {
+    await runSelectedPlanGeneration("update");
+  }, [runSelectedPlanGeneration]);
 
   const handleZoomIn = useCallback(() => {
     setViewport((prev) => ({ ...prev, zoom: Math.min(2.5, prev.zoom + 0.1) }));
@@ -1570,24 +1660,8 @@ export const ArchitectureOptimizationDialog: React.FC<
     if (!textarea) {
       return;
     }
-
     const chatPanelHeight = chatPanelRef.current?.clientHeight ?? 0;
-    // Keep composer compact so action buttons always stay visible.
-    const maxHeight =
-      chatPanelHeight > 0
-        ? Math.min(180, Math.floor(chatPanelHeight * 0.32))
-        : 160;
-    const minHeight = 44;
-
-    textarea.style.maxHeight = `${maxHeight}px`;
-    textarea.style.height = `${minHeight}px`;
-    const nextHeight = Math.max(
-      minHeight,
-      Math.min(textarea.scrollHeight, maxHeight),
-    );
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY =
-      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    adjustInputComposerTextareaHeight(textarea, chatPanelHeight);
   }, []);
 
   useEffect(() => {
@@ -1645,7 +1719,7 @@ export const ArchitectureOptimizationDialog: React.FC<
         timeoutId: window.setTimeout(() => {
           setDeletedSchemesBuffer(null);
           setShowUndoToast(false);
-        }, 5000),
+        }, SCHEME_UNDO_TIMEOUT_MS),
       });
 
       // 执行删除
@@ -1686,22 +1760,8 @@ export const ArchitectureOptimizationDialog: React.FC<
   }, []);
 
   const handleGeneratePlan = useCallback(async () => {
-    const result = await runPlanGeneration(undefined, {
-      forceCreate: true,
-      sourceCombinationId: activeCombinationId,
-      sourceSuggestionIds: selectedSuggestionIds,
-      sourceSuggestionSnapshot: selectedSuggestionSnapshot,
-    });
-    if (result?.schemeId) {
-      setActiveSchemeId(result.schemeId);
-      setIsPreviewPage(true);
-    }
-  }, [
-    runPlanGeneration,
-    activeCombinationId,
-    selectedSuggestionIds,
-    selectedSuggestionSnapshot,
-  ]);
+    await runSelectedPlanGeneration("create");
+  }, [runSelectedPlanGeneration]);
 
   const handleRegenerateSummary = useCallback(async () => {
     if (!activeScheme || isStreaming) {
@@ -1710,6 +1770,7 @@ export const ArchitectureOptimizationDialog: React.FC<
 
     const schemeId = activeScheme.id;
     const originalSummary = activeScheme.summary;
+    const originalFullSummary = activeScheme.fullSummary ?? activeScheme.summary;
     const suggestionContext = parseSuggestions(activeScheme.summary)
       .slice(0, 6)
       .map((item, index) => `${index + 1}. ${item.content}`)
@@ -1752,6 +1813,7 @@ ${suggestionContext || originalSummary}
                   ? {
                       ...scheme,
                       summary: interimSummary || "正在生成总结...",
+                      fullSummary: interimSummary || "正在生成总结...",
                     }
                   : scheme,
               ),
@@ -1764,12 +1826,16 @@ ${suggestionContext || originalSummary}
 
     if (!streamResult.success) {
       setSchemes((prev) =>
-        prev.map((scheme) =>
-          scheme.id === schemeId
-            ? { ...scheme, summary: originalSummary }
-            : scheme,
-        ),
-      );
+          prev.map((scheme) =>
+            scheme.id === schemeId
+              ? {
+                  ...scheme,
+                  summary: originalSummary,
+                  fullSummary: originalFullSummary,
+                }
+              : scheme,
+          ),
+        );
       setSuggestionToast("重新生成总结失败");
       return;
     }
@@ -1777,12 +1843,16 @@ ${suggestionContext || originalSummary}
     const finalSummary = summaryBuffer.trim();
     if (!finalSummary) {
       setSchemes((prev) =>
-        prev.map((scheme) =>
-          scheme.id === schemeId
-            ? { ...scheme, summary: originalSummary }
-            : scheme,
-        ),
-      );
+          prev.map((scheme) =>
+            scheme.id === schemeId
+              ? {
+                  ...scheme,
+                  summary: originalSummary,
+                  fullSummary: originalFullSummary,
+                }
+              : scheme,
+          ),
+        );
       setSuggestionToast("AI未返回有效总结");
       return;
     }
@@ -1798,6 +1868,7 @@ ${suggestionContext || originalSummary}
           ? {
               ...scheme,
               summary: finalSummary,
+              fullSummary: finalSummary,
               shortSummary,
             }
           : scheme,
@@ -2017,7 +2088,10 @@ ${suggestionContext || originalSummary}
                 <span>已删除 {deletedSchemesBuffer.schemes.length} 个方案</span>
                 <button onClick={handleUndoDelete}>撤销</button>
                 <button onClick={() => setShowUndoToast(false)}>✕</button>
-                <div className="scheme-undo-toast__progress" />
+                <div
+                  className="scheme-undo-toast__progress"
+                  style={{ animationDuration: `${SCHEME_UNDO_TIMEOUT_MS}ms` }}
+                />
               </div>
             )}
 
@@ -2030,6 +2104,7 @@ ${suggestionContext || originalSummary}
               suggestionCombinations={suggestionCombinations}
               onSetPreviewPage={setIsPreviewPage}
               onGeneratePlan={handleGeneratePlan}
+              onClearSchemes={clearSchemes}
               onSelectScheme={handleSelectScheme}
               onDeleteScheme={handleDeleteSingle}
               onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
@@ -2041,8 +2116,6 @@ ${suggestionContext || originalSummary}
                 onCloseSuggestionToast={() => setSuggestionToast(null)}
                 stagingAreaRef={stagingAreaRef}
                 selectedSuggestions={selectedSuggestions}
-                suggestionCombinations={suggestionCombinations}
-                activeCombinationId={activeCombinationId}
                 suggestionPool={suggestionPool}
                 visibleSuggestions={visibleSuggestions}
                 suggestionSearchKeyword={suggestionSearchKeyword}
@@ -2052,10 +2125,7 @@ ${suggestionContext || originalSummary}
                 architectureStyle={architectureStyle}
                 activeSchemeId={activeSchemeId}
                 isStreaming={isStreaming}
-                onSaveCombination={handleSaveCombination}
                 onClearSelectedSuggestions={handleClearSelectedSuggestions}
-                onApplyCombination={applyCombination}
-                onRemoveCombination={removeCombination}
                 onToggleSuggestionSelection={toggleSuggestionSelection}
                 onClearSuggestionPool={clearSuggestionPool}
                 onSetSuggestionSearchKeyword={setSuggestionSearchKeyword}
@@ -2118,6 +2188,55 @@ ${suggestionContext || originalSummary}
             )}
           </div>
         </div>
+        {isClearSchemesDialogOpen && (
+          <div className="ao-inline-confirm">
+            <div className="ao-inline-confirm__panel">
+              <h3 className="ao-inline-confirm__title">清空方案</h3>
+              <p className="ao-inline-confirm__desc">
+                将清空所有方案，该操作不可恢复。请选择是否同时清理建议数据。
+              </p>
+              <label className="ao-inline-confirm__option">
+                <input
+                  type="checkbox"
+                  checked={clearSchemesAlsoClearSelected}
+                  onChange={(e) =>
+                    setClearSchemesAlsoClearSelected(e.target.checked)
+                  }
+                />
+                清空已选建议
+              </label>
+              <label className="ao-inline-confirm__option">
+                <input
+                  type="checkbox"
+                  checked={clearSchemesAlsoClearPool}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setClearSchemesAlsoClearPool(checked);
+                    if (checked) {
+                      setClearSchemesAlsoClearSelected(true);
+                    }
+                  }}
+                />
+                清空建议项目（建议流）
+              </label>
+              <div className="ao-inline-confirm__actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsClearSchemesDialogOpen(false);
+                    setClearSchemesAlsoClearSelected(false);
+                    setClearSchemesAlsoClearPool(false);
+                  }}
+                >
+                  取消
+                </button>
+                <button type="button" onClick={confirmClearSchemes}>
+                  确认清空
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Dialog>
   );

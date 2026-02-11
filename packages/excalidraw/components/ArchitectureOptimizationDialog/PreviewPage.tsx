@@ -92,17 +92,49 @@ export const PreviewPage = ({
   onRegenerateSummary,
   isSummaryRefreshing,
 }: PreviewPageProps) => {
+  const normalizeForMatch = (text: string) =>
+    text.toLowerCase().replace(/[，,。:：;；、\s\-_/()[\]【】]/g, "");
+  const hasKeywordMatch = (
+    summary: string,
+    title: string,
+    content: string,
+  ): boolean => {
+    const normalizedSummary = normalizeForMatch(summary);
+    const normalizedTitle = normalizeForMatch(title);
+    if (normalizedTitle && normalizedSummary.includes(normalizedTitle)) {
+      return true;
+    }
+    const tokens = `${title} ${content}`
+      .split(/[，,。:：;；、\s\-_/()[\]【】]+/)
+      .map((token) => normalizeForMatch(token))
+      .filter((token) => token.length >= 2);
+    if (tokens.length === 0) {
+      return false;
+    }
+    const matchedTokenCount = tokens.filter((token) =>
+      normalizedSummary.includes(token),
+    ).length;
+    return matchedTokenCount >= Math.min(2, tokens.length);
+  };
+
   const summaryParagraphs = activeScheme?.summary
     ? activeScheme.summary
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean)
     : [];
+  const fullSummaryText = (activeScheme.fullSummary || activeScheme.summary || "").trim();
 
   const summaryHighlights =
     activeSchemeSuggestions.length > 0
       ? activeSchemeSuggestions.slice(0, 4).map((item) => item.content)
       : summaryParagraphs.slice(0, 4);
+  const summaryText = summaryParagraphs.join("\n").toLowerCase();
+  const selectedCoverageItems =
+    activeScheme.generationSnapshot?.selectedItems?.map((item) => {
+      const matched = hasKeywordMatch(summaryText, item.title, item.content);
+      return { item, matched };
+    }) ?? [];
 
   if (!activeScheme) {
     return (
@@ -283,6 +315,34 @@ export const PreviewPage = ({
             </div>
           </div>
           <div className="architecture-optimization-dialog__ai-summary-content">
+            {selectedCoverageItems.length > 0 && (
+              <div className="architecture-optimization-dialog__coverage">
+                <div className="architecture-optimization-dialog__coverage-header">
+                  <strong>已选建议覆盖率</strong>
+                  <span>
+                    已体现{" "}
+                    {selectedCoverageItems.filter((entry) => entry.matched).length}
+                    /{selectedCoverageItems.length}
+                  </span>
+                </div>
+                <ul className="architecture-optimization-dialog__coverage-list">
+                  {selectedCoverageItems.map(({ item, matched }) => (
+                    <li key={item.id} className="architecture-optimization-dialog__coverage-item">
+                      <span>{item.title}</span>
+                      <span
+                        className={`architecture-optimization-dialog__coverage-badge ${
+                          matched
+                            ? "architecture-optimization-dialog__coverage-badge--matched"
+                            : "architecture-optimization-dialog__coverage-badge--missing"
+                        }`}
+                      >
+                        {matched ? "已体现" : "未体现"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {summaryHighlights.length > 0 ? (
               <ul className="architecture-optimization-dialog__ai-summary-list">
                 {summaryHighlights.map((item, index) => (
@@ -297,7 +357,7 @@ export const PreviewPage = ({
             {activeScheme.summary && (
               <details className="architecture-optimization-dialog__ai-summary-raw">
                 <summary>查看完整 AI 总结</summary>
-                <pre>{activeScheme.summary}</pre>
+                <pre>{fullSummaryText}</pre>
               </details>
             )}
           </div>

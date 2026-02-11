@@ -81,16 +81,30 @@ export const ChatPanel = ({
             key={message.id}
             className={`architecture-optimization-dialog__message architecture-optimization-dialog__message--${message.role}`}
           >
-            {message.role === "assistant" && message.reasoning && (
+            {message.role === "assistant" &&
+              (message.reasoning || message.content) && (
               <details
                 className="architecture-optimization-dialog__message-reasoning"
-                open={message.isGenerating}
+                open={Boolean(message.isGenerating)}
               >
                 <summary>
-                  {message.isGenerating ? "AI思考中..." : "AI思考（点击展开）"}
+                  {message.isGenerating
+                    ? "执行记录（生成中，点击展开）"
+                    : "执行记录（点击展开）"}
                 </summary>
                 <div className="architecture-optimization-dialog__message-reasoning-content">
-                  {message.reasoning}
+                  {message.reasoning && (
+                    <>
+                      <strong>过程记录</strong>
+                      <div>{message.reasoning}</div>
+                    </>
+                  )}
+                  {message.content && (
+                    <>
+                      <strong>输出结果</strong>
+                      <div>{message.content}</div>
+                    </>
+                  )}
                 </div>
               </details>
             )}
@@ -138,7 +152,7 @@ export const ChatPanel = ({
           onKeyDown={onKeyDown}
           placeholder={"描述优化目标\n例如：降低延迟、提升可用性、降低成本"}
           disabled={isStreaming}
-          rows={1}
+          rows={4}
           wrap="soft"
         />
         <div className="architecture-optimization-dialog__input-side-actions">

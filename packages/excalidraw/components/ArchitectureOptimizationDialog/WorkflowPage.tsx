@@ -13,7 +13,7 @@ import {
 import type {
   ArchitectureStyle,
   PoolSuggestion,
-  SuggestionCombination,
+  SuggestionCategory,
 } from "./model";
 
 interface WorkflowPageProps {
@@ -21,8 +21,6 @@ interface WorkflowPageProps {
   onCloseSuggestionToast: () => void;
   stagingAreaRef: React.RefObject<HTMLDivElement | null>;
   selectedSuggestions: readonly PoolSuggestion[];
-  suggestionCombinations: readonly SuggestionCombination[];
-  activeCombinationId: string | null;
   suggestionPool: readonly PoolSuggestion[];
   visibleSuggestions: readonly PoolSuggestion[];
   suggestionSearchKeyword: string;
@@ -32,10 +30,7 @@ interface WorkflowPageProps {
   architectureStyle: ArchitectureStyle;
   activeSchemeId: string | null;
   isStreaming: boolean;
-  onSaveCombination: () => void;
   onClearSelectedSuggestions: () => void;
-  onApplyCombination: (combinationId: string) => void;
-  onRemoveCombination: (combinationId: string) => void;
   onToggleSuggestionSelection: (id: string) => void;
   onClearSuggestionPool: () => void;
   onSetSuggestionSearchKeyword: (value: string) => void;
@@ -51,13 +46,19 @@ interface WorkflowPageProps {
   onUpdateCurrentFromSelected: () => void;
 }
 
+const SUGGESTION_CATEGORY_ORDER: SuggestionCategory[] = [
+  "performance",
+  "reliability",
+  "security",
+  "scalability",
+  "cost",
+];
+
 export const WorkflowPage = ({
   suggestionToast,
   onCloseSuggestionToast,
   stagingAreaRef,
   selectedSuggestions,
-  suggestionCombinations,
-  activeCombinationId,
   suggestionPool,
   visibleSuggestions,
   suggestionSearchKeyword,
@@ -67,10 +68,7 @@ export const WorkflowPage = ({
   architectureStyle,
   activeSchemeId,
   isStreaming,
-  onSaveCombination,
   onClearSelectedSuggestions,
-  onApplyCombination,
-  onRemoveCombination,
   onToggleSuggestionSelection,
   onClearSuggestionPool,
   onSetSuggestionSearchKeyword,
@@ -84,8 +82,16 @@ export const WorkflowPage = ({
   onSetArchitectureStyle,
   onGenerateNewFromSelected,
   onUpdateCurrentFromSelected,
-}: WorkflowPageProps) => (
-  <div className="ao-workflow-panel ao-workflow-panel--expanded">
+}: WorkflowPageProps) => {
+  const groupedSuggestions = SUGGESTION_CATEGORY_ORDER
+    .map((category) => ({
+      category,
+      items: visibleSuggestions.filter((suggestion) => suggestion.category === category),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  return (
+    <div className="ao-workflow-panel ao-workflow-panel--expanded">
     {suggestionToast && (
       <div className="scheme-undo-toast">
         <span>{suggestionToast}</span>
@@ -97,47 +103,16 @@ export const WorkflowPage = ({
       <div className="ao-staging-area__header">
         <h4>1. 选择建议</h4>
         <div className="ao-staging-area__header-actions">
-          <button
-            className="ao-staging-area__clear-btn"
-            onClick={onSaveCombination}
-          >
-            保存组合
-          </button>
           {selectedSuggestions.length > 0 && (
             <button
               className="ao-staging-area__clear-btn"
               onClick={onClearSelectedSuggestions}
             >
-              清空
+              清空选择
             </button>
           )}
         </div>
       </div>
-      {suggestionCombinations.length > 0 && (
-        <div className="ao-staging-area__combinations">
-          {suggestionCombinations.map((combination) => (
-            <div
-              key={combination.id}
-              className={`ao-combination-chip ${
-                combination.id === activeCombinationId
-                  ? "ao-combination-chip--active"
-                  : ""
-              }`}
-            >
-              <button onClick={() => onApplyCombination(combination.id)}>
-                {combination.name}
-              </button>
-              <button
-                className="ao-combination-chip__remove"
-                onClick={() => onRemoveCombination(combination.id)}
-                title="删除组合"
-              >
-                <XIcon />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
       <div className="ao-staging-area__tags">
         {selectedSuggestions.length > 0 ? (
           selectedSuggestions.map((suggestion) => (
@@ -166,12 +141,15 @@ export const WorkflowPage = ({
           <LightbulbIcon />
           2. 从建议流中勾选
         </h4>
+        <div className="ao-suggestion-pool__stats">
+          共 {visibleSuggestions.length} 条 | 已选 {selectedSuggestions.length} 条
+        </div>
         <div className="ao-suggestion-pool__controls">
           <button
             className="ao-suggestion-pool__clear-all"
             onClick={onClearSuggestionPool}
             disabled={
-              suggestionPool.length === 0 && suggestionCombinations.length === 0
+              suggestionPool.length === 0
             }
           >
             清空列表
@@ -196,103 +174,123 @@ export const WorkflowPage = ({
 
       {visibleSuggestions.length > 0 ? (
         <div className="ao-suggestion-pool__list">
-          {visibleSuggestions.map((suggestion) => (
-            <div
-              key={suggestion.id}
-              className={`ao-pool-card ${
-                suggestion.selected ? "ao-pool-card--selected" : ""
-              }`}
-              role="checkbox"
-              tabIndex={0}
-              aria-checked={suggestion.selected}
-              aria-label={suggestion.title}
-              onClick={() => onToggleSuggestionSelection(suggestion.id)}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  onToggleSuggestionSelection(suggestion.id);
-                }
-              }}
+          {groupedSuggestions.map((group) => (
+            <section
+              key={group.category}
+              className={`ao-suggestion-group ao-suggestion-group--${group.category}`}
             >
-              <div className="ao-pool-card__header">
-                <div
-                  className={`ao-pool-card__checkbox ${
-                    suggestion.selected ? "ao-pool-card__checkbox--checked" : ""
-                  }`}
-                >
-                  {suggestion.selected && <CheckIcon />}
-                </div>
-                <span
-                  className={`ao-pool-card__tag ao-pool-card__tag--${suggestion.category}`}
-                >
-                  {categoryLabels[suggestion.category]}
+              <div className="ao-suggestion-group__header">
+                <span className={`ao-suggestion-group__tag ao-pool-card__tag--${group.category}`}>
+                  {categoryLabels[group.category]}
                 </span>
-                <span className="ao-pool-card__title" title={suggestion.title}>
-                  {suggestion.title}
-                </span>
-                <div className="ao-pool-card__actions">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSetEditingSuggestionId(
-                        editingSuggestionId === suggestion.id
-                          ? null
-                          : suggestion.id,
-                      );
-                    }}
-                    title="编辑备注"
-                  >
-                    <EditIcon />
-                  </button>
-                  <button
-                    disabled={suggestion.selected}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onArchiveSuggestion(suggestion.id);
-                    }}
-                    title={suggestion.selected ? "已选建议不可归档" : "归档"}
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
+                <span className="ao-suggestion-group__count">{group.items.length} 条</span>
               </div>
-              <div
-                className={`ao-pool-card__content ${
-                  expandedSuggestionIds.has(suggestion.id)
-                    ? "ao-pool-card__content--expanded"
-                    : ""
-                }`}
-                title={suggestion.fullContent}
-              >
-                {expandedSuggestionIds.has(suggestion.id)
-                  ? suggestion.fullContent
-                  : suggestion.content}
+              <div className="ao-suggestion-group__cards">
+                {group.items.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className={`ao-pool-card ${
+                      suggestion.selected ? "ao-pool-card--selected" : ""
+                    }`}
+                    role="checkbox"
+                    tabIndex={0}
+                    aria-checked={suggestion.selected}
+                    aria-label={suggestion.title}
+                    onClick={() => onToggleSuggestionSelection(suggestion.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        onToggleSuggestionSelection(suggestion.id);
+                      }
+                    }}
+                  >
+                    <div className="ao-pool-card__header">
+                      <div
+                        className={`ao-pool-card__checkbox ${
+                          suggestion.selected
+                            ? "ao-pool-card__checkbox--checked"
+                            : ""
+                        }`}
+                      >
+                        {suggestion.selected && <CheckIcon />}
+                      </div>
+                      <span
+                        className={`ao-pool-card__tag ao-pool-card__tag--${suggestion.category}`}
+                      >
+                        {categoryLabels[suggestion.category]}
+                      </span>
+                      <span
+                        className="ao-pool-card__title"
+                        title={suggestion.title}
+                      >
+                        {suggestion.title}
+                      </span>
+                      <div className="ao-pool-card__actions">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSetEditingSuggestionId(
+                              editingSuggestionId === suggestion.id
+                                ? null
+                                : suggestion.id,
+                            );
+                          }}
+                          title="编辑备注"
+                        >
+                          <EditIcon />
+                        </button>
+                        <button
+                          disabled={suggestion.selected}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onArchiveSuggestion(suggestion.id);
+                          }}
+                          title={suggestion.selected ? "已选建议不可归档" : "归档"}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className={`ao-pool-card__content ${
+                        expandedSuggestionIds.has(suggestion.id)
+                          ? "ao-pool-card__content--expanded"
+                          : ""
+                      }`}
+                      title={suggestion.fullContent}
+                    >
+                      {expandedSuggestionIds.has(suggestion.id)
+                        ? suggestion.fullContent
+                        : suggestion.content}
+                    </div>
+                    {suggestion.fullContent.length > suggestion.content.length && (
+                      <button
+                        className="ao-pool-card__expand-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleExpandedSuggestion(suggestion.id);
+                        }}
+                      >
+                        {expandedSuggestionIds.has(suggestion.id) ? "收起" : "展开"}
+                      </button>
+                    )}
+                    {editingSuggestionId === suggestion.id && (
+                      <div className="ao-pool-card__note">
+                        <input
+                          type="text"
+                          placeholder="添加备注..."
+                          value={suggestion.note || ""}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            onUpdateSuggestionNote(suggestion.id, e.target.value)
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {suggestion.fullContent.length > suggestion.content.length && (
-                <button
-                  className="ao-pool-card__expand-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleExpandedSuggestion(suggestion.id);
-                  }}
-                >
-                  {expandedSuggestionIds.has(suggestion.id) ? "收起" : "展开"}
-                </button>
-              )}
-              {editingSuggestionId === suggestion.id && (
-                <div className="ao-pool-card__note">
-                  <input
-                    type="text"
-                    placeholder="添加备注..."
-                    value={suggestion.note || ""}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) =>
-                      onUpdateSuggestionNote(suggestion.id, e.target.value)
-                    }
-                  />
-                </div>
-              )}
-            </div>
+            </section>
           ))}
         </div>
       ) : (
@@ -326,6 +324,33 @@ export const WorkflowPage = ({
     </div>
 
     <div className="ao-generation-console">
+      <div className="ao-generation-console__preview">
+        <div className="ao-generation-console__preview-row">
+          <strong>生成前确认</strong>
+          <span>
+            已选 {selectedSuggestions.length} 项
+            {selectedSuggestions.length === 0 ? "（请先勾选）" : ""}
+          </span>
+        </div>
+        {selectedSuggestions.length > 0 && (
+          <div className="ao-generation-console__preview-tags">
+            {selectedSuggestions.map((suggestion) => (
+              <span key={suggestion.id} className="ao-generation-console__preview-tag">
+                [{categoryLabels[suggestion.category]}] {suggestion.title}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="ao-generation-console__preview-row">
+          <span>风格：{styleLabels[architectureStyle]}</span>
+          <span>
+            目标：{activeSchemeId ? "可新建或更新当前方案" : "仅新建方案"}
+          </span>
+        </div>
+        <div className="ao-generation-console__preview-note">
+          仅使用已勾选建议生成，不会自动包含未勾选建议。
+        </div>
+      </div>
       <div className="ao-generation-console__style-selector">
         <label
           htmlFor="architecture-style-selector"
@@ -373,4 +398,5 @@ export const WorkflowPage = ({
       </div>
     </div>
   </div>
-);
+  );
+};

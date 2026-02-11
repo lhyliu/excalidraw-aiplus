@@ -21,6 +21,7 @@ export interface ArchitectureScheme {
   id: string;
   version: number;
   summary: string;
+  fullSummary?: string;
   mermaid: string;
   shortSummary: string;
   title?: string;
@@ -34,6 +35,21 @@ export interface ArchitectureScheme {
     fullContent: string;
     note?: string;
   }>;
+  generationSnapshot?: {
+    selectedIds: string[];
+    selectedItems: Array<{
+      id: string;
+      category: ArchitectureSuggestionCategory;
+      title: string;
+      content: string;
+      fullContent: string;
+      note?: string;
+    }>;
+    style: ArchitectureStyle;
+    sourceSchemeId: string | null;
+    sourceCombinationId: string | null;
+    createdAt: number;
+  };
 }
 
 export type ArchitectureSuggestionCategory =

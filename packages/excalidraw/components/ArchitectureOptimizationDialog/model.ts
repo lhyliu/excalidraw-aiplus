@@ -29,10 +29,27 @@ export interface SuggestionCombination {
   createdAt: number;
 }
 
+export interface GenerationSnapshot {
+  selectedIds: string[];
+  selectedItems: Array<{
+    id: string;
+    category: SuggestionCategory;
+    title: string;
+    content: string;
+    fullContent: string;
+    note?: string;
+  }>;
+  style: ArchitectureStyle;
+  sourceSchemeId: string | null;
+  sourceCombinationId: string | null;
+  createdAt: number;
+}
+
 export interface Scheme {
   id: string;
   version: number;
   summary: string;
+  fullSummary?: string;
   mermaid: string;
   shortSummary: string;
   title?: string;
@@ -46,6 +63,7 @@ export interface Scheme {
     fullContent: string;
     note?: string;
   }>;
+  generationSnapshot?: GenerationSnapshot;
 }
 
 export type ArchitectureStyle = "standard" | "minimal" | "detailed";
@@ -172,3 +190,16 @@ export const compactSuggestionContent = (content: string): string => {
 
 export const normalizeSuggestionContent = (content: string): string =>
   content.replace(/\s+/g, " ").trim();
+
+export const buildSuggestionDedupKey = (
+  category: SuggestionCategory,
+  content: string,
+): string => {
+  const normalized = normalizeSuggestionContent(content)
+    .replace(/^[-*•\d.()\uFF08\uFF09]+\s*/, "")
+    .replace(/^\[[^\]]+\]\s*/, "")
+    .replace(/[：:]/g, " ")
+    .replace(/[\s,，.。!！?？;；、"'`]/g, "")
+    .toLowerCase();
+  return `${category}:${normalized}`;
+};

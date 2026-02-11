@@ -44,6 +44,13 @@ const checks = [
     pass: typesContent.includes("sourceSuggestionSnapshot?: Array<{"),
   },
   {
+    name: "types.ts 包含 generationSnapshot 审计字段",
+    pass:
+      typesContent.includes("generationSnapshot?: {") &&
+      typesContent.includes("selectedIds: string[];") &&
+      typesContent.includes("createdAt: number;"),
+  },
+  {
     name: "types.ts assistant state 包含建议页 UI 持久化字段",
     pass:
       typesContent.includes("skipUpdateConfirm?: boolean;") &&

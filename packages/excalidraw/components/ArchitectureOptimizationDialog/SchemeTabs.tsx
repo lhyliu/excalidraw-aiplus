@@ -18,6 +18,7 @@ interface SchemeTabsProps {
   suggestionCombinations: readonly SuggestionCombination[];
   onSetPreviewPage: (isPreviewPage: boolean) => void;
   onGeneratePlan: () => void;
+  onClearSchemes: () => void;
   onSelectScheme: (schemeId: string) => void;
   onDeleteScheme: (schemeId: string) => void;
   onToggleDrawer: () => void;
@@ -32,6 +33,7 @@ export const SchemeTabs = ({
   suggestionCombinations,
   onSetPreviewPage,
   onGeneratePlan,
+  onClearSchemes,
   onSelectScheme,
   onDeleteScheme,
   onToggleDrawer,
@@ -109,8 +111,17 @@ export const SchemeTabs = ({
       );
     })}
 
-    {isPreviewPage && (
-      <div className="ao-ide-tabs__right">
+    <div className="ao-ide-tabs__right">
+      <button
+        className="ao-ide-tab-clear"
+        onClick={onClearSchemes}
+        title="清空方案"
+        aria-label="清空方案"
+        disabled={schemes.length === 0}
+      >
+        <XIcon />
+      </button>
+      {isPreviewPage && (
         <button
           className="ao-ide-tabs__icon-btn"
           onClick={onToggleDrawer}
@@ -119,7 +130,7 @@ export const SchemeTabs = ({
         >
           {isDrawerOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
         </button>
-      </div>
-    )}
+      )}
+    </div>
   </div>
 );

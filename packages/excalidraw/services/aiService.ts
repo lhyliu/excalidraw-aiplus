@@ -464,29 +464,32 @@ ${chatHistory}
 2. 生成一个有效的Mermaid图表代码，表示优化后的新架构
 
 【重要】输出格式要求：
-你必须严格按照以下格式输出，不要添加任何其他内容：
-
-## 变更总结
-- [分类] 建议1：一句行动建议
-- [分类] 建议2：一句行动建议
-- [分类] 建议3：一句行动建议
-- [分类] 建议4：一句行动建议
-- [分类] 建议5：一句行动建议
-
-\`\`\`mermaid
-graph TD
-    A[组件1] --> B[组件2]
-    B --> C[组件3]
-\`\`\`
+仅输出 1 个 JSON 代码块（\`\`\`json ... \`\`\`），字段如下：
+{
+  "changes": [
+    {
+      "sourceSuggestionId": "可选，若有已选建议建议填写",
+      "category": "性能|安全|成本|扩展性|可靠性",
+      "title": "建议标题",
+      "action": "一句行动建议"
+    }
+  ],
+  "fullSummary": "完整说明，包含背景、权衡与落地步骤",
+  "mermaid": "graph TD ...",
+  "assumptions": ["可选前提1", "可选前提2"]
+}
 
 注意事项：
+- 严禁输出 JSON 代码块以外的任何文本（包括解释、markdown标题、额外代码块）
 - Mermaid代码必须是有效的flowchart/graph语法
 - 必须包含完整的架构，而不仅仅是变更部分
+- 保持与当前架构的视觉与结构风格一致：沿用既有分层与主流程方向，不做无关重绘
+- 仅围绕已确认变更做最小必要调整，不得大幅改名、改层级、改拓扑
 - 使用中文标签
-- 确保代码在三个反引号内，并标记为mermaid
-- “变更总结”固定 5 条，每条不超过 50 个中文字符
+- 若输入中提供了“已选建议”列表，变更总结条数必须与已选建议数量一致
+- 若未提供“已选建议”列表，则根据对话中明确达成的变更点输出，不设上限
+- 每条不超过 50 个中文字符
 - 分类只能使用：性能 / 安全 / 成本 / 扩展性 / 可靠性
-- 只输出 1 个 mermaid 代码块，不要输出其他代码块
 - 只保留可执行变更，不要长篇解释`;
 };
 
@@ -502,7 +505,7 @@ export const generateOptimizationPlan = async (
     reasoning?: string;
   }) => void,
   signal?: AbortSignal,
-): Promise<{ summary: string; mermaid: string }> => {
+): Promise<{ summary: string; mermaid: string; fullSummary: string }> => {
   const chatHistory = messages
     .filter((m) => m.content && !m.content.includes("base64")) // Filter out large payloads if any
     .map((m) => `${m.role}: ${m.content}`)
@@ -518,7 +521,7 @@ export const generateOptimizationPlan = async (
       {
         role: "user",
         content:
-          "请严格按约定格式返回：先输出5条带[分类]的变更总结，再输出1个Mermaid代码块。",
+          "严格只输出JSON代码块，不要输出任何额外文本。若字段不完整请自我修正后再输出。",
       },
     ],
     {
@@ -534,33 +537,120 @@ export const generateOptimizationPlan = async (
     signal,
   );
 
-  // Parse result - try multiple patterns
-  let mermaidMatch = fullResponse.match(/```mermaid\s*([\s\S]*?)```/);
-  if (!mermaidMatch) {
-    // Try without mermaid tag
-    mermaidMatch = fullResponse.match(
-      /```\s*(graph\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/,
-    );
-  }
-  if (!mermaidMatch) {
-    // Try flowchart syntax
-    mermaidMatch = fullResponse.match(
-      /```\s*(flowchart\s+(?:TD|LR|TB|RL|BT)[\s\S]*?)```/,
-    );
-  }
+  const parsed = parseOptimizationPlanResponse(fullResponse);
+  return {
+    summary: parsed.summary,
+    mermaid: parsed.mermaid,
+    fullSummary: parsed.fullSummary,
+  };
+};
 
-  const mermaid = mermaidMatch ? mermaidMatch[1].trim() : "";
+const CATEGORY_WHITELIST = ["性能", "安全", "成本", "扩展性", "可靠性"];
 
-  // Summary is everything before the mermaid block
-  const summaryPart = mermaidMatch
-    ? fullResponse.substring(0, mermaidMatch.index).trim()
-    : fullResponse;
+export const sanitizeMermaidDefinition = (raw: string): string => {
+  const normalizedLineBreaks = raw
+    .trim()
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n?/g, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&lt;br\s*\/?&gt;/gi, "\n");
 
-  // Clean up summary markdown headers if present
-  const summary = summaryPart
-    .replace(/^## 变更总结\s*/i, "")
-    .replace(/^## Summary\s*/i, "")
+  const fenced = normalizedLineBreaks.match(/```mermaid\s*([\s\S]*?)```/i);
+  const unwrapped = (fenced?.[1] || normalizedLineBreaks)
+    .replace(/```(?:mermaid)?/gi, "")
     .trim();
 
-  return { summary, mermaid };
+  const anchorMatch = unwrapped.match(/\b(graph|flowchart)\s+(TD|LR|TB|RL|BT)\b/i);
+  if (!anchorMatch || anchorMatch.index === undefined) {
+    return unwrapped;
+  }
+
+  const fromAnchor = unwrapped.slice(anchorMatch.index).trim();
+  const lines = fromAnchor.split("\n");
+  const kept: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      kept.push("");
+      continue;
+    }
+    if (/^(##+|说明[:：]|注意[:：]|总结[:：])/i.test(trimmed)) {
+      break;
+    }
+    kept.push(trimmed.replace(/^-+\s+/, ""));
+  }
+
+  return kept.join("\n").trim();
+};
+
+const normalizeMermaidText = (raw: string): string =>
+  sanitizeMermaidDefinition(raw);
+
+const parseJsonCandidate = (
+  raw: string | undefined,
+): {
+  changes?: Array<{
+    category?: string;
+    title?: string;
+    action?: string;
+  }>;
+  mermaid?: string;
+  fullSummary?: string;
+  assumptions?: string[];
+} | null => {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+export const parseOptimizationPlanResponse = (
+  fullResponse: string,
+): { summary: string; mermaid: string; fullSummary: string } => {
+  const jsonBlockMatch = fullResponse.match(/```json\s*([\s\S]*?)```/i);
+  const jsonFromFence = jsonBlockMatch?.[1]?.trim();
+  const firstBrace = fullResponse.indexOf("{");
+  const lastBrace = fullResponse.lastIndexOf("}");
+  const jsonFromRaw =
+    firstBrace >= 0 && lastBrace > firstBrace
+      ? fullResponse.slice(firstBrace, lastBrace + 1).trim()
+      : undefined;
+
+  const parsed =
+    parseJsonCandidate(jsonFromFence) || parseJsonCandidate(jsonFromRaw);
+
+  if (parsed && Array.isArray(parsed.changes) && typeof parsed.mermaid === "string") {
+    const summary = parsed.changes
+      .map((item) => {
+        const category = CATEGORY_WHITELIST.includes(item.category || "")
+          ? item.category
+          : "性能";
+        const title = (item.title || "建议").trim();
+        const action = (item.action || "").trim();
+        return `- [${category}] ${title}${action ? `：${action}` : ""}`;
+      })
+      .join("\n")
+      .trim();
+    const assumptionsText = Array.isArray(parsed.assumptions)
+      ? parsed.assumptions
+          .map((item: unknown) => String(item).trim())
+          .filter(Boolean)
+          .map((item: string) => `- ${item}`)
+          .join("\n")
+      : "";
+    const providedFullSummary =
+      typeof parsed.fullSummary === "string" ? parsed.fullSummary.trim() : "";
+    const fullSummary = (
+      providedFullSummary ||
+      `${summary}${
+        assumptionsText ? `\n\n补充说明（Assumptions）\n${assumptionsText}` : ""
+      }`
+    ).trim();
+    return { summary, mermaid: normalizeMermaidText(parsed.mermaid), fullSummary };
+  }
+  return { summary: "", mermaid: "", fullSummary: "" };
 };
