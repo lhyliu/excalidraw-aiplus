@@ -17,10 +17,7 @@ import {
   KEYS,
   arrayToMap,
   COLOR_PALETTE,
-  DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX,
   DEFAULT_ELEMENT_STROKE_COLOR_INDEX,
-  reseed,
-  randomId,
 } from "@excalidraw/common";
 
 import "@excalidraw/utils/test-utils";
@@ -37,7 +34,6 @@ import type {
   ExcalidrawGenericElement,
   ExcalidrawLinearElement,
   ExcalidrawTextElement,
-  FileId,
   FixedPointBinding,
   FractionalIndex,
   SceneElementsMap,
@@ -52,12 +48,9 @@ import {
 } from "../actions";
 import { createUndoAction, createRedoAction } from "../actions/actionHistory";
 import { actionToggleViewMode } from "../actions/actionToggleViewMode";
-import * as StaticScene from "../renderer/staticScene";
 import { getDefaultAppState } from "../appState";
 import { Excalidraw } from "../index";
 import { createPasteEvent } from "../clipboard";
-
-import * as blobModule from "../data/blob";
 
 import {
   DEER_IMAGE_DIMENSIONS,
@@ -73,74 +66,31 @@ import {
   render,
   togglePopover,
   getCloneByOrigId,
-  checkpointHistory,
-  unmountComponent,
 } from "./test-utils";
 import { setupImageTest as _setupImageTest } from "./image.test";
+import {
+  black,
+  blue,
+  checkpointHistoryState,
+  h,
+  red,
+  setupHistoryTest,
+  transparent,
+  violet,
+  yellow,
+} from "./_helpers/historyHarness";
 
 import type { AppState } from "../types";
 
-const { h } = window;
-
 const mouse = new Pointer("mouse");
-
-const checkpoint = (name: string) => {
-  expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
-    `[${name}] number of renders`,
-  );
-  // `scrolledOutside` does not appear to be stable between test runs
-  // `selectedLinearElemnt` includes `startBindingElement` containing seed and versionNonce
-  const {
-    name: _,
-    scrolledOutside,
-    selectedLinearElement,
-    ...strippedAppState
-  } = h.state;
-  expect(strippedAppState).toMatchSnapshot(`[${name}] appState`);
-  expect(h.elements.length).toMatchSnapshot(`[${name}] number of elements`);
-
-  h.elements
-    .map(({ seed, versionNonce, ...strippedElement }) => strippedElement)
-    .forEach((element, i) =>
-      expect(element).toMatchSnapshot(`[${name}] element ${i}`),
-    );
-
-  checkpointHistory(h.history, name);
-};
-
-const renderStaticScene = vi.spyOn(StaticScene, "renderStaticScene");
-
-const transparent = COLOR_PALETTE.transparent;
-const black = COLOR_PALETTE.black;
-const red = COLOR_PALETTE.red[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX];
-const blue = COLOR_PALETTE.blue[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX];
-const yellow = COLOR_PALETTE.yellow[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX];
-const violet = COLOR_PALETTE.violet[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX];
 
 describe("history", () => {
   beforeEach(() => {
-    unmountComponent();
-    renderStaticScene.mockClear();
-    vi.clearAllMocks();
-    vi.unstubAllGlobals();
-
-    reseed(7);
-
-    const generateIdSpy = vi.spyOn(blobModule, "generateIdFromFile");
-    const resizeFileSpy = vi.spyOn(blobModule, "resizeImageFile");
-
-    generateIdSpy.mockImplementation(() =>
-      Promise.resolve(randomId() as FileId),
-    );
-    resizeFileSpy.mockImplementation((file: File) => Promise.resolve(file));
-
-    Object.assign(document, {
-      elementFromPoint: () => GlobalTestState.canvas,
-    });
+    setupHistoryTest();
   });
 
   afterEach(() => {
-    checkpoint("end of test");
+    checkpointHistoryState("end of test");
   });
 
   describe("singleplayer undo/redo", () => {
@@ -5024,8 +4974,6 @@ describe("history", () => {
           );
         });
       });
-
-      it("should unbind remotely deleted bindable elements from arrow when the arrow is added through the history", async () => {});
 
       it("should update bound element points when rectangle was remotely moved and arrow is added back through the history", async () => {
         // bind arrow to rect1 and rect2

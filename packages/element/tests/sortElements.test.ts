@@ -4,9 +4,6 @@ import { mutateElement } from "@excalidraw/element";
 
 import { normalizeElementOrder } from "../src/sortElements";
 
-import type { ExcalidrawElement } from "../src/types";
-
-const { h } = window;
 const assertOrder = (
   elements: readonly ExcalidrawElement[],
   expectedOrder: string[],
@@ -341,8 +338,7 @@ describe("normalizeElementsOrder", () => {
     );
   });
 
-  // TODO
-  it.skip("normalize boundElements array", () => {
+  it("normalize boundElements array", () => {
     const container = API.createElement({
       id: "container",
       type: "rectangle",
@@ -354,7 +350,7 @@ describe("normalizeElementsOrder", () => {
       containerId: container.id,
     });
 
-    h.app.scene.mutateElement(container, {
+    mutateElement(container, new Map(), {
       boundElements: [
         { type: "text", id: boundText.id },
         { type: "text", id: "xxx" },
@@ -367,40 +363,5 @@ describe("normalizeElementsOrder", () => {
       }),
       expect.objectContaining({ id: boundText.id }),
     ]);
-  });
-
-  // should take around <100ms for 10K iterations (@dwelle's PC 22-05-25)
-  it.skip("normalizeElementsOrder() perf", () => {
-    const makeElements = (iterations: number) => {
-      const elements: ExcalidrawElement[] = [];
-      while (iterations--) {
-        const container = API.createElement({
-          type: "rectangle",
-          boundElements: [],
-          groupIds: ["B", "A"],
-        });
-        const boundText = API.createElement({
-          type: "text",
-          containerId: container.id,
-          groupIds: ["A"],
-        });
-        const otherElement = API.createElement({
-          type: "rectangle",
-          boundElements: [],
-          groupIds: ["C", "A"],
-        });
-        h.app.scene.mutateElement(container, {
-          boundElements: [{ type: "text", id: boundText.id }],
-        });
-
-        elements.push(boundText, otherElement, container);
-      }
-      return elements;
-    };
-
-    const elements = makeElements(10000);
-    const t0 = Date.now();
-    normalizeElementOrder(elements);
-    console.info(`${Date.now() - t0}ms`);
   });
 });

@@ -17,7 +17,7 @@ import {
 import {
   assertExcalidrawWithSidebar,
   assertSidebarDockButton,
-} from "./siderbar.test.helpers";
+} from "../../tests/_helpers/sidebar";
 
 const toggleSidebar = (
   ...args: Parameters<typeof window.h.app.toggleSidebar>

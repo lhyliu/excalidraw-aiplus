@@ -71,6 +71,8 @@
     "test:update": "yarn test:app --update --watch=false",
     "test:architecture": "yarn test:guard:imports && node scripts/test-architecture-fix.js && node scripts/test-architecture-persistence.js",
     "test:guard:imports": "node scripts/check-no-parent-package-imports.js",
+    "test:skips": "node scripts/list-skipped-tests.js",
+    "test:empty-tests": "node scripts/list-empty-tests.js",
     "test": "yarn test:app",
     "test:coverage": "vitest --coverage",
     "test:coverage:watch": "vitest --coverage --watch",

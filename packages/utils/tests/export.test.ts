@@ -68,11 +68,38 @@ describe("exportToBlob", async () => {
 });
 
 describe("exportToSvg", () => {
+  const originalLocalStorage = globalThis.localStorage;
   const passedElements = () => exportToSvgSpy.mock.calls[0][0];
   const passedOptions = () => exportToSvgSpy.mock.calls[0][1];
 
+  beforeEach(() => {
+    const storage = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value);
+        },
+        removeItem: (key: string) => {
+          storage.delete(key);
+        },
+        clear: () => {
+          storage.clear();
+        },
+      },
+    });
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterAll(() => {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: originalLocalStorage,
+    });
   });
 
   it("with default arguments", async () => {
@@ -89,20 +116,6 @@ describe("exportToSvg", () => {
     };
     expect(passedElements().length).toBe(3);
     expect(passedOptionsWhenDefault).toMatchSnapshot();
-  });
-
-  // FIXME the utils.exportToSvg no longer filters out deleted elements.
-  // It's already supposed to be passed non-deleted elements by we're not
-  // type-checking for it correctly.
-  it.skip("with deleted elements", async () => {
-    await utils.exportToSvg({
-      ...diagramFactory({
-        overrides: { appState: void 0 },
-        elementOverrides: { isDeleted: true },
-      }),
-    });
-
-    expect(passedElements().length).toBe(0);
   });
 
   it("with exportPadding", async () => {

@@ -45,6 +45,8 @@ import type { NormalizedZoomValue } from "../types";
 
 const { h } = window;
 const mouse = new Pointer("mouse");
+const originalLocalStorage = globalThis.localStorage;
+const originalSessionStorage = globalThis.sessionStorage;
 
 beforeEach(() => {
   const generateIdSpy = vi.spyOn(blobModule, "generateIdFromFile");
@@ -56,6 +58,28 @@ beforeEach(() => {
 
 beforeEach(async () => {
   unmountComponent();
+
+  const storage = new Map<string, string>();
+  const storageApi = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storage.delete(key);
+    },
+    clear: () => {
+      storage.clear();
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: storageApi,
+  });
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: storageApi,
+  });
 
   mouse.reset();
   localStorage.clear();
@@ -70,6 +94,17 @@ beforeEach(async () => {
     zoom: {
       value: 1 as NormalizedZoomValue,
     },
+  });
+});
+
+afterAll(() => {
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: originalLocalStorage,
+  });
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: originalSessionStorage,
   });
 });
 
@@ -477,7 +512,7 @@ describe("arrow", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box!!!
-  it.skip("flips an unrotated arrow horizontally with line outside min/max points bounds", async () => {
+  it("flips an unrotated arrow horizontally with line outside min/max points bounds", async () => {
     const arrow = createLinearElementsWithCurveOutsideMinMaxPoints("arrow");
     API.setElements([arrow]);
     API.setAppState({ selectedElementIds: { [arrow.id]: true } });
@@ -488,7 +523,7 @@ describe("arrow", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box!!!
-  it.skip("flips a rotated arrow horizontally with line outside min/max points bounds", async () => {
+  it("flips a rotated arrow horizontally with line outside min/max points bounds", async () => {
     const originalAngle = (Math.PI / 4) as Radians;
     const expectedAngle = ((7 * Math.PI) / 4) as Radians;
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("arrow");
@@ -503,7 +538,7 @@ describe("arrow", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box!!!
-  it.skip("flips an unrotated arrow vertically with line outside min/max points bounds", async () => {
+  it("flips an unrotated arrow vertically with line outside min/max points bounds", async () => {
     const arrow = createLinearElementsWithCurveOutsideMinMaxPoints("arrow");
     API.setElements([arrow]);
     API.setAppState({ selectedElementIds: { [arrow.id]: true } });
@@ -512,7 +547,7 @@ describe("arrow", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box!!!
-  it.skip("flips a rotated arrow vertically with line outside min/max points bounds", async () => {
+  it("flips a rotated arrow vertically with line outside min/max points bounds", async () => {
     const originalAngle = (Math.PI / 4) as Radians;
     const expectedAngle = ((7 * Math.PI) / 4) as Radians;
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("arrow");
@@ -576,7 +611,7 @@ describe("line", () => {
     );
   });
   //TODO: elements with curve outside minMax points have a wrong bounding box
-  it.skip("flips an unrotated line horizontally with line outside min/max points bounds", async () => {
+  it("flips an unrotated line horizontally with line outside min/max points bounds", async () => {
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("line");
     API.setElements([line]);
     API.setAppState({ selectedElementIds: { [line.id]: true } });
@@ -587,7 +622,7 @@ describe("line", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box
-  it.skip("flips an unrotated line vertically with line outside min/max points bounds", async () => {
+  it("flips an unrotated line vertically with line outside min/max points bounds", async () => {
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("line");
     API.setElements([line]);
     API.setAppState({ selectedElementIds: { [line.id]: true } });
@@ -596,7 +631,7 @@ describe("line", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box
-  it.skip("flips a rotated line horizontally with line outside min/max points bounds", async () => {
+  it("flips a rotated line horizontally with line outside min/max points bounds", async () => {
     const originalAngle = (Math.PI / 4) as Radians;
     const expectedAngle = ((7 * Math.PI) / 4) as Radians;
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("line");
@@ -611,7 +646,7 @@ describe("line", () => {
   });
 
   //TODO: elements with curve outside minMax points have a wrong bounding box
-  it.skip("flips a rotated line vertically with line outside min/max points bounds", async () => {
+  it("flips a rotated line vertically with line outside min/max points bounds", async () => {
     const originalAngle = (Math.PI / 4) as Radians;
     const expectedAngle = ((7 * Math.PI) / 4) as Radians;
     const line = createLinearElementsWithCurveOutsideMinMaxPoints("line");
