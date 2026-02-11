@@ -3880,6 +3880,174 @@
   height: 100%;
 }
 
+.architecture-optimization-dialog__not-configured {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem;
+}
+
+.architecture-optimization-dialog__not-configured-card {
+  width: min(1120px, 96%);
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.18);
+  border-radius: 14px;
+  background: linear-gradient(
+    160deg,
+    rgba(var(--ao-primary-rgb), 0.08) 0%,
+    rgba(var(--ao-primary-rgb), 0.02) 45%,
+    var(--ao-surface) 100%
+  );
+  padding: 1.6rem 1.75rem;
+  box-shadow: 0 14px 34px rgba(var(--ao-primary-rgb), 0.14);
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 1.35rem;
+
+  h3 {
+    margin: 0.25rem 0 0.55rem;
+    font-size: 1.45rem;
+    color: var(--color-on-surface);
+  }
+
+  p {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    font-size: 1.03rem;
+  }
+}
+
+.architecture-optimization-dialog__not-configured-main {
+  min-width: 0;
+}
+
+.architecture-optimization-dialog__not-configured-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--ao-primary);
+  background: rgba(var(--ao-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.24);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.architecture-optimization-dialog__not-configured-steps {
+  margin: 1rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--color-on-surface);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.architecture-optimization-dialog__not-configured-example {
+  margin: 0.65rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.2);
+  background: rgba(var(--ao-primary-rgb), 0.06);
+  color: var(--color-on-surface);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.architecture-optimization-dialog__not-configured-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.architecture-optimization-dialog__not-configured-visual {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(var(--ao-primary-rgb), 0.24);
+  background: linear-gradient(
+    160deg,
+    rgba(var(--ao-primary-rgb), 0.08) 0%,
+    rgba(var(--ao-primary-rgb), 0.02) 100%
+  );
+  padding: 1rem;
+}
+
+.architecture-optimization-dialog__not-configured-node {
+  width: min(220px, 90%);
+  text-align: center;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.28);
+  background: var(--ao-surface);
+  color: var(--ao-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.28rem 0.5rem;
+}
+
+.architecture-optimization-dialog__not-configured-line {
+  width: 2px;
+  height: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ao-primary-rgb), 0.2) 0%,
+    rgba(var(--ao-primary-rgb), 0.6) 50%,
+    rgba(var(--ao-primary-rgb), 0.2) 100%
+  );
+}
+
+.architecture-optimization-dialog__config-button {
+  border: 1px solid rgba(var(--ao-primary-rgb), 0.22);
+  background: linear-gradient(
+    120deg,
+    var(--ao-primary) 0%,
+    var(--ao-primary-light) 100%
+  );
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.52rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--ao-transition-fast) ease,
+    box-shadow var(--ao-transition-fast) ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(var(--ao-primary-rgb), 0.25);
+  }
+
+  &--ghost {
+    background: var(--ao-surface);
+    color: var(--ao-primary);
+    box-shadow: none;
+
+    &:hover {
+      box-shadow: 0 6px 14px rgba(var(--ao-primary-rgb), 0.12);
+    }
+  }
+}
+
+@media (max-width: 900px) {
+  .architecture-optimization-dialog__not-configured-card {
+    grid-template-columns: 1fr;
+    width: min(760px, 98%);
+  }
+
+  .architecture-optimization-dialog__not-configured-visual {
+    min-height: 140px;
+  }
+}
+
 .scheme-undo-toast {
   display: flex;
   align-items: center;
