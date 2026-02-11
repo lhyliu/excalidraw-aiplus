@@ -5,6 +5,7 @@ import {
 } from "./planGenerationContext";
 
 import type { Message } from "./messageState";
+import type { PoolSuggestion } from "./model";
 
 const baseMessages: Message[] = [
   {
@@ -69,7 +70,7 @@ describe("buildPlanHistoryMessages", () => {
 
 describe("buildGenerationSnapshot", () => {
   it("keeps snapshot immutable after source selection mutates", () => {
-    const selected = [
+    const selected: PoolSuggestion[] = [
       {
         id: "s1",
         category: "performance" as const,

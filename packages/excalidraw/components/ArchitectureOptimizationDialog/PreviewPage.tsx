@@ -117,25 +117,6 @@ export const PreviewPage = ({
     return matchedTokenCount >= Math.min(2, tokens.length);
   };
 
-  const summaryParagraphs = activeScheme?.summary
-    ? activeScheme.summary
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
-  const fullSummaryText = (activeScheme.fullSummary || activeScheme.summary || "").trim();
-
-  const summaryHighlights =
-    activeSchemeSuggestions.length > 0
-      ? activeSchemeSuggestions.slice(0, 4).map((item) => item.content)
-      : summaryParagraphs.slice(0, 4);
-  const summaryText = summaryParagraphs.join("\n").toLowerCase();
-  const selectedCoverageItems =
-    activeScheme.generationSnapshot?.selectedItems?.map((item) => {
-      const matched = hasKeywordMatch(summaryText, item.title, item.content);
-      return { item, matched };
-    }) ?? [];
-
   if (!activeScheme) {
     return (
       <div className="architecture-optimization-dialog__empty">
@@ -160,6 +141,25 @@ export const PreviewPage = ({
       </div>
     );
   }
+
+  const summaryParagraphs = activeScheme.summary
+    ? activeScheme.summary
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+  const fullSummaryText = (activeScheme.fullSummary || activeScheme.summary || "").trim();
+
+  const summaryHighlights =
+    activeSchemeSuggestions.length > 0
+      ? activeSchemeSuggestions.slice(0, 4).map((item) => item.content)
+      : summaryParagraphs.slice(0, 4);
+  const summaryText = summaryParagraphs.join("\n").toLowerCase();
+  const selectedCoverageItems =
+    activeScheme.generationSnapshot?.selectedItems?.map((item) => {
+      const matched = hasKeywordMatch(summaryText, item.title, item.content);
+      return { item, matched };
+    }) ?? [];
 
   return (
     <>
