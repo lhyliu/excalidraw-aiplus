@@ -13,12 +13,27 @@ const FILE_PATH = path.join(
   __dirname,
   "../packages/excalidraw/components/ArchitectureOptimizationDialog.tsx",
 );
+const PREVIEW_FILE_PATH = path.join(
+  __dirname,
+  "../packages/excalidraw/components/ArchitectureOptimizationDialog/PreviewPage.tsx",
+);
+const CHAT_PANEL_FILE_PATH = path.join(
+  __dirname,
+  "../packages/excalidraw/components/ArchitectureOptimizationDialog/ChatPanel.tsx",
+);
+const INPUT_COMPOSER_FILE_PATH = path.join(
+  __dirname,
+  "../packages/excalidraw/components/ArchitectureOptimizationDialog/inputComposer.ts",
+);
 
 console.log("🧪 开始测试 ArchitectureOptimizationDialog 修复...\n");
 
 // Test 1: Check if renderingSchemes state exists
 console.log("Test 1: 检查 renderingSchemes 状态是否存在");
 const content = fs.readFileSync(FILE_PATH, "utf8");
+const previewContent = fs.readFileSync(PREVIEW_FILE_PATH, "utf8");
+const chatPanelContent = fs.readFileSync(CHAT_PANEL_FILE_PATH, "utf8");
+const inputComposerContent = fs.readFileSync(INPUT_COMPOSER_FILE_PATH, "utf8");
 // Check for the state declaration (may be multiline)
 const hasRenderingSchemes =
   content.includes(
@@ -47,12 +62,13 @@ console.log("");
 
 // Test 3: Check if button disabled logic includes rendering check
 console.log("Test 3: 检查按钮禁用逻辑是否包含渲染状态检查");
-// The disabled prop might be multiline, so check for key patterns
-const hasDisabledProp = content.includes("disabled={");
-const hasRenderingCheckInDisabled = content.includes(
-  "renderingSchemes.has(activeScheme.id)",
-);
-const buttonDisabledCheck = hasDisabledProp && hasRenderingCheckInDisabled;
+// Current implementation passes disabled state via props into PreviewPage.
+const hasParentDisabledProp =
+  content.includes("isInsertDisabled={") &&
+  content.includes("renderingSchemes.has(activeScheme.id)");
+const hasPreviewDisabledUsage =
+  previewContent.includes("disabled={isInsertDisabled}");
+const buttonDisabledCheck = hasParentDisabledProp && hasPreviewDisabledUsage;
 console.log(buttonDisabledCheck ? "✅ 通过" : "❌ 失败");
 console.log("");
 
@@ -80,9 +96,13 @@ console.log("");
 
 // Test 6: Check input textarea wrapping + autosize refs
 console.log("Test 6: 检查输入框自动换行与自增高逻辑");
-const hasWrapSoft = content.includes('wrap="soft"');
+const hasWrapSoft = chatPanelContent.includes('wrap="soft"');
 const hasTextareaRef = content.includes("const inputTextareaRef = useRef");
-const hasAdjustHeightFn = content.includes("adjustInputTextareaHeight");
+const hasAdjustHeightFn =
+  content.includes("adjustInputComposerTextareaHeight") &&
+  inputComposerContent.includes(
+    "export const adjustInputComposerTextareaHeight =",
+  );
 const inputBehaviorCheck = hasWrapSoft && hasTextareaRef && hasAdjustHeightFn;
 console.log(inputBehaviorCheck ? "✅ 通过" : "❌ 失败");
 console.log("");
