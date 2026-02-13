@@ -19,6 +19,33 @@ vi.mock("../Dialog", () => ({
     </div>
   ),
 }));
+vi.mock("../App", () => ({
+  useApp: () => ({
+    addElementsFromPasteOrLibrary: vi.fn(),
+    setOpenDialog: vi.fn(),
+  }),
+}));
+vi.mock("../../context/ui-appState", () => ({
+  useUIAppState: () => ({
+    theme: "light",
+  }),
+}));
+vi.mock("../TTDDialog/common", () => ({
+  convertMermaidToExcalidraw: vi.fn().mockResolvedValue({ success: true }),
+  insertToEditor: vi.fn(),
+}));
+vi.mock("@excalidraw/mermaid-to-excalidraw", () => ({
+  default: {
+    parseMermaidToExcalidraw: vi.fn().mockResolvedValue({
+      elements: [],
+      files: null,
+    }),
+  },
+  parseMermaidToExcalidraw: vi.fn().mockResolvedValue({
+    elements: [],
+    files: null,
+  }),
+}));
 
 describe("AIArchitectureGenerationDialog session restore", () => {
   it("restores step/mode/filter/suggestions from session atom", () => {
@@ -38,11 +65,11 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <AIArchitectureGenerationDialog onClose={() => {}} />
+        <AIArchitectureGenerationDialog onClose={() => { }} />
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText(/模式: 专家/)).toBeInTheDocument();
+    expect(screen.getByText(/Mode: Expert|模式: 专家/)).toBeInTheDocument();
     expect(screen.getByText("Draft 预览")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("按服务名筛选")).toHaveValue("checkout");
   });
@@ -69,7 +96,7 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <AIArchitectureGenerationDialog onClose={() => {}} />
+        <AIArchitectureGenerationDialog onClose={() => { }} />
       </EditorJotaiProvider>,
     );
 
@@ -100,14 +127,14 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <AIArchitectureGenerationDialog onClose={() => {}} />
+        <AIArchitectureGenerationDialog onClose={() => { }} />
       </EditorJotaiProvider>,
     );
 
     const calibrateButton = screen.getByRole("button", { name: "可信现状" });
     expect(calibrateButton).toBeDisabled();
     expect(calibrateButton.getAttribute("title")).toMatch(
-      /请先确认关键列|当前没有可校准资产/,
+      /Please confirm required columns|No calibratable assets found|请先确认关键列|当前没有可校准资产/,
     );
   });
 
@@ -138,7 +165,7 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <AIArchitectureGenerationDialog onClose={() => {}} />
+        <AIArchitectureGenerationDialog onClose={() => { }} />
       </EditorJotaiProvider>,
     );
 
@@ -147,4 +174,3 @@ describe("AIArchitectureGenerationDialog session restore", () => {
   });
 
 });
-

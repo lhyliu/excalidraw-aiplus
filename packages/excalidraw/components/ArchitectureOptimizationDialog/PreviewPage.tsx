@@ -34,6 +34,7 @@ interface PreviewPageProps {
   onInsertToCanvas: () => void;
   isInsertDisabled: boolean;
   isPreparingInsert: boolean;
+  isPreviewLoading: boolean;
   onTogglePanMode: () => void;
   onPreviewPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
   onPreviewPointerMove: (event: React.PointerEvent<HTMLDivElement>) => void;
@@ -73,6 +74,7 @@ export const PreviewPage = ({
   onInsertToCanvas,
   isInsertDisabled,
   isPreparingInsert,
+  isPreviewLoading,
   onTogglePanMode,
   onPreviewPointerDown,
   onPreviewPointerMove,
@@ -219,16 +221,24 @@ export const PreviewPage = ({
               onPointerMove={onPreviewPointerMove}
               onPointerUp={onPreviewPointerUp}
               onPointerCancel={onPreviewPointerUp}
-            >
-              <div
-                ref={previewCanvasRef}
-                className="architecture-optimization-dialog__preview-canvas-inner"
-                style={{
+              >
+                <div
+                  ref={previewCanvasRef}
+                  className="architecture-optimization-dialog__preview-canvas-inner"
+                  style={{
                   transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
                   transformOrigin: "center center",
                   transition: "transform 150ms ease-out",
                 }}
               />
+              {isPreviewLoading && !previewError && (
+                <div className="architecture-optimization-dialog__preview-loading">
+                  <div className="architecture-optimization-dialog__preview-loading-skeleton" />
+                  <div className="architecture-optimization-dialog__preview-loading-text">
+                    正在渲染预览...
+                  </div>
+                </div>
+              )}
               <div
                 className="architecture-optimization-dialog__canvas-toolbar"
                 onPointerDown={(e) => e.stopPropagation()}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAtom, useAtomValue } from "../editor-jotai";
+import { t } from "../i18n";
 import { initCompatibilityLayer } from "./AIArchitectureGeneration";
 import {
   buildInitialFieldMapping,
@@ -30,15 +31,6 @@ interface AIArchitectureGenerationDialogProps {
   onClose: () => void;
 }
 
-const stepMeta: Record<GenerationStep, { label: string; hint: string }> = {
-  workspace: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
-  import: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
-  mapping: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
-  issues: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
-  draft: { label: "架构图视图", hint: "按业务范围生成并确认架构图草稿" },
-  calibrate: { label: "可信现状", hint: "完成质量门后标记为 confirmed" },
-};
-
 export const AIArchitectureGenerationDialog: React.FC<
   AIArchitectureGenerationDialogProps
 > = ({ onClose }) => {
@@ -54,9 +46,50 @@ export const AIArchitectureGenerationDialog: React.FC<
   const [isExpertOpen, setIsExpertOpen] = useState(false);
   const [expertNotice, setExpertNotice] = useState<string | null>(null);
   const [stepNotice, setStepNotice] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isStepTransitioning, setIsStepTransitioning] = useState(false);
+  const stepMeta: Record<GenerationStep, { label: string; hint: string }> = {
+    workspace: {
+      label: t("labels.aiGenerationStepWorkspace"),
+      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    },
+    import: {
+      label: t("labels.aiGenerationStepWorkspace"),
+      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    },
+    mapping: {
+      label: t("labels.aiGenerationStepWorkspace"),
+      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    },
+    issues: {
+      label: t("labels.aiGenerationStepWorkspace"),
+      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    },
+    draft: {
+      label: t("labels.aiGenerationStepDraft"),
+      hint: t("labels.aiGenerationStepDraftHint"),
+    },
+    calibrate: {
+      label: t("labels.aiGenerationStepCalibrate"),
+      hint: t("labels.aiGenerationStepCalibrateHint"),
+    },
+  };
 
   useEffect(() => {
-    initCompatibilityLayer();
+    let mounted = true;
+    const bootstrap = async () => {
+      try {
+        initCompatibilityLayer();
+      } finally {
+        if (mounted) {
+          setIsBootstrapping(false);
+        }
+      }
+    };
+    void bootstrap();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -158,17 +191,17 @@ export const AIArchitectureGenerationDialog: React.FC<
   const stepBlockReasons = useMemo(() => {
     const reasons: Partial<Record<GenerationStep, string>> = {};
     if (!hasSourceData) {
-      reasons.draft = "请先导入并解析 CSV";
-      reasons.calibrate = "请先导入并解析 CSV";
+      reasons.draft = t("labels.aiGenerationRequireCsv");
+      reasons.calibrate = t("labels.aiGenerationRequireCsv");
       return reasons;
     }
     if (!hasRequiredMapping) {
-      reasons.draft = "请先确认关键列：hostname、privateIp、serviceName";
-      reasons.calibrate = "请先确认关键列：hostname、privateIp、serviceName";
+      reasons.draft = t("labels.aiGenerationRequireMapping");
+      reasons.calibrate = t("labels.aiGenerationRequireMapping");
       return reasons;
     }
     if (!hasCalibratableAssets) {
-      reasons.calibrate = "当前没有可校准资产，请先修正字段映射";
+      reasons.calibrate = t("labels.aiGenerationNoCalibratableAssets");
     }
     return reasons;
   }, [hasCalibratableAssets, hasRequiredMapping, hasSourceData]);
@@ -180,7 +213,9 @@ export const AIArchitectureGenerationDialog: React.FC<
         setStepNotice(blockedReason);
         return;
       }
+      setIsStepTransitioning(true);
       goToStep(nextStep);
+      requestAnimationFrame(() => setIsStepTransitioning(false));
     },
     [goToStep, stepBlockReasons],
   );
@@ -189,18 +224,31 @@ export const AIArchitectureGenerationDialog: React.FC<
     <Dialog
       className="ai-architecture-generation-dialog"
       onCloseRequest={onClose}
-      title="AI架构生成"
+      title={t("labels.aiArchitectureGeneration")}
       size={1280}
     >
       <div className="ai-architecture-generation-dialog__container">
         <header className="ai-architecture-generation-dialog__header">
           <div className="ai-architecture-generation-dialog__status">
-            模式: {mode === "advanced" ? "专家" : "向导"} | 把握度状态:{" "}
-            {confidenceState} | 目标: 3 分钟生成初步架构图 | {stepMeta[step].hint}
+            {t("labels.aiArchitectureGenerationStatus", {
+              mode:
+                mode === "advanced"
+                  ? t("labels.aiArchitectureGenerationModeAdvanced")
+                  : t("labels.aiArchitectureGenerationModeGuided"),
+              confidence: confidenceState,
+              hint: stepMeta[step].hint,
+            })}
           </div>
         </header>
         {stepNotice && (
           <div className="ai-architecture-generation-dialog__error">{stepNotice}</div>
+        )}
+        {(isBootstrapping || isStepTransitioning) && (
+          <div className="ai-architecture-generation-dialog__loading">
+            {isBootstrapping
+              ? t("labels.aiArchitectureGenerationBootstrapping")
+              : t("labels.aiArchitectureGenerationStepTransitioning")}
+          </div>
         )}
 
         {(step === "import" ||
@@ -209,64 +257,66 @@ export const AIArchitectureGenerationDialog: React.FC<
           step === "issues" ||
           step === "draft" ||
           step === "calibrate") && (
-          <WorkflowShell
-            step={step}
-            archDocStatus={archDocStatus}
-            calibrationProgress={{
-              done: calibrationState.tasks.filter((task) => task.done).length,
-              total: calibrationState.tasks.length,
-            }}
-            mappingWarningCount={mappingWarningCount}
-            pendingIssueCount={pendingIssueCount}
-            canPreviewDraft={canPreviewDraft}
-            stepBlockReasons={stepBlockReasons}
-            onStepChange={requestStepChange}
-            showAiSummary={step === "calibrate"}
-          >
-            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-              !hasSourceData && (
-                <ImportStep onContinue={() => requestStepChange("workspace")} onGenerateDraft={goDraft} />
+            <WorkflowShell
+              step={step}
+              archDocStatus={archDocStatus}
+              calibrationProgress={{
+                done: calibrationState.tasks.filter((task) => task.done).length,
+                total: calibrationState.tasks.length,
+              }}
+              mappingWarningCount={mappingWarningCount}
+              pendingIssueCount={pendingIssueCount}
+              canPreviewDraft={canPreviewDraft}
+              stepBlockReasons={stepBlockReasons}
+              onStepChange={requestStepChange}
+              showAiSummary={step === "calibrate"}
+            >
+              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+                !hasSourceData && (
+                  <ImportStep onContinue={() => requestStepChange("workspace")} onGenerateDraft={goDraft} />
+                )}
+              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+                hasSourceData && (
+                  <GuidedWorkspaceStep
+                    onContinueDraft={goDraft}
+                    onOpenExpert={() => {
+                      setExpertNotice(null);
+                      setIsExpertOpen(true);
+                    }}
+                  />
+                )}
+              {step === "draft" && (
+                <DraftStep
+                  onContinueCalibrate={goCalibrate}
+                  onInsertToCanvas={onClose}
+                  filter={session.draftFilter}
+                  onFilterChange={setDraftFilter}
+                  suggestions={session.namingSuggestions}
+                  onSuggestionsChange={setNamingSuggestions}
+                />
               )}
-            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-              hasSourceData && (
-              <GuidedWorkspaceStep
-                onContinueDraft={goDraft}
-                onOpenExpert={() => {
-                  setExpertNotice(null);
-                  setIsExpertOpen(true);
-                }}
-              />
-            )}
-            {step === "draft" && (
-              <DraftStep
-                onContinueCalibrate={goCalibrate}
-                filter={session.draftFilter}
-                onFilterChange={setDraftFilter}
-                suggestions={session.namingSuggestions}
-                onSuggestionsChange={setNamingSuggestions}
-              />
-            )}
-            {step === "calibrate" && <CalibrateStep />}
-            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-              isExpertOpen && (
-              <ExpertEditOverlay
-                onSave={() => {
-                  setIsExpertOpen(false);
-                  setExpertNotice("批量编辑工具已保存，校准工作台已更新。");
-                }}
-                onCancel={() => setIsExpertOpen(false)}
-              />
-            )}
-            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-              expertNotice && (
-              <div className="ai-architecture-generation-dialog__success">
-                {expertNotice}
-              </div>
-            )}
-          </WorkflowShell>
-        )}
+              {step === "calibrate" && <CalibrateStep onInsertToCanvas={onClose} />}
+              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+                isExpertOpen && (
+                    <ExpertEditOverlay
+                      onSave={() => {
+                        setIsExpertOpen(false);
+                        setExpertNotice(
+                          t("labels.aiArchitectureGenerationExpertSaved"),
+                        );
+                      }}
+                      onCancel={() => setIsExpertOpen(false)}
+                    />
+                )}
+              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+                expertNotice && (
+                  <div className="ai-architecture-generation-dialog__success">
+                    {expertNotice}
+                  </div>
+                )}
+            </WorkflowShell>
+          )}
       </div>
     </Dialog>
   );
 };
-

@@ -14,8 +14,7 @@ import {
 } from "@excalidraw/excalidraw/components/CommandPalette/CommandPalette";
 import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
 import { AISettingsDialog } from "@excalidraw/excalidraw/components/AISettingsDialog";
-import { AIArchitectureGenerationDialog } from "@excalidraw/excalidraw/components/AIArchitectureGenerationDialog";
-import { ArchitectureOptimizationDialog } from "@excalidraw/excalidraw/components/ArchitectureOptimizationDialog";
+import { ArchitectureAssistant } from "@excalidraw/excalidraw/components/ArchitectureAssistant";
 import { OverwriteConfirmDialog } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirm";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
 import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/ShareableLinkDialog";
@@ -350,11 +349,11 @@ const initializeScene = async (opts: {
   } else if (scene) {
     return isExternalScene && jsonBackendMatch
       ? {
-          scene,
-          isExternalScene,
-          id: jsonBackendMatch[1],
-          key: jsonBackendMatch[2],
-        }
+        scene,
+        isExternalScene,
+        id: jsonBackendMatch[1],
+        key: jsonBackendMatch[2],
+      }
       : { scene, isExternalScene: false };
   }
   return { scene: null, isExternalScene: false };
@@ -400,21 +399,16 @@ const ExcalidrawWrapper = () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
-  const [showArchitectureOptimization, setShowArchitectureOptimization] =
-    useState(false);
-  const [showAIArchitectureGeneration, setShowAIArchitectureGeneration] =
+  const [showArchitectureAssistant, setShowArchitectureAssistant] =
     useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const openAISettings = useCallback(() => {
-    setShowArchitectureOptimization(false);
+    setShowArchitectureAssistant(false);
     setShowAISettings(true);
   }, []);
   const openArchitectureOptimization = useCallback(() => {
     setShowAISettings(false);
-    setShowArchitectureOptimization(true);
-  }, []);
-  const openAIArchitectureGeneration = useCallback(() => {
-    setShowAIArchitectureGeneration(true);
+    setShowArchitectureAssistant(true);
   }, []);
 
   useHandleLibrary({
@@ -839,16 +833,9 @@ const ExcalidrawWrapper = () => {
                   <button
                     type="button"
                     className="plus-banner"
-                    onClick={() => setShowArchitectureOptimization(true)}
+                    onClick={() => setShowArchitectureAssistant(true)}
                   >
-                    AI架构助手
-                  </button>
-                  <button
-                    type="button"
-                    className="plus-banner"
-                    onClick={() => setShowAIArchitectureGeneration(true)}
-                  >
-                    AI架构生成
+                    {t("labels.aiArchitectureAssistant")}
                   </button>
                 </div>
               )}
@@ -880,21 +867,15 @@ const ExcalidrawWrapper = () => {
           refresh={() => forceRefresh((prev) => !prev)}
           onOpenAISettings={openAISettings}
           onOpenArchitectureOptimization={openArchitectureOptimization}
-          onOpenAIArchitectureGeneration={openAIArchitectureGeneration}
         />
         {showAISettings && (
           <AISettingsDialog onClose={() => setShowAISettings(false)} />
         )}
-        {showArchitectureOptimization && excalidrawAPI && (
-          <ArchitectureOptimizationDialog
+        {showArchitectureAssistant && excalidrawAPI && (
+          <ArchitectureAssistant
             elements={excalidrawAPI.getSceneElements()}
-            onClose={() => setShowArchitectureOptimization(false)}
+            onClose={() => setShowArchitectureAssistant(false)}
             onOpenAISettings={openAISettings}
-          />
-        )}
-        {showAIArchitectureGeneration && (
-          <AIArchitectureGenerationDialog
-            onClose={() => setShowAIArchitectureGeneration(false)}
           />
         )}
         <AppWelcomeScreen

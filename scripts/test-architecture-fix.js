@@ -17,6 +17,14 @@ const PREVIEW_FILE_PATH = path.join(
   __dirname,
   "../packages/excalidraw/components/ArchitectureOptimizationDialog/PreviewPage.tsx",
 );
+const PREVIEW_RENDERER_HOOK_FILE_PATH = path.join(
+  __dirname,
+  "../packages/excalidraw/components/ArchitectureOptimizationDialog/hooks/usePreviewRenderer.ts",
+);
+const PLAN_GENERATION_HOOK_FILE_PATH = path.join(
+  __dirname,
+  "../packages/excalidraw/components/ArchitectureOptimizationDialog/hooks/usePlanGeneration.ts",
+);
 const CHAT_PANEL_FILE_PATH = path.join(
   __dirname,
   "../packages/excalidraw/components/ArchitectureOptimizationDialog/ChatPanel.tsx",
@@ -28,34 +36,42 @@ const INPUT_COMPOSER_FILE_PATH = path.join(
 
 console.log("🧪 开始测试 ArchitectureOptimizationDialog 修复...\n");
 
-// Test 1: Check if renderingSchemes state exists
-console.log("Test 1: 检查 renderingSchemes 状态是否存在");
+// Test 1: Check if renderingSchemeIds state exists
+console.log("Test 1: 检查 renderingSchemeIds 状态是否存在");
 const content = fs.readFileSync(FILE_PATH, "utf8");
 const previewContent = fs.readFileSync(PREVIEW_FILE_PATH, "utf8");
+const previewRendererHookContent = fs.readFileSync(
+  PREVIEW_RENDERER_HOOK_FILE_PATH,
+  "utf8",
+);
+const planGenerationHookContent = fs.readFileSync(
+  PLAN_GENERATION_HOOK_FILE_PATH,
+  "utf8",
+);
 const chatPanelContent = fs.readFileSync(CHAT_PANEL_FILE_PATH, "utf8");
 const inputComposerContent = fs.readFileSync(INPUT_COMPOSER_FILE_PATH, "utf8");
 // Check for the state declaration (may be multiline)
-const hasRenderingSchemes =
+const hasRenderingSchemeIds =
   content.includes(
-    "const [renderingSchemes, setRenderingSchemes] = useState<Set<string>>(",
-  ) && content.includes("new Set(),");
-console.log(hasRenderingSchemes ? "✅ 通过" : "❌ 失败");
+    "const [renderingSchemeIds, setRenderingSchemeIds] = useAtom(aoRenderingSchemeIdsAtom);",
+  );
+console.log(hasRenderingSchemeIds ? "✅ 通过" : "❌ 失败");
 console.log("");
 
 // Test 2: Check if rendering state is updated in renderPreview
 console.log("Test 2: 检查 renderPreview 中是否正确更新渲染状态");
 // Check for both formats: with and without parentheses around arrow function parameter
 const hasSetRenderingStart =
-  content.includes(
-    "setRenderingSchemes(prev => new Set(prev).add(scheme.id))",
+  previewRendererHookContent.includes(
+    "setRenderingSchemeIds((prev) => [...prev, scheme.id]);",
   ) ||
-  content.includes(
-    "setRenderingSchemes((prev) => new Set(prev).add(scheme.id))",
+  previewRendererHookContent.includes(
+    "setRenderingSchemeIds((prev) => [...prev, scheme.id])",
   );
 // Simplified check for the delete pattern
 const hasSetRenderingEnd =
-  content.includes("setRenderingSchemes") &&
-  content.includes("next.delete(scheme.id)");
+  previewRendererHookContent.includes("setRenderingSchemeIds") &&
+  previewRendererHookContent.includes("prev.filter((id) => id !== scheme.id)");
 console.log("渲染开始标记:", hasSetRenderingStart ? "✅ 通过" : "❌ 失败");
 console.log("渲染结束标记:", hasSetRenderingEnd ? "✅ 通过" : "❌ 失败");
 console.log("");
@@ -65,7 +81,7 @@ console.log("Test 3: 检查按钮禁用逻辑是否包含渲染状态检查");
 // Current implementation passes disabled state via props into PreviewPage.
 const hasParentDisabledProp =
   content.includes("isInsertDisabled={") &&
-  content.includes("renderingSchemes.has(activeScheme.id)");
+  content.includes("renderingSchemeIds.includes(activeScheme.id)");
 const hasPreviewDisabledUsage =
   previewContent.includes("disabled={isInsertDisabled}");
 const buttonDisabledCheck = hasParentDisabledProp && hasPreviewDisabledUsage;
@@ -75,20 +91,24 @@ console.log("");
 // Test 4: Check if button text changes based on rendering state
 console.log("Test 4: 检查按钮文字是否根据渲染状态动态变化");
 const dynamicButtonText = content.includes(
-  'renderingSchemes.has(activeScheme?.id || "")',
+  'isPreparingInsert={renderingSchemeIds.includes(activeScheme?.id || "")}',
 );
 console.log(dynamicButtonText ? "✅ 通过" : "❌ 失败");
 console.log("");
 
 // Test 5: Check generation navigation semantics
 console.log("Test 5: 检查新建/更新方案后是否显式跳转到预览页");
-const hasResolvedSchemeId = content.includes("const resolvedSchemeId =");
-const hasReturnSchemeId = content.includes(
+const hasResolvedSchemeId = planGenerationHookContent.includes(
+  "const resolvedSchemeId =",
+);
+const hasReturnSchemeId = planGenerationHookContent.includes(
   "return { schemeId: resolvedSchemeId, wasUpdated }",
 );
 const hasExplicitPreviewJump =
-  content.includes("setActiveSchemeId(result.schemeId);") &&
-  content.includes("setIsPreviewPage(true);");
+  (planGenerationHookContent.includes("setActiveSchemeId(resolvedSchemeId);") &&
+    planGenerationHookContent.includes("setIsPreviewPage(true);")) ||
+  (planGenerationHookContent.includes("setActiveSchemeId(result.schemeId);") &&
+    planGenerationHookContent.includes("setIsPreviewPage(true);"));
 const generationNavigationCheck =
   hasResolvedSchemeId && hasReturnSchemeId && hasExplicitPreviewJump;
 console.log(generationNavigationCheck ? "✅ 通过" : "❌ 失败");
@@ -112,7 +132,7 @@ console.log("══════════════════════�
 console.log("📊 测试结果汇总");
 console.log("═══════════════════════════════════════");
 const allPassed =
-  hasRenderingSchemes &&
+  hasRenderingSchemeIds &&
   hasSetRenderingStart &&
   hasSetRenderingEnd &&
   buttonDisabledCheck &&
@@ -123,7 +143,7 @@ if (allPassed) {
   console.log("✅ 所有测试通过！修复已正确实施。");
   console.log("");
   console.log("修复总结：");
-  console.log("- 添加了 renderingSchemes 状态跟踪渲染进度");
+  console.log("- 添加了 renderingSchemeIds 状态跟踪渲染进度");
   console.log("- 在 renderPreview 开始和结束时更新渲染状态");
   console.log('- 按钮在渲染中时禁用并显示"正在准备..."');
   console.log("- 渲染完成后按钮变为可点击状态");

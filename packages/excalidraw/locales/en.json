@@ -87,6 +87,27 @@
     "actions": "Actions",
     "language": "Language",
     "liveCollaboration": "Live collaboration...",
+    "aiArchitectureAssistant": "AI Architecture Assistant",
+    "aiCanvasOptimizeTab": "Canvas optimize",
+    "aiCsvGenerateTab": "CSV generate",
+    "aiArchitectureGeneration": "AI Architecture Generation",
+    "aiArchitectureGenerationModeAdvanced": "Expert",
+    "aiArchitectureGenerationModeGuided": "Guided",
+    "aiArchitectureGenerationStatus": "Mode: {{mode}} | Confidence: {{confidence}} | Goal: Build initial architecture draft in 3 minutes | {{hint}}",
+    "aiArchitectureGenerationBootstrapping": "Initializing workspace...",
+    "aiArchitectureGenerationStepTransitioning": "Switching step...",
+    "aiArchitectureGenerationExpertSaved": "Batch edit has been saved and workspace has been refreshed.",
+    "aiArchitectureAssistantErrorTitle": "AI Architecture Assistant crashed",
+    "aiArchitectureAssistantErrorHint": "Current session was interrupted. Close and reopen the assistant.",
+    "aiGenerationStepWorkspace": "Data Workspace",
+    "aiGenerationStepWorkspaceHint": "Import data and complete calibration fixes in one page",
+    "aiGenerationStepDraft": "Architecture Draft",
+    "aiGenerationStepDraftHint": "Generate and confirm an architecture draft by business scope",
+    "aiGenerationStepCalibrate": "Trusted Baseline",
+    "aiGenerationStepCalibrateHint": "Mark as confirmed after passing quality gates",
+    "aiGenerationRequireCsv": "Please import and parse CSV first",
+    "aiGenerationRequireMapping": "Please confirm required columns first: hostname, privateIp, serviceName",
+    "aiGenerationNoCalibratableAssets": "No calibratable assets found. Please fix field mapping first",
     "duplicateSelection": "Duplicate",
     "untitled": "Untitled",
     "name": "Name",
@@ -704,3 +725,4 @@
     "mmb": "Scroll wheel"
   }
 }
+

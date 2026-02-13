@@ -1,5 +1,6 @@
 import { OpenAIIcon } from "@excalidraw/excalidraw/components/icons";
 import { MainMenu } from "@excalidraw/excalidraw/index";
+import { t } from "@excalidraw/excalidraw/i18n";
 import React from "react";
 
 import type { Theme } from "@excalidraw/element/types";
@@ -17,7 +18,6 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onOpenAISettings: () => void;
   onOpenArchitectureOptimization: () => void;
-  onOpenAIArchitectureGeneration: () => void;
 }> = React.memo((props) => {
   return (
     <>
@@ -41,13 +41,7 @@ export const AppMainMenu: React.FC<{
           icon={OpenAIIcon}
           onSelect={props.onOpenArchitectureOptimization}
         >
-          AI架构助手
-        </MainMenu.Item>
-        <MainMenu.Item
-          icon={OpenAIIcon}
-          onSelect={props.onOpenAIArchitectureGeneration}
-        >
-          AI架构生成
+          {t("labels.aiArchitectureAssistant")}
         </MainMenu.Item>
         <MainMenu.Item icon={OpenAIIcon} onSelect={props.onOpenAISettings}>
           AI Settings

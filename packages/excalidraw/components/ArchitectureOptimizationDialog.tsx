@@ -3,48 +3,28 @@ import React, {
   useCallback,
   useRef,
   useEffect,
-  useReducer,
   useMemo,
 } from "react";
 
-import {
-  FONT_FAMILY,
-  getFontString,
-  getLineHeight,
-  sceneCoordsToViewportCoords,
-} from "@excalidraw/common";
-
-import {
-  getCommonBounds,
-  isNonDeletedElement,
-  newTextElement,
-  wrapText,
-} from "@excalidraw/element";
-
 import type {
-  NonDeletedExcalidrawElement,
   ExcalidrawElement,
-  StrokeStyle,
   Theme,
 } from "@excalidraw/element/types";
 
 import { useApp } from "../components/App";
 import { useUIAppState } from "../context/ui-appState";
-import { exportToSvg } from "../scene/export";
 
 import {
   extractDiagramInfo,
   getArchitectureAnalysisPrompt,
-  generateOptimizationPlan,
   isAIConfigured,
   runAIStream,
-  sanitizeMermaidDefinition,
 } from "../services/aiService";
-
-import { convertMermaidToExcalidraw } from "./TTDDialog/common";
 
 import { Dialog } from "./Dialog";
 import { ChatPanel } from "./ArchitectureOptimizationDialog/ChatPanel";
+import { ClearSchemesConfirmDialog } from "./ArchitectureOptimizationDialog/ClearSchemesConfirmDialog";
+import { ConfigurationWaitScreen } from "./ArchitectureOptimizationDialog/ConfigurationWaitScreen";
 import {
   buildSuggestionDedupKey,
   categoryLabels,
@@ -55,32 +35,59 @@ import {
 } from "./ArchitectureOptimizationDialog/model";
 import { PreviewPage } from "./ArchitectureOptimizationDialog/PreviewPage";
 import { SchemeTabs } from "./ArchitectureOptimizationDialog/SchemeTabs";
+import { SchemeUndoToast } from "./ArchitectureOptimizationDialog/SchemeUndoToast";
 import { WorkflowPage } from "./ArchitectureOptimizationDialog/WorkflowPage";
+import { useArchitecturePersistence } from "./ArchitectureOptimizationDialog/hooks/useArchitecturePersistence";
+import { usePlanGeneration } from "./ArchitectureOptimizationDialog/hooks/usePlanGeneration";
+import { usePreviewControls } from "./ArchitectureOptimizationDialog/hooks/usePreviewControls";
+import { usePreviewRenderer } from "./ArchitectureOptimizationDialog/hooks/usePreviewRenderer";
+import { useSchemeActions } from "./ArchitectureOptimizationDialog/hooks/useSchemeActions";
 import { adjustInputComposerTextareaHeight } from "./ArchitectureOptimizationDialog/inputComposer";
-import {
-  buildPlanExecutionOptions,
-  buildGenerationSnapshot,
-  buildPlanHistoryMessages,
-} from "./ArchitectureOptimizationDialog/planGenerationContext";
-import { validateGenerationResult } from "./ArchitectureOptimizationDialog/validation";
 import { useAIStream } from "./hooks/useAIStream";
 
+import { useAtom, useAtomValue, useSetAtom } from "../editor-jotai";
 import {
-  messagesReducer,
+  aoMessagesAtom,
+  aoDispatchMessagesAtom,
+  aoInputValueAtom,
+  aoSchemesAtom,
+  aoActiveSchemeIdAtom,
+  aoActiveSchemeAtom,
+  aoIsCompareModeAtom,
+  aoDeletedSchemesBufferAtom,
+  aoShowUndoToastAtom,
+  aoRenderingSchemeIdsAtom,
+  aoSuggestionPoolAtom,
+  aoSuggestionCombinationsAtom,
+  aoActiveCombinationIdAtom,
+  aoArchitectureStyleAtom,
+  aoSkipUpdateConfirmAtom,
+  aoEditingSuggestionIdAtom,
+  aoSuggestionSearchKeywordAtom,
+  aoShowArchivedSuggestionsAtom,
+  aoExpandedSuggestionIdsAtom,
+  aoSuggestionToastAtom,
+  aoIsPreviewPageAtom,
+  aoIsDrawerOpenAtom,
+  aoHighlightedSuggestionIdAtom,
+  aoViewportAtom,
+  aoIsPanModeAtom,
+  aoShowConfigExampleAtom,
+  aoIsClearSchemesDialogOpenAtom,
+  aoClearSchemesOptionsAtom,
+} from "./ArchitectureOptimizationDialog/atoms";
+
+import {
   type Message,
 } from "./ArchitectureOptimizationDialog/messageState";
 import "./ArchitectureOptimizationDialog.scss";
 
 import type {
   ArchitectureStyle,
-  PersistedAssistantState,
   PoolSuggestion,
   Scheme,
   Suggestion,
-  SuggestionCategory,
-  SuggestionCombination,
 } from "./ArchitectureOptimizationDialog/model";
-import type { BinaryFiles } from "../types";
 import type { MermaidToExcalidrawLibProps } from "./TTDDialog/types";
 
 interface ArchitectureOptimizationDialogProps {
@@ -89,100 +96,12 @@ interface ArchitectureOptimizationDialogProps {
   onOpenAISettings: () => void;
 }
 
-// Storage key for persisting chat history
-const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
-const SCHEMES_STORAGE_KEY = "excalidraw_architecture_schemes";
-const ASSISTANT_STATE_STORAGE_KEY = "excalidraw_architecture_assistant_state";
 const ARCHITECTURE_DIALOG_WIDTH = 1500;
 const SCHEME_UNDO_TIMEOUT_MS = 12000;
+const CHAT_STORAGE_KEY = "excalidraw_architecture_chat";
 
 const getScopedStorageKey = (baseKey: string, scope?: string) =>
   scope ? `${baseKey}::${scope}` : baseKey;
-
-// Load chat history from localStorage
-const loadChatHistory = (scope?: string): Message[] => {
-  try {
-    const saved =
-      localStorage.getItem(getScopedStorageKey(CHAT_STORAGE_KEY, scope)) ||
-      localStorage.getItem(CHAT_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error("Failed to load chat history:", e);
-  }
-  return [];
-};
-
-// Save chat history to localStorage
-const saveChatHistory = (messages: Message[], scope?: string): void => {
-  try {
-    // Only save non-generating messages without errors
-    const messagesToSave = messages
-      .filter((m) => !m.isGenerating && !m.error)
-      .map(({ id, role, content }) => ({ id, role, content }));
-    localStorage.setItem(
-      getScopedStorageKey(CHAT_STORAGE_KEY, scope),
-      JSON.stringify(messagesToSave),
-    );
-  } catch (e) {
-    console.error("Failed to save chat history:", e);
-  }
-};
-
-const loadSchemes = (scope?: string): Scheme[] => {
-  try {
-    const saved =
-      localStorage.getItem(getScopedStorageKey(SCHEMES_STORAGE_KEY, scope)) ||
-      localStorage.getItem(SCHEMES_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved) as Scheme[];
-    }
-  } catch (e) {
-    console.error("Failed to load schemes:", e);
-  }
-  return [];
-};
-
-const saveSchemes = (schemes: Scheme[], scope?: string): void => {
-  try {
-    localStorage.setItem(
-      getScopedStorageKey(SCHEMES_STORAGE_KEY, scope),
-      JSON.stringify(schemes),
-    );
-  } catch (e) {
-    console.error("Failed to save schemes:", e);
-  }
-};
-
-const loadAssistantState = (scope?: string): PersistedAssistantState | null => {
-  try {
-    const saved =
-      localStorage.getItem(
-        getScopedStorageKey(ASSISTANT_STATE_STORAGE_KEY, scope),
-      ) || localStorage.getItem(ASSISTANT_STATE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved) as PersistedAssistantState;
-    }
-  } catch (e) {
-    console.error("Failed to load assistant state:", e);
-  }
-  return null;
-};
-
-const saveAssistantState = (
-  state: PersistedAssistantState,
-  scope?: string,
-): void => {
-  try {
-    localStorage.setItem(
-      getScopedStorageKey(ASSISTANT_STATE_STORAGE_KEY, scope),
-      JSON.stringify(state),
-    );
-  } catch (e) {
-    console.error("Failed to save assistant state:", e);
-  }
-};
 
 export const ArchitectureOptimizationDialog: React.FC<
   ArchitectureOptimizationDialogProps
@@ -191,91 +110,35 @@ export const ArchitectureOptimizationDialog: React.FC<
   const uiAppState = useUIAppState();
   const storageScope = (uiAppState.name || "default").trim();
 
-  // Load persisted messages on init
-  const [messages, dispatchMessages] = useReducer(
-    messagesReducer,
-    undefined,
-    () => loadChatHistory(storageScope),
-  );
-  const [inputValue, setInputValue] = useState(
-    () => loadAssistantState(storageScope)?.draftInput ?? "",
-  );
-  const [schemes, setSchemes] = useState<Scheme[]>(() =>
-    loadSchemes(storageScope),
-  );
-  const [activeSchemeId, setActiveSchemeId] = useState<string | null>(() => {
-    const savedAssistantState = loadAssistantState(storageScope);
-    if (savedAssistantState?.activeSchemeId) {
-      return savedAssistantState.activeSchemeId;
-    }
-    const savedSchemes = loadSchemes(storageScope);
-    return savedSchemes.length > 0
-      ? savedSchemes[savedSchemes.length - 1].id
-      : null;
-  });
-  const [isCompareMode, setIsCompareMode] = useState(
-    () => loadAssistantState(storageScope)?.isCompareMode ?? false,
-  );
-  const [previewError, setPreviewError] = useState<Error | null>(null);
-  const [originalPreviewError, setOriginalPreviewError] =
-    useState<Error | null>(null);
-  const [renderingSchemes, setRenderingSchemes] = useState<Set<string>>(
-    new Set(),
-  );
-  const [deletedSchemesBuffer, setDeletedSchemesBuffer] = useState<{
-    schemes: Scheme[];
-    activeId: string | null;
-    timeoutId: number;
-  } | null>(null);
-  const [showUndoToast, setShowUndoToast] = useState(false);
-  const [showConfigExample, setShowConfigExample] = useState(false);
-  const [isClearSchemesDialogOpen, setIsClearSchemesDialogOpen] =
-    useState(false);
-  const [clearSchemesAlsoClearSelected, setClearSchemesAlsoClearSelected] =
-    useState(false);
-  const [clearSchemesAlsoClearPool, setClearSchemesAlsoClearPool] =
-    useState(false);
-
-  // Advanced workbench state
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [highlightedSuggestionId, setHighlightedSuggestionId] = useState<
-    string | null
-  >(null);
-  const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
-  const [isPanMode, setIsPanMode] = useState(false);
-
-  // Semi-automatic workflow state
-  const [suggestionPool, setSuggestionPool] = useState<PoolSuggestion[]>(
-    () => loadAssistantState(storageScope)?.suggestionPool ?? [],
-  );
-  const [suggestionCombinations, setSuggestionCombinations] = useState<
-    SuggestionCombination[]
-  >(() => loadAssistantState(storageScope)?.suggestionCombinations ?? []);
-  const [activeCombinationId, setActiveCombinationId] = useState<string | null>(
-    () => loadAssistantState(storageScope)?.activeCombinationId ?? null,
-  );
-  const [architectureStyle, setArchitectureStyle] = useState<ArchitectureStyle>(
-    () => loadAssistantState(storageScope)?.architectureStyle ?? "standard",
-  );
-  const [skipUpdateConfirm, setSkipUpdateConfirm] = useState(
-    () => loadAssistantState(storageScope)?.skipUpdateConfirm ?? false,
-  );
-  const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(
-    null,
-  );
-  const [suggestionSearchKeyword, setSuggestionSearchKeyword] = useState(
-    () => loadAssistantState(storageScope)?.suggestionSearchKeyword ?? "",
-  );
-  const [showArchivedSuggestions, setShowArchivedSuggestions] = useState(
-    () => loadAssistantState(storageScope)?.showArchivedSuggestions ?? false,
-  );
-  const [suggestionToast, setSuggestionToast] = useState<string | null>(null);
-  const [expandedSuggestionIds, setExpandedSuggestionIds] = useState<
-    Set<string>
-  >(new Set());
-  const [isPreviewPage, setIsPreviewPage] = useState(
-    () => loadAssistantState(storageScope)?.isPreviewPage ?? false,
-  );
+  // ===== Atom-based state =====
+  const [messages, setMessages] = useAtom(aoMessagesAtom);
+  const dispatchMessages = useSetAtom(aoDispatchMessagesAtom);
+  const [inputValue, setInputValue] = useAtom(aoInputValueAtom);
+  const [schemes, setSchemes] = useAtom(aoSchemesAtom);
+  const [activeSchemeId, setActiveSchemeId] = useAtom(aoActiveSchemeIdAtom);
+  const activeScheme = useAtomValue(aoActiveSchemeAtom);
+  const [isCompareMode, setIsCompareMode] = useAtom(aoIsCompareModeAtom);
+  const [deletedSchemesBuffer, setDeletedSchemesBuffer] = useAtom(aoDeletedSchemesBufferAtom);
+  const [showUndoToast, setShowUndoToast] = useAtom(aoShowUndoToastAtom);
+  const [renderingSchemeIds, setRenderingSchemeIds] = useAtom(aoRenderingSchemeIdsAtom);
+  const [suggestionPool, setSuggestionPool] = useAtom(aoSuggestionPoolAtom);
+  const [suggestionCombinations, setSuggestionCombinations] = useAtom(aoSuggestionCombinationsAtom);
+  const [activeCombinationId, setActiveCombinationId] = useAtom(aoActiveCombinationIdAtom);
+  const [architectureStyle, setArchitectureStyle] = useAtom(aoArchitectureStyleAtom);
+  const [skipUpdateConfirm, setSkipUpdateConfirm] = useAtom(aoSkipUpdateConfirmAtom);
+  const [editingSuggestionId, setEditingSuggestionId] = useAtom(aoEditingSuggestionIdAtom);
+  const [suggestionSearchKeyword, setSuggestionSearchKeyword] = useAtom(aoSuggestionSearchKeywordAtom);
+  const [showArchivedSuggestions, setShowArchivedSuggestions] = useAtom(aoShowArchivedSuggestionsAtom);
+  const [suggestionToast, setSuggestionToast] = useAtom(aoSuggestionToastAtom);
+  const [expandedSuggestionIds, setExpandedSuggestionIds] = useAtom(aoExpandedSuggestionIdsAtom);
+  const [isPreviewPage, setIsPreviewPage] = useAtom(aoIsPreviewPageAtom);
+  const [isDrawerOpen, setIsDrawerOpen] = useAtom(aoIsDrawerOpenAtom);
+  const [highlightedSuggestionId, setHighlightedSuggestionId] = useAtom(aoHighlightedSuggestionIdAtom);
+  const [viewport, setViewport] = useAtom(aoViewportAtom);
+  const [isPanMode, setIsPanMode] = useAtom(aoIsPanModeAtom);
+  const [showConfigExample, setShowConfigExample] = useAtom(aoShowConfigExampleAtom);
+  const [isClearSchemesDialogOpen, setIsClearSchemesDialogOpen] = useAtom(aoIsClearSchemesDialogOpenAtom);
+  const [clearSchemesOptions, setClearSchemesOptions] = useAtom(aoClearSchemesOptionsAtom);
 
   const [mermaidToExcalidrawLib, setMermaidToExcalidrawLib] =
     useState<MermaidToExcalidrawLibProps>({
@@ -286,148 +149,10 @@ export const ArchitectureOptimizationDialog: React.FC<
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<HTMLDivElement>(null);
   const inputTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const previewCanvasRef = useRef<HTMLDivElement>(null);
-  const originalPreviewCanvasRef = useRef<HTMLDivElement>(null);
-  const previewRetryRef = useRef(0);
   const suggestionToastTimerRef = useRef<number | null>(null);
   const stagingAreaRef = useRef<HTMLDivElement>(null);
-  const panStartRef = useRef<{
-    x: number;
-    y: number;
-    originX: number;
-    originY: number;
-  } | null>(null);
-  const schemeDataRefs = useRef<
-    Record<
-      string,
-      React.MutableRefObject<{
-        elements: readonly NonDeletedExcalidrawElement[];
-        files: BinaryFiles | null;
-      }>
-    >
-  >({});
 
   const { run: runStream, abort: abortStream, isStreaming } = useAIStream();
-
-  const getSchemeDataRef = useCallback((schemeId: string) => {
-    if (!schemeDataRefs.current[schemeId]) {
-      schemeDataRefs.current[schemeId] = {
-        current: { elements: [], files: null },
-      };
-    }
-    return schemeDataRefs.current[schemeId];
-  }, []);
-
-  const fitPreviewToViewport = useCallback(
-    (
-      canvasRef: React.RefObject<HTMLDivElement | null>,
-      schemeId?: string | null,
-    ) => {
-      const host = canvasRef.current;
-      const container = host?.parentElement;
-      if (!host || !container) {
-        return;
-      }
-
-      let contentWidth = 0;
-      let contentHeight = 0;
-
-      if (schemeId) {
-        const dataRef = getSchemeDataRef(schemeId);
-        const sceneElements = dataRef.current.elements;
-        if (sceneElements.length > 0) {
-          const [minX, minY, maxX, maxY] = getCommonBounds(sceneElements);
-          contentWidth = Math.max(1, maxX - minX);
-          contentHeight = Math.max(1, maxY - minY);
-        }
-      }
-
-      const renderedNode = host.querySelector("canvas, svg");
-      if (renderedNode) {
-        let renderedWidth = 0;
-        let renderedHeight = 0;
-        if (renderedNode instanceof HTMLCanvasElement) {
-          const ratio = window.devicePixelRatio || 1;
-          renderedWidth = renderedNode.width / ratio;
-          renderedHeight = renderedNode.height / ratio;
-        } else if (renderedNode instanceof SVGSVGElement) {
-          try {
-            const bbox = renderedNode.getBBox();
-            if (bbox.width > 0 && bbox.height > 0) {
-              renderedWidth = bbox.width;
-              renderedHeight = bbox.height;
-            }
-          } catch {
-            const viewBox = renderedNode.viewBox?.baseVal;
-            if (viewBox?.width && viewBox?.height) {
-              renderedWidth = viewBox.width;
-              renderedHeight = viewBox.height;
-            }
-          }
-
-          if (renderedWidth <= 0 || renderedHeight <= 0) {
-            const box = renderedNode.getBoundingClientRect();
-            renderedWidth = box.width;
-            renderedHeight = box.height;
-          }
-        }
-
-        if (renderedWidth > 0 && renderedHeight > 0) {
-          contentWidth = Math.max(contentWidth, renderedWidth);
-          contentHeight = Math.max(contentHeight, renderedHeight);
-        }
-      }
-
-      if (contentWidth <= 0 || contentHeight <= 0) {
-        setViewport({ x: 0, y: 0, zoom: 1 });
-        return;
-      }
-
-      if (contentWidth <= 0 || contentHeight <= 0) {
-        setViewport({ x: 0, y: 0, zoom: 1 });
-        return;
-      }
-
-      // Keep larger safety margin so tall diagrams won't appear clipped
-      // at default fit and won't visually "push" the preview frame.
-      const padding = 48;
-      const availableWidth = Math.max(1, container.clientWidth - padding * 2);
-      const availableHeight = Math.max(1, container.clientHeight - padding * 2);
-      const zoom = Math.max(
-        0.05,
-        Math.min(
-          1,
-          availableWidth / contentWidth,
-          availableHeight / contentHeight,
-        ),
-      );
-      setViewport({ x: 0, y: 0, zoom });
-    },
-    [getSchemeDataRef],
-  );
-
-  const scheduleFitPreview = useCallback(
-    (
-      canvasRef: React.RefObject<HTMLDivElement | null>,
-      schemeId?: string | null,
-    ) => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          fitPreviewToViewport(canvasRef, schemeId);
-        });
-      });
-    },
-    [fitPreviewToViewport],
-  );
-
-  const activeScheme =
-    schemes.find((scheme) => scheme.id === activeSchemeId) ||
-    schemes[schemes.length - 1] ||
-    null;
-  const activeSchemeSuggestions = useMemo(
-    () => (activeScheme ? parseSuggestions(activeScheme.summary) : []),
-    [activeScheme],
-  );
 
   useEffect(() => {
     const fn = async () => {
@@ -447,28 +172,11 @@ export const ArchitectureOptimizationDialog: React.FC<
     }
   }, [schemes, activeSchemeId]);
 
-  useEffect(() => {
-    saveSchemes(schemes, storageScope);
-  }, [schemes, storageScope]);
-
-  useEffect(() => {
-    saveAssistantState(
-      {
-        suggestionPool,
-        suggestionCombinations,
-        activeCombinationId,
-        architectureStyle,
-        skipUpdateConfirm,
-        suggestionSearchKeyword,
-        showArchivedSuggestions,
-        draftInput: inputValue,
-        activeSchemeId,
-        isPreviewPage,
-        isCompareMode,
-      },
-      storageScope,
-    );
-  }, [
+  useArchitecturePersistence({
+    storageScope,
+    isStreaming,
+    messages,
+    schemes,
     suggestionPool,
     suggestionCombinations,
     activeCombinationId,
@@ -480,213 +188,52 @@ export const ArchitectureOptimizationDialog: React.FC<
     activeSchemeId,
     isPreviewPage,
     isCompareMode,
-    storageScope,
-  ]);
+    setMessages,
+    setSchemes,
+    setActiveSchemeId,
+    setInputValue,
+    setIsCompareMode,
+    setSuggestionPool,
+    setSuggestionCombinations,
+    setActiveCombinationId,
+    setArchitectureStyle,
+    setSkipUpdateConfirm,
+    setSuggestionSearchKeyword,
+    setShowArchivedSuggestions,
+    setIsPreviewPage,
+  });
 
-  // Render preview when result changes
-  useEffect(() => {
-    if (!isPreviewPage) {
-      return;
-    }
-
-    const renderPreview = async (
-      scheme: Scheme | null,
-      canvasRef: React.RefObject<HTMLDivElement | null>,
-      setError: (err: Error | null) => void,
-      autoFit = false,
-    ) => {
-      if (!canvasRef.current) {
-        return;
-      }
-      if (!scheme?.mermaid?.trim()) {
-        setError(new Error("当前方案缺少 Mermaid 代码"));
-        return;
-      }
-      if (!mermaidToExcalidrawLib.loaded) {
-        setError(new Error("Mermaid 渲染引擎尚未就绪，请稍后重试"));
-        return;
-      }
-
-      const parent = canvasRef.current.parentElement;
-      if (!parent || parent.offsetWidth === 0 || parent.offsetHeight === 0) {
-        if (previewRetryRef.current < 5) {
-          previewRetryRef.current += 1;
-          requestAnimationFrame(() =>
-            renderPreview(scheme, canvasRef, setError),
-          );
-        } else {
-          setError(new Error("Preview container has no size"));
-        }
-        return;
-      }
-
-      const dataRef = getSchemeDataRef(scheme.id);
-
-      // Mark scheme as rendering
-      setRenderingSchemes((prev) => new Set(prev).add(scheme.id));
-
-      try {
-        const firstTry = await convertMermaidToExcalidraw({
-          canvasRef,
-          mermaidToExcalidrawLib,
-          mermaidDefinition: scheme.mermaid,
-          setError: (err) => {
-            setError(err);
-            if (err) {
-              console.error("Mermaid preview error", err);
-            }
-          },
-          data: dataRef,
-          theme: uiAppState.theme as Theme,
-        });
-        if (!firstTry.success) {
-          const sanitized = sanitizeMermaidDefinition(scheme.mermaid);
-          if (sanitized && sanitized !== scheme.mermaid) {
-            await convertMermaidToExcalidraw({
-              canvasRef,
-              mermaidToExcalidrawLib,
-              mermaidDefinition: sanitized,
-              setError: (err) => {
-                setError(err);
-                if (err) {
-                  console.error("Mermaid preview fallback error", err);
-                }
-              },
-              data: dataRef,
-              theme: uiAppState.theme as Theme,
-            });
-          }
-        }
-        if (autoFit) {
-          scheduleFitPreview(canvasRef, scheme.id);
-        }
-      } finally {
-        // Mark scheme as finished rendering
-        setRenderingSchemes((prev) => {
-          const next = new Set(prev);
-          next.delete(scheme.id);
-          return next;
-        });
-      }
-    };
-
-    previewRetryRef.current = 0;
-    setPreviewError(null);
-    renderPreview(activeScheme, previewCanvasRef, setPreviewError, true);
-  }, [
-    activeScheme,
+  const {
+    previewCanvasRef,
+    originalPreviewCanvasRef,
+    previewError,
+    originalPreviewError,
     getSchemeDataRef,
-    isPreviewPage,
-    mermaidToExcalidrawLib,
-    mermaidToExcalidrawLib.loaded,
     scheduleFitPreview,
-    uiAppState.theme,
-  ]);
-
-  useEffect(() => {
-    if (!isPreviewPage || !activeScheme) {
-      return;
-    }
-    scheduleFitPreview(previewCanvasRef, activeScheme.id);
-  }, [activeScheme, isCompareMode, isPreviewPage, scheduleFitPreview]);
-
-  useEffect(() => {
-    if (!isPreviewPage || !activeScheme) {
-      return;
-    }
-
-    const host = previewCanvasRef.current;
-    const container = host?.parentElement;
-    if (!container) {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      // Auto-fit on container resize (windowed mode / compare toggle / layout changes).
-      scheduleFitPreview(previewCanvasRef, activeScheme.id);
-    });
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, [activeScheme, isPreviewPage, scheduleFitPreview]);
-
-  useEffect(() => {
-    if (!isPreviewPage || !isCompareMode) {
-      return;
-    }
-
-    const container = originalPreviewCanvasRef.current;
-    if (!container) {
-      return;
-    }
-
-    let isCancelled = false;
-    const renderOriginalPreview = async () => {
-      setOriginalPreviewError(null);
-
-      const nonDeletedElements = elements.filter(isNonDeletedElement);
-      if (nonDeletedElements.length === 0) {
-        container.replaceChildren();
-        return;
-      }
-
-      try {
-        const svg = await exportToSvg(
-          nonDeletedElements,
-          {
-            exportBackground: true,
-            exportPadding: 16,
-            viewBackgroundColor: uiAppState.viewBackgroundColor,
-            exportWithDarkMode: uiAppState.theme === "dark",
-            frameRendering: uiAppState.frameRendering,
-          },
-          null,
-        );
-
-        if (isCancelled) {
-          return;
-        }
-
-        svg.style.width = "100%";
-        svg.style.height = "100%";
-        svg.style.maxWidth = "100%";
-        svg.style.maxHeight = "100%";
-        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-        container.replaceChildren(svg);
-      } catch (error) {
-        if (!isCancelled) {
-          setOriginalPreviewError(
-            error instanceof Error ? error : new Error("原架构图渲染失败"),
-          );
-        }
-      }
-    };
-
-    void renderOriginalPreview();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [
+    clearPreviewErrors,
+  } = usePreviewRenderer({
+    activeScheme,
     elements,
-    isCompareMode,
     isPreviewPage,
-    uiAppState.frameRendering,
-    uiAppState.theme,
-    uiAppState.viewBackgroundColor,
-  ]);
+    isCompareMode,
+    mermaidToExcalidrawLib,
+    theme: uiAppState.theme as Theme,
+    viewBackgroundColor: uiAppState.viewBackgroundColor,
+    frameRendering: uiAppState.frameRendering,
+    setViewport,
+    setRenderingSchemeIds,
+  });
+
+  // activeScheme is now derived from aoActiveSchemeAtom above
+  const activeSchemeSuggestions = useMemo(
+    () => (activeScheme ? parseSuggestions(activeScheme.summary) : []),
+    [activeScheme],
+  );
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // Save messages to localStorage when they change (debounced)
-  useEffect(() => {
-    if (!isStreaming) {
-      saveChatHistory(messages, storageScope);
-    }
-  }, [messages, isStreaming, storageScope]);
 
   // 清理撤销缓冲区
   useEffect(() => {
@@ -710,16 +257,14 @@ export const ArchitectureOptimizationDialog: React.FC<
       .filter((s) => s.selected)
       .map(
         (s) =>
-          `- [${categoryLabels[s.category]}] ${s.fullContent}${
-            s.note ? ` (备注: ${s.note})` : ""
+          `- [${categoryLabels[s.category]}] ${s.fullContent}${s.note ? ` (备注: ${s.note})` : ""
           }`,
       )
       .join("\n");
-    const systemPrompt = `${getArchitectureAnalysisPrompt(diagramInfo)}${
-      selectedContext
-        ? `\n\n【已选建议工作集（请作为本轮上下文参考，不要忽略）】\n${selectedContext}`
-        : ""
-    }`;
+    const systemPrompt = `${getArchitectureAnalysisPrompt(diagramInfo)}${selectedContext
+      ? `\n\n【已选建议工作集（请作为本轮上下文参考，不要忽略）】\n${selectedContext}`
+      : ""
+      }`;
 
     const userMsgId = `msg-${Date.now()}`;
     const assistantMsgId = `msg-${Date.now() + 1}`;
@@ -860,16 +405,14 @@ export const ArchitectureOptimizationDialog: React.FC<
       .filter((s) => s.selected)
       .map(
         (s) =>
-          `- [${categoryLabels[s.category]}] ${s.fullContent}${
-            s.note ? ` (备注: ${s.note})` : ""
+          `- [${categoryLabels[s.category]}] ${s.fullContent}${s.note ? ` (备注: ${s.note})` : ""
           }`,
       )
       .join("\n");
-    const systemPrompt = `${getArchitectureAnalysisPrompt(diagramInfo)}${
-      selectedContext
-        ? `\n\n【已选建议工作集（请作为本轮上下文参考，不要忽略）】\n${selectedContext}`
-        : ""
-    }`;
+    const systemPrompt = `${getArchitectureAnalysisPrompt(diagramInfo)}${selectedContext
+      ? `\n\n【已选建议工作集（请作为本轮上下文参考，不要忽略）】\n${selectedContext}`
+      : ""
+      }`;
     const apiMessages = [
       { role: "system" as const, content: systemPrompt },
       ...messages
@@ -1116,13 +659,10 @@ export const ArchitectureOptimizationDialog: React.FC<
 
   const handleToggleExpandedSuggestion = useCallback((id: string) => {
     setExpandedSuggestionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
       }
-      return next;
+      return [...prev, id];
     });
   }, []);
 
@@ -1161,7 +701,7 @@ export const ArchitectureOptimizationDialog: React.FC<
     }
     setSuggestionPool([]);
     setActiveCombinationId(null);
-    setExpandedSuggestionIds(new Set());
+    setExpandedSuggestionIds([]);
     setEditingSuggestionId(null);
     setSuggestionToast("列表已清空");
   }, [suggestionPool.length, confirmClear]);
@@ -1178,14 +718,13 @@ export const ArchitectureOptimizationDialog: React.FC<
     setActiveSchemeId(null);
     setIsPreviewPage(false);
     setIsCompareMode(false);
-    setPreviewError(null);
-    setOriginalPreviewError(null);
-    if (clearSchemesAlsoClearPool) {
+    clearPreviewErrors();
+    if (clearSchemesOptions.alsoClearPool) {
       setSuggestionPool([]);
-      setExpandedSuggestionIds(new Set());
+      setExpandedSuggestionIds([]);
       setEditingSuggestionId(null);
       setActiveCombinationId(null);
-    } else if (clearSchemesAlsoClearSelected) {
+    } else if (clearSchemesOptions.alsoClearSelected) {
       setSuggestionPool((prev) => prev.map((s) => ({ ...s, selected: false })));
       setActiveCombinationId(null);
     }
@@ -1196,12 +735,12 @@ export const ArchitectureOptimizationDialog: React.FC<
     }
     setIsClearSchemesDialogOpen(false);
     const keepSuggestions =
-      !clearSchemesAlsoClearSelected && !clearSchemesAlsoClearPool;
+      !clearSchemesOptions.alsoClearSelected && !clearSchemesOptions.alsoClearPool;
     const toastText = keepSuggestions
       ? "已清空方案，建议流与已选建议已保留"
-      : clearSchemesAlsoClearPool
-      ? "已清空方案和建议项目"
-      : "已清空方案和已选建议";
+      : clearSchemesOptions.alsoClearPool
+        ? "已清空方案和建议项目"
+        : "已清空方案和已选建议";
     setSuggestionToast(toastText);
     if (suggestionToastTimerRef.current) {
       clearTimeout(suggestionToastTimerRef.current);
@@ -1210,9 +749,10 @@ export const ArchitectureOptimizationDialog: React.FC<
       setSuggestionToast(null);
       suggestionToastTimerRef.current = null;
     }, 2200);
+    setClearSchemesOptions({ alsoClearSelected: false, alsoClearPool: false });
   }, [
-    clearSchemesAlsoClearPool,
-    clearSchemesAlsoClearSelected,
+    clearPreviewErrors,
+    clearSchemesOptions,
     deletedSchemesBuffer,
   ]);
 
@@ -1250,401 +790,71 @@ export const ArchitectureOptimizationDialog: React.FC<
     );
   }, [activeCombinationId, selectedSuggestionIds]);
 
-  const runPlanGeneration = useCallback(
-    async (
-      extraContext?: string,
-        options?: {
-          targetSchemeId?: string | null;
-          forceCreate?: boolean;
-          includeHistory?: boolean;
-          sourceCombinationId?: string | null;
-          sourceSuggestionIds?: string[];
-          sourceSuggestionSnapshot?: Array<{
-            id: string;
-            category: SuggestionCategory;
-            title: string;
-            content: string;
-            fullContent: string;
-            note?: string;
-          }>;
-          generationSnapshot?: Scheme["generationSnapshot"];
-        },
-    ): Promise<{ schemeId: string; wasUpdated: boolean } | null> => {
-      if (isStreaming || (messages.length === 0 && !extraContext?.trim())) {
-        return null;
-      }
-      const diagramInfo = extractDiagramInfo(elements);
+  const {
+    runSelectedPlanGeneration,
+    generateNewFromSelected,
+    updateCurrentFromSelected,
+  } = usePlanGeneration({
+    isStreaming,
+    elements,
+    messages,
+    activeSchemeId,
+    schemes,
+    selectedSuggestions,
+    architectureStyle,
+    activeCombinationId,
+    skipUpdateConfirm,
+    runStream,
+    dispatchMessages,
+    setSchemes,
+    setActiveSchemeId,
+    setIsPreviewPage,
+    setSuggestionToast,
+    setSkipUpdateConfirm,
+    suggestionToastTimerRef,
+  });
 
-      // Add a temporary system message to show what's happening
-      const assistantMsgId = `msg-${Date.now()}`;
-      dispatchMessages({
-        type: "add",
-        messages: [
-          {
-            id: assistantMsgId,
-            role: "assistant",
-            content: "正在生成优化方案和新架构图...",
-            isGenerating: true,
-          },
-        ],
-      });
+  const {
+    handleRegenerateSummary,
+    handleSelectScheme,
+    insertSchemeToCanvas,
+  } = useSchemeActions({
+    app,
+    elements,
+    activeScheme,
+    schemes,
+    suggestionCombinations,
+    isStreaming,
+    runStream,
+    onClose,
+    applyCombination,
+    getSchemeDataRef,
+    setSchemes,
+    setActiveSchemeId,
+    setSuggestionPool,
+    setActiveCombinationId,
+    setSuggestionToast,
+  });
 
-      try {
-        const historyMessages = buildPlanHistoryMessages(
-          messages,
-          extraContext,
-          options?.includeHistory !== false,
-        );
-
-        let reasoningBuffer = "";
-        let summaryBuffer = "";
-        const runGenerationRequest = async (correctionInstruction?: string) => {
-          const requestMessages = [...historyMessages];
-          if (correctionInstruction) {
-            requestMessages.push({
-              role: "user",
-              content: correctionInstruction,
-            });
-          }
-          const streamResult = await runStream((signal) =>
-            generateOptimizationPlan(
-              requestMessages,
-              diagramInfo,
-              (chunk) => {
-                if (chunk.reasoning) {
-                  reasoningBuffer += chunk.reasoning;
-                }
-                if (chunk.summary) {
-                  summaryBuffer = chunk.summary;
-                }
-                dispatchMessages({
-                  type: "update",
-                  id: assistantMsgId,
-                  patch: {
-                    content: summaryBuffer || "正在生成...",
-                    reasoning: reasoningBuffer || undefined,
-                  },
-                });
-              },
-              signal,
-            ),
-          );
-          if (!streamResult.success) {
-            throw new Error(streamResult.error || "Unknown error");
-          }
-          return streamResult.data;
-        };
-
-        let result = await runGenerationRequest();
-        let validation = validateGenerationResult({
-          summary: result.summary,
-          mermaid: result.mermaid,
-          snapshot: options?.generationSnapshot,
-        });
-
-        if (!validation.ok) {
-          result = await runGenerationRequest(
-            `请严格修正上一版输出：${validation.reason}。仅返回符合约束的新结果，不要解释。`,
-          );
-          validation = validateGenerationResult({
-            summary: result.summary,
-            mermaid: result.mermaid,
-            snapshot: options?.generationSnapshot,
-          });
-          if (!validation.ok) {
-            throw new Error(validation.reason);
-          }
-        }
-
-        // Validate result
-        if (!result.mermaid || result.mermaid.trim() === "") {
-          // No Mermaid code found - show error
-          dispatchMessages({
-            type: "update",
-            id: assistantMsgId,
-            patch: {
-              content: `AI未能生成有效的Mermaid图表代码。请尝试更具体地描述您需要的架构优化。\n\n以下是AI的回复：\n${result.summary}`,
-              isGenerating: false,
-              error: "未找到Mermaid代码块",
-            },
-          });
-          return null;
-        }
-
-        const shortSummary =
-          result.summary.trim().split("\n").find(Boolean)?.trim() || "优化方案";
-        let generatedVersion = 1;
-        let wasUpdated = false;
-        const targetSchemeId = options?.targetSchemeId ?? activeSchemeId;
-        const shouldForceCreate = options?.forceCreate === true;
-        const canUpdateExistingBySnapshot =
-          !shouldForceCreate &&
-          !!targetSchemeId &&
-          schemes.some((s) => s.id === targetSchemeId);
-        const createdSchemeId = `scheme-${Date.now()}`;
-        const resolvedSchemeId =
-          canUpdateExistingBySnapshot && targetSchemeId
-            ? targetSchemeId
-            : createdSchemeId;
-
-        setSchemes((prev) => {
-          const canUpdateExisting =
-            !shouldForceCreate &&
-            !!targetSchemeId &&
-            prev.some((s) => s.id === targetSchemeId);
-
-          if (canUpdateExisting && targetSchemeId) {
-            const updated = prev.map((scheme) =>
-              scheme.id === targetSchemeId
-                ? {
-                    ...scheme,
-                    summary: result.summary,
-                    fullSummary: result.fullSummary,
-                    mermaid: result.mermaid,
-                    shortSummary,
-                    sourceCombinationId: options?.sourceCombinationId ?? null,
-                    sourceSuggestionIds: options?.sourceSuggestionIds ?? [],
-                    sourceSuggestionSnapshot:
-                      options?.sourceSuggestionSnapshot ?? [],
-                    generationSnapshot: options?.generationSnapshot,
-                  }
-                : scheme,
-            );
-            const updatedScheme = updated.find((s) => s.id === targetSchemeId);
-            generatedVersion = updatedScheme?.version ?? 1;
-            wasUpdated = true;
-            return updated;
-          }
-
-          const nextVersion =
-            prev.length > 0 ? prev[prev.length - 1].version + 1 : 1;
-          generatedVersion = nextVersion;
-          const scheme: Scheme = {
-            id: createdSchemeId,
-            version: nextVersion,
-            summary: result.summary,
-            fullSummary: result.fullSummary,
-            mermaid: result.mermaid,
-            shortSummary,
-            title: "",
-            sourceCombinationId: options?.sourceCombinationId ?? null,
-            sourceSuggestionIds: options?.sourceSuggestionIds ?? [],
-            sourceSuggestionSnapshot: options?.sourceSuggestionSnapshot ?? [],
-            generationSnapshot: options?.generationSnapshot,
-          };
-          return [...prev, scheme];
-        });
-        setActiveSchemeId(resolvedSchemeId);
-        setIsPreviewPage(true);
-        setSuggestionToast(
-          wasUpdated
-            ? `已更新方案 ${generatedVersion}，可插入到主图旁`
-            : `已生成方案 ${generatedVersion}，可插入到主图旁`,
-        );
-        if (suggestionToastTimerRef.current) {
-          clearTimeout(suggestionToastTimerRef.current);
-        }
-        suggestionToastTimerRef.current = window.setTimeout(() => {
-          setSuggestionToast(null);
-          suggestionToastTimerRef.current = null;
-        }, 2200);
-
-        // Remove the temporary generating message
-        dispatchMessages({ type: "remove", id: assistantMsgId });
-        return { schemeId: resolvedSchemeId, wasUpdated };
-      } catch (error) {
-        console.error("Optimization failed", error);
-        dispatchMessages({
-          type: "update",
-          id: assistantMsgId,
-          patch: {
-            content: String(error).includes("Request aborted")
-              ? "已停止生成。"
-              : "生成优化方案失败。",
-            isGenerating: false,
-            error: String(error),
-          },
-        });
-        return null;
-      }
-    },
-    [elements, messages, runStream, isStreaming, activeSchemeId, schemes],
-  );
-
-  const buildGenerationPromptFromSnapshot = useCallback(
-    (snapshot: ReturnType<typeof buildGenerationSnapshot>) => {
-      if (snapshot.selectedItems.length === 0) {
-        return;
-      }
-
-      const context = snapshot.selectedItems
-        .map(
-          (s) =>
-            `- [${categoryLabels[s.category]}] ${s.content}${
-              s.note ? ` (备注: ${s.note})` : ""
-            }`,
-        )
-        .join("\n");
-
-      const stylePrompt =
-        snapshot.style === "minimal"
-          ? "生成极简风格的架构图，只包含核心组件。"
-          : snapshot.style === "detailed"
-          ? "生成详细的架构图，包含所有子组件和连接。"
-          : "生成标准风格的架构图。";
-
-      return `基于以下已选优化建议，${stylePrompt}\n\n已选建议：\n${context}`;
-    },
-    [],
-  );
-
-  const runSelectedPlanGeneration = useCallback(
-    async (mode: "create" | "update") => {
-      const isUpdateMode = mode === "update";
-      if (isUpdateMode && !activeSchemeId) {
-        return;
-      }
-
-      if (isUpdateMode && !skipUpdateConfirm) {
-        const confirmed = window.confirm(
-          "将覆盖当前方案内容，历史内容不可自动恢复。是否继续？",
-        );
-        if (!confirmed) {
-          return;
-        }
-        const dontAskAgain = window.confirm("后续更新当前方案时不再提示？");
-        if (dontAskAgain) {
-          setSkipUpdateConfirm(true);
-        }
-      }
-
-      const snapshot = buildGenerationSnapshot(
-        selectedSuggestions,
-        architectureStyle,
-        activeSchemeId,
-        activeCombinationId,
-      );
-      const prompt = buildGenerationPromptFromSnapshot(snapshot);
-      if (!prompt) {
-        return;
-      }
-
-      const result = await runPlanGeneration(
-        prompt,
-        buildPlanExecutionOptions(snapshot, activeSchemeId, mode),
-      );
-      if (result?.schemeId) {
-        setActiveSchemeId(result.schemeId);
-        setIsPreviewPage(true);
-      }
-    },
-    [
-      activeCombinationId,
-      activeSchemeId,
-      architectureStyle,
-      buildGenerationPromptFromSnapshot,
-      runPlanGeneration,
-      selectedSuggestions,
-      skipUpdateConfirm,
-    ],
-  );
-
-  const generateNewFromSelected = useCallback(async () => {
-    await runSelectedPlanGeneration("create");
-  }, [runSelectedPlanGeneration]);
-
-  const updateCurrentFromSelected = useCallback(async () => {
-    await runSelectedPlanGeneration("update");
-  }, [runSelectedPlanGeneration]);
-
-  const handleZoomIn = useCallback(() => {
-    setViewport((prev) => ({ ...prev, zoom: Math.min(2.5, prev.zoom + 0.1) }));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setViewport((prev) => ({ ...prev, zoom: Math.max(0.1, prev.zoom - 0.1) }));
-  }, []);
-
-  const handleResetZoom = useCallback(() => {
-    setViewport((prev) => ({ ...prev, x: 0, y: 0, zoom: 1 }));
-    panStartRef.current = null;
-  }, []);
-
-  const handleTogglePanMode = useCallback(() => {
-    setIsPanMode((prev) => !prev);
-    panStartRef.current = null;
-  }, []);
-
-  const handleFitCanvas = useCallback(() => {
-    panStartRef.current = null;
-    if (activeScheme) {
-      scheduleFitPreview(previewCanvasRef, activeScheme.id);
-      return;
-    }
-    setViewport({ x: 0, y: 0, zoom: 1 });
-  }, [activeScheme, scheduleFitPreview]);
-
-  const handlePreviewPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isPanMode) {
-        return;
-      }
-      e.preventDefault();
-      panStartRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        originX: viewport.x,
-        originY: viewport.y,
-      };
-      e.currentTarget.setPointerCapture(e.pointerId);
-    },
-    [isPanMode, viewport.x, viewport.y],
-  );
-
-  const handlePreviewPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isPanMode || !panStartRef.current) {
-        return;
-      }
-      const dx = e.clientX - panStartRef.current.x;
-      const dy = e.clientY - panStartRef.current.y;
-      setViewport((prev) => ({
-        ...prev,
-        x: panStartRef.current ? panStartRef.current.originX + dx : prev.x,
-        y: panStartRef.current ? panStartRef.current.originY + dy : prev.y,
-      }));
-    },
-    [isPanMode],
-  );
-
-  const handlePreviewPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isPanMode) {
-        return;
-      }
-      panStartRef.current = null;
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    },
-    [isPanMode],
-  );
-
-  const handlePreviewWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
-      if (!e.ctrlKey && !e.metaKey) {
-        return;
-      }
-      e.preventDefault();
-      const delta = -e.deltaY;
-      const step = delta > 0 ? 0.08 : -0.08;
-      setViewport((prev) => ({
-        ...prev,
-        zoom: Math.min(3, Math.max(0.08, prev.zoom + step)),
-      }));
-    },
-    [],
-  );
+  const {
+    handleZoomIn,
+    handleZoomOut,
+    handleResetZoom,
+    handleTogglePanMode,
+    handleFitCanvas,
+    handlePreviewPointerDown,
+    handlePreviewPointerMove,
+    handlePreviewPointerUp,
+    handlePreviewWheel,
+  } = usePreviewControls({
+    activeScheme,
+    isPanMode,
+    viewport,
+    previewCanvasRef,
+    scheduleFitPreview,
+    setViewport,
+    setIsPanMode,
+  });
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1764,263 +974,6 @@ export const ArchitectureOptimizationDialog: React.FC<
     await runSelectedPlanGeneration("create");
   }, [runSelectedPlanGeneration]);
 
-  const handleRegenerateSummary = useCallback(async () => {
-    if (!activeScheme || isStreaming) {
-      return;
-    }
-
-    const schemeId = activeScheme.id;
-    const originalSummary = activeScheme.summary;
-    const originalFullSummary = activeScheme.fullSummary ?? activeScheme.summary;
-    const suggestionContext = parseSuggestions(activeScheme.summary)
-      .slice(0, 6)
-      .map((item, index) => `${index + 1}. ${item.content}`)
-      .join("\n");
-
-    const summaryPrompt = `请基于以下“目标架构图（Mermaid）”和“当前建议”，输出一份更清晰的方案总结。
-
-要求：
-- 仅输出 5 条要点，按优先级排序
-- 每条一行，格式：- [分类] 一句话行动建议
-- 每条不超过 55 个中文字符
-- 分类仅使用：性能 / 安全 / 成本 / 扩展性 / 可靠性
-- 不要输出 Mermaid，不要长段落解释
-
-<目标架构图 Mermaid>
-${activeScheme.mermaid}
-</目标架构图 Mermaid>
-
-<当前建议>
-${suggestionContext || originalSummary}
-</当前建议>`;
-
-    let summaryBuffer = "";
-    const streamResult = await runStream((signal) =>
-      runAIStream(
-        [
-          {
-            role: "system",
-            content: "你是资深系统架构师，擅长把复杂方案总结为可执行清单。",
-          },
-          { role: "user", content: summaryPrompt },
-        ],
-        {
-          onChunk: (chunk) => {
-            summaryBuffer += chunk;
-            const interimSummary = summaryBuffer.trimStart();
-            setSchemes((prev) =>
-              prev.map((scheme) =>
-                scheme.id === schemeId
-                  ? {
-                      ...scheme,
-                      summary: interimSummary || "正在生成总结...",
-                      fullSummary: interimSummary || "正在生成总结...",
-                    }
-                  : scheme,
-              ),
-            );
-          },
-        },
-        signal,
-      ),
-    );
-
-    if (!streamResult.success) {
-      setSchemes((prev) =>
-          prev.map((scheme) =>
-            scheme.id === schemeId
-              ? {
-                  ...scheme,
-                  summary: originalSummary,
-                  fullSummary: originalFullSummary,
-                }
-              : scheme,
-          ),
-        );
-      setSuggestionToast("重新生成总结失败");
-      return;
-    }
-
-    const finalSummary = summaryBuffer.trim();
-    if (!finalSummary) {
-      setSchemes((prev) =>
-          prev.map((scheme) =>
-            scheme.id === schemeId
-              ? {
-                  ...scheme,
-                  summary: originalSummary,
-                  fullSummary: originalFullSummary,
-                }
-              : scheme,
-          ),
-        );
-      setSuggestionToast("AI未返回有效总结");
-      return;
-    }
-
-    const shortSummary =
-      finalSummary
-        .split("\n")
-        .find((line) => line.trim())
-        ?.trim() || "优化方案";
-    setSchemes((prev) =>
-      prev.map((scheme) =>
-        scheme.id === schemeId
-          ? {
-              ...scheme,
-              summary: finalSummary,
-              fullSummary: finalSummary,
-              shortSummary,
-            }
-          : scheme,
-      ),
-    );
-    setSuggestionToast("AI总结已更新");
-  }, [activeScheme, isStreaming, runStream]);
-
-  const handleSelectScheme = useCallback(
-    (schemeId: string) => {
-      setActiveSchemeId(schemeId);
-      const scheme = schemes.find((item) => item.id === schemeId);
-      if (!scheme) {
-        return;
-      }
-
-      if (scheme.sourceCombinationId) {
-        const exists = suggestionCombinations.some(
-          (combination) => combination.id === scheme.sourceCombinationId,
-        );
-        if (exists) {
-          applyCombination(scheme.sourceCombinationId);
-          return;
-        }
-      }
-
-      if (scheme.sourceSuggestionIds && scheme.sourceSuggestionIds.length > 0) {
-        const sourceIdSet = new Set(scheme.sourceSuggestionIds);
-        setSuggestionPool((prev) => {
-          const next = prev.map((s) => ({
-            ...s,
-            selected: sourceIdSet.has(s.id),
-          }));
-          if (!scheme.sourceSuggestionSnapshot?.length) {
-            return next;
-          }
-          const existingIdSet = new Set(next.map((s) => s.id));
-          const recovered = scheme.sourceSuggestionSnapshot
-            .filter((item) => !existingIdSet.has(item.id))
-            .map((item) => ({
-              ...item,
-              selected: true,
-              archived: false,
-            }));
-          return [...next, ...recovered];
-        });
-        setActiveCombinationId(null);
-      }
-    },
-    [schemes, suggestionCombinations, applyCombination],
-  );
-
-  const insertSchemeToCanvas = useCallback(
-    (scheme: Scheme) => {
-      const dataRef = getSchemeDataRef(scheme.id);
-      if (!dataRef.current.elements || dataRef.current.elements.length === 0) {
-        return;
-      }
-
-      const newElements = dataRef.current.elements;
-      const files = dataRef.current.files;
-
-      const referenceElements =
-        app.scene.getNonDeletedElements().length > 0
-          ? app.scene.getNonDeletedElements()
-          : elements;
-
-      const hasReference = referenceElements.length > 0;
-      const [, refMinY, refMaxX] = hasReference
-        ? getCommonBounds(referenceElements)
-        : [0, 0, 0, 0];
-      const [newMinX, , newMaxX, newMaxY] = getCommonBounds(newElements);
-      const newWidth = newMaxX - newMinX;
-
-      const title = scheme.title?.trim() || `方案 ${scheme.version}`;
-      const summaryText = `${title}\n\n${scheme.summary.trim()}`;
-      const fontFamily = FONT_FAMILY.Assistant;
-      const fontSize = 16;
-      const lineHeight = getLineHeight(fontFamily);
-      const maxTextWidth = Math.max(260, Math.min(520, newWidth));
-      const wrappedText = wrapText(
-        summaryText,
-        getFontString({ fontFamily, fontSize }),
-        maxTextWidth,
-      );
-      const textElement = newTextElement({
-        x: newMinX,
-        y: newMaxY + 48,
-        text: wrappedText,
-        originalText: summaryText,
-        fontSize,
-        fontFamily,
-        lineHeight,
-        textAlign: "left",
-        verticalAlign: "top",
-        autoResize: false,
-        strokeColor: "#1f2937",
-        backgroundColor: "transparent",
-      });
-
-      const styledElements: NonDeletedExcalidrawElement[] =
-        newElements.map<NonDeletedExcalidrawElement>((el) => {
-          if (
-            "strokeStyle" in el &&
-            "strokeColor" in el &&
-            "backgroundColor" in el
-          ) {
-            return {
-              ...el,
-              strokeStyle: "dashed" as StrokeStyle,
-              strokeColor: "#6366f1",
-              backgroundColor:
-                el.backgroundColor === "transparent"
-                  ? "transparent"
-                  : "rgba(99, 102, 241, 0.08)",
-            };
-          }
-          return el;
-        });
-
-      const combinedElements: readonly ExcalidrawElement[] = [
-        ...styledElements,
-        textElement,
-      ];
-      const [combinedMinX, combinedMinY, combinedMaxX, combinedMaxY] =
-        getCommonBounds(combinedElements);
-      const combinedWidth = combinedMaxX - combinedMinX;
-      const combinedHeight = combinedMaxY - combinedMinY;
-
-      const PADDING = 160;
-      const targetLeft = hasReference ? refMaxX + PADDING : 0;
-      const targetTop = hasReference ? refMinY : 0;
-      const targetCenterX = targetLeft + combinedWidth / 2;
-      const targetCenterY = targetTop + combinedHeight / 2;
-      const { x: clientX, y: clientY } = sceneCoordsToViewportCoords(
-        { sceneX: targetCenterX, sceneY: targetCenterY },
-        app.state,
-      );
-
-      app.addElementsFromPasteOrLibrary({
-        elements: combinedElements,
-        files,
-        position: { clientX, clientY },
-        fitToContent: false,
-      });
-
-      onClose();
-    },
-    [app, elements, getSchemeDataRef, onClose],
-  );
-
   // Show configuration prompt if AI is not configured
   if (!isAIConfigured()) {
     return (
@@ -2030,61 +983,11 @@ ${suggestionContext || originalSummary}
         title="AI架构助手"
         size={ARCHITECTURE_DIALOG_WIDTH}
       >
-        <div className="architecture-optimization-dialog__not-configured">
-          <div className="architecture-optimization-dialog__not-configured-card">
-            <div className="architecture-optimization-dialog__not-configured-main">
-              <div className="architecture-optimization-dialog__not-configured-badge">
-                AI 未连接
-              </div>
-              <h3>完成 AI 配置后即可开始架构分析</h3>
-              <p>
-                当前尚未配置 API 地址、密钥或模型。配置完成后可在建议页直接进行分析、生成方案与预览架构图。
-              </p>
-              <ol className="architecture-optimization-dialog__not-configured-steps">
-                <li>打开 AI 设置</li>
-                <li>填写 API URL、API Key、模型</li>
-                <li>返回本页面开始分析</li>
-              </ol>
-              {showConfigExample && (
-                <pre className="architecture-optimization-dialog__not-configured-example">
-{`API URL: https://api.openai.com/v1
-API Key: sk-***
-Model: gpt-4o-mini`}
-                </pre>
-              )}
-              <div className="architecture-optimization-dialog__not-configured-actions">
-                <button
-                  className="architecture-optimization-dialog__config-button"
-                  onClick={onOpenAISettings}
-                >
-                  打开AI设置
-                </button>
-                <button
-                  className="architecture-optimization-dialog__config-button architecture-optimization-dialog__config-button--ghost"
-                  onClick={() => setShowConfigExample((prev) => !prev)}
-                >
-                  {showConfigExample ? "收起配置示例" : "查看配置示例"}
-                </button>
-              </div>
-            </div>
-            <div
-              className="architecture-optimization-dialog__not-configured-visual"
-              aria-hidden="true"
-            >
-              <div className="architecture-optimization-dialog__not-configured-node">
-                API
-              </div>
-              <div className="architecture-optimization-dialog__not-configured-line" />
-              <div className="architecture-optimization-dialog__not-configured-node">
-                建议流
-              </div>
-              <div className="architecture-optimization-dialog__not-configured-line" />
-              <div className="architecture-optimization-dialog__not-configured-node">
-                新架构图
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfigurationWaitScreen
+          showConfigExample={showConfigExample}
+          onOpenAISettings={onOpenAISettings}
+          onToggleConfigExample={() => setShowConfigExample((prev) => !prev)}
+        />
       </Dialog>
     );
   }
@@ -2131,15 +1034,12 @@ Model: gpt-4o-mini`}
           <div className="architecture-optimization-dialog__panel architecture-optimization-dialog__panel--preview">
             {/* 撤销Toast提示 */}
             {showUndoToast && deletedSchemesBuffer && (
-              <div className="scheme-undo-toast">
-                <span>已删除 {deletedSchemesBuffer.schemes.length} 个方案</span>
-                <button onClick={handleUndoDelete}>撤销</button>
-                <button onClick={() => setShowUndoToast(false)}>✕</button>
-                <div
-                  className="scheme-undo-toast__progress"
-                  style={{ animationDuration: `${SCHEME_UNDO_TIMEOUT_MS}ms` }}
-                />
-              </div>
+              <SchemeUndoToast
+                deletedCount={deletedSchemesBuffer.schemes.length}
+                timeoutMs={SCHEME_UNDO_TIMEOUT_MS}
+                onUndo={handleUndoDelete}
+                onDismiss={() => setShowUndoToast(false)}
+              />
             )}
 
             <SchemeTabs
@@ -2183,6 +1083,12 @@ Model: gpt-4o-mini`}
                 onUpdateSuggestionNote={updateSuggestionNote}
                 onStartAnalysis={handleStartAnalysis}
                 onSendPresetQuestion={handleSendPresetQuestion}
+                canReactivateLastSuggestions={
+                  suggestionPool.length === 0 &&
+                  !isStreaming &&
+                  lastAssistantConclusion.length > 0
+                }
+                onReactivateLastSuggestions={handleReactivateLastSuggestions}
                 onSetArchitectureStyle={setArchitectureStyle}
                 onGenerateNewFromSelected={generateNewFromSelected}
                 onUpdateCurrentFromSelected={updateCurrentFromSelected}
@@ -2210,9 +1116,10 @@ Model: gpt-4o-mini`}
                   activeScheme ? insertSchemeToCanvas(activeScheme) : null
                 }
                 isInsertDisabled={
-                  !activeScheme || renderingSchemes.has(activeScheme.id)
+                  !activeScheme || renderingSchemeIds.includes(activeScheme.id)
                 }
-                isPreparingInsert={renderingSchemes.has(activeScheme?.id || "")}
+                isPreparingInsert={renderingSchemeIds.includes(activeScheme?.id || "")}
+                isPreviewLoading={renderingSchemeIds.includes(activeScheme?.id || "")}
                 onTogglePanMode={handleTogglePanMode}
                 onPreviewPointerDown={handlePreviewPointerDown}
                 onPreviewPointerMove={handlePreviewPointerMove}
@@ -2235,55 +1142,19 @@ Model: gpt-4o-mini`}
             )}
           </div>
         </div>
-        {isClearSchemesDialogOpen && (
-          <div className="ao-inline-confirm">
-            <div className="ao-inline-confirm__panel">
-              <h3 className="ao-inline-confirm__title">清空方案</h3>
-              <p className="ao-inline-confirm__desc">
-                将清空所有方案，该操作不可恢复。请选择是否同时清理建议数据。
-              </p>
-              <label className="ao-inline-confirm__option">
-                <input
-                  type="checkbox"
-                  checked={clearSchemesAlsoClearSelected}
-                  onChange={(e) =>
-                    setClearSchemesAlsoClearSelected(e.target.checked)
-                  }
-                />
-                清空已选建议
-              </label>
-              <label className="ao-inline-confirm__option">
-                <input
-                  type="checkbox"
-                  checked={clearSchemesAlsoClearPool}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setClearSchemesAlsoClearPool(checked);
-                    if (checked) {
-                      setClearSchemesAlsoClearSelected(true);
-                    }
-                  }}
-                />
-                清空建议项目（建议流）
-              </label>
-              <div className="ao-inline-confirm__actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsClearSchemesDialogOpen(false);
-                    setClearSchemesAlsoClearSelected(false);
-                    setClearSchemesAlsoClearPool(false);
-                  }}
-                >
-                  取消
-                </button>
-                <button type="button" onClick={confirmClearSchemes}>
-                  确认清空
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ClearSchemesConfirmDialog
+          isOpen={isClearSchemesDialogOpen}
+          options={clearSchemesOptions}
+          onChangeOptions={setClearSchemesOptions}
+          onCancel={() => {
+            setIsClearSchemesDialogOpen(false);
+            setClearSchemesOptions({
+              alsoClearSelected: false,
+              alsoClearPool: false,
+            });
+          }}
+          onConfirm={confirmClearSchemes}
+        />
       </div>
     </Dialog>
   );

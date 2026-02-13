@@ -1,0 +1,75 @@
+﻿// ============================================
+// Color Scheme Overrides - Geek Blue Theme
+// ============================================
+.architecture-optimization-dialog {
+  // Primary color: Geek Blue #2F54EB
+  --ao-primary: #2f54eb;
+  --ao-primary-rgb: 47, 84, 235;
+  --ao-primary-light: #597ef7;
+  --ao-primary-dark: #1d39c4;
+
+  // Background colors
+  --ao-bg: #fbfbff;
+  --ao-bg-secondary: #f5f5ff;
+  --ao-surface: #ffffff;
+
+  // Suggestion card tag colors
+  --ao-tag-performance: #2f54eb;
+  --ao-tag-security: #52c41a;
+  --ao-tag-cost: #fa8c16;
+  --ao-tag-scalability: #722ed1;
+  --ao-tag-reliability: #13c2c2;
+
+  // Border radius
+  --ao-radius-card: 12px;
+  --ao-radius-button: 8px;
+
+  // Animation durations
+  --ao-transition-fast: 150ms;
+  --ao-transition-normal: 250ms;
+  --ao-transition-slow: 350ms;
+
+  // Drawer width
+  --ao-drawer-width: 320px;
+}
+
+// Expand modal footprint on high-resolution screens while keeping safe margins.
+.excalidraw .Modal.architecture-optimization-dialog {
+  overflow: auto;
+}
+
+.excalidraw .Modal.architecture-optimization-dialog .Modal__content {
+  width: min(92vw, 1680px);
+  max-width: min(92vw, 1680px);
+  height: min(88vh, 1080px);
+  height: min(88dvh, 1080px);
+  max-height: min(88vh, 1080px);
+  max-height: min(88dvh, 1080px);
+  min-width: 0;
+  min-height: 0;
+  margin-inline: auto;
+  overflow: hidden;
+  scrollbar-gutter: stable both-edges;
+}
+
+@media (max-width: 1400px) {
+  .excalidraw .Modal.architecture-optimization-dialog .Modal__content {
+    width: 96vw;
+    max-width: 96vw;
+    height: min(90vh, 980px);
+    height: min(90dvh, 980px);
+    max-height: min(90vh, 980px);
+    max-height: min(90dvh, 980px);
+  }
+}
+
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .excalidraw .Modal.architecture-optimization-dialog .Modal__content {
+    width: min(94vw, 2200px);
+    max-width: min(94vw, 2200px);
+    height: min(90vh, 1240px);
+    max-height: min(90vh, 1240px);
+  }
+}
+
+
