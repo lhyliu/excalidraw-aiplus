@@ -32,6 +32,33 @@ vi.mock("./hooks/useBusinessScopeSuggestion", () => ({
     isStreaming: false,
   }),
 }));
+vi.mock("../App", () => ({
+  useApp: () => ({
+    addElementsFromPasteOrLibrary: vi.fn(),
+    setOpenDialog: vi.fn(),
+  }),
+}));
+vi.mock("../../context/ui-appState", () => ({
+  useUIAppState: () => ({
+    theme: "light",
+  }),
+}));
+vi.mock("../TTDDialog/common", () => ({
+  convertMermaidToExcalidraw: vi.fn().mockResolvedValue({ success: true }),
+  insertToEditor: vi.fn(),
+}));
+vi.mock("@excalidraw/mermaid-to-excalidraw", () => ({
+  default: {
+    parseMermaidToExcalidraw: vi.fn().mockResolvedValue({
+      elements: [],
+      files: null,
+    }),
+  },
+  parseMermaidToExcalidraw: vi.fn().mockResolvedValue({
+    elements: [],
+    files: null,
+  }),
+}));
 
 describe("DraftStep", () => {
   requestBusinessArchitectureMock.mockResolvedValue({
@@ -91,9 +118,9 @@ describe("DraftStep", () => {
       );
       return (
         <DraftStep
-          onContinueCalibrate={() => {}}
+          onContinueCalibrate={() => { }}
           filter=""
-          onFilterChange={() => {}}
+          onFilterChange={() => { }}
           suggestions={suggestions}
           onSuggestionsChange={setSuggestions}
         />
@@ -173,9 +200,10 @@ describe("DraftStep", () => {
       );
       return (
         <DraftStep
-          onContinueCalibrate={() => {}}
+          onContinueCalibrate={() => { }}
+          onInsertToCanvas={() => { }}
           filter=""
-          onFilterChange={() => {}}
+          onFilterChange={() => { }}
           suggestions={suggestions}
           onSuggestionsChange={setSuggestions}
         />
@@ -233,9 +261,10 @@ describe("DraftStep", () => {
       );
       return (
         <DraftStep
-          onContinueCalibrate={() => {}}
+          onContinueCalibrate={() => { }}
+          onInsertToCanvas={() => { }}
           filter=""
-          onFilterChange={() => {}}
+          onFilterChange={() => { }}
           suggestions={suggestions}
           onSuggestionsChange={setSuggestions}
         />

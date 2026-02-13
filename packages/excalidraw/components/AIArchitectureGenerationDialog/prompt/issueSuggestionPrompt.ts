@@ -26,7 +26,13 @@ export const buildIssueSuggestionMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业资产数据校准助手。只输出修正建议，不能直接修改事实。请输出 JSON: {\"suggestedValue\":\"...\",\"reason\":\"...\"}",
+        "你是企业资产数据校准助手。根据问题类型和上下文给出修正建议。\n" +
+        "常见校准规则：\n" +
+        "- IP 格式: 必须是 x.x.x.x，内网常见段 10.x/172.16-31.x/192.168.x\n" +
+        "- 环境名: 常见值 prod/staging/test/dev/uat/pre\n" +
+        "- 缺失服务名: 可从 hostname 中推断（如 order-web-01 → order-web）\n" +
+        "- 重复项: 建议保留主记录，标记需合并的行\n" +
+        "输出 JSON: {\"suggestedValue\":\"...\",\"reason\":\"...\"}",
     },
     {
       role: "user" as const,

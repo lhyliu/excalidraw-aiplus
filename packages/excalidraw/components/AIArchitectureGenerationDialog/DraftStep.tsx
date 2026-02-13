@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+
 import { useAtom, useAtomValue } from "../../editor-jotai";
 import {
   editsAtom,
@@ -8,6 +10,14 @@ import {
   serviceGroupsAtom,
 } from "../AIArchitectureGeneration";
 import type { ServiceGroup } from "../AIArchitectureGeneration";
+import { useApp } from "../App";
+import {
+  convertMermaidToExcalidraw,
+  insertToEditor,
+} from "../TTDDialog/common";
+import type { MermaidToExcalidrawLibProps } from "../TTDDialog/types";
+import { useUIAppState } from "../../context/ui-appState";
+import type { BinaryFiles } from "../../types";
 
 import type { BusinessArchitectureSuggestion } from "./prompt/businessArchitecturePrompt";
 import { useBusinessArchitectureSuggestion } from "./hooks/useBusinessArchitectureSuggestion";
@@ -28,6 +38,7 @@ const parseRowIdsInput = (raw: string): number[] =>
 
 interface DraftStepProps {
   onContinueCalibrate: () => void;
+  onInsertToCanvas: () => void;
   filter: string;
   onFilterChange: (value: string) => void;
   suggestions: Record<string, string[]>;
@@ -44,6 +55,7 @@ type DraftGridRow = {
 
 export const DraftStep: React.FC<DraftStepProps> = ({
   onContinueCalibrate,
+  onInsertToCanvas,
   filter,
   onFilterChange,
   suggestions,
@@ -59,6 +71,30 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   } = useBusinessArchitectureSuggestion();
   const { requestBusinessScopes, isStreaming: isBusinessScopeStreaming } =
     useBusinessScopeSuggestion();
+
+  // --- Mermaid preview & canvas insertion ---
+  const app = useApp();
+  const { theme } = useUIAppState();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const mermaidDataRef = useRef<{
+    elements: readonly NonDeletedExcalidrawElement[];
+    files: BinaryFiles | null;
+  }>({ elements: [], files: null });
+  const [mermaidToExcalidrawLib, setMermaidToExcalidrawLib] =
+    useState<MermaidToExcalidrawLibProps>({
+      loaded: false,
+      api: import("@excalidraw/mermaid-to-excalidraw"),
+    });
+  const [previewError, setPreviewError] = useState<Error | null>(null);
+  const [activeDiagramScopeId, setActiveDiagramScopeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fn = async () => {
+      await mermaidToExcalidrawLib.api;
+      setMermaidToExcalidrawLib((prev) => ({ ...prev, loaded: true }));
+    };
+    fn();
+  }, [mermaidToExcalidrawLib.api]);
 
   const loadSuggestions = useCallback(
     async (group: ServiceGroup) => {
@@ -427,11 +463,48 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         ...prev,
         [selectedScope.id]: suggestion.mermaid,
       }));
+      setActiveDiagramScopeId(selectedScope.id);
       setGenerationNotice(`已生成「${selectedScope.name}」业务架构图。`);
     } finally {
       setIsGeneratingDiagram(false);
     }
   }, [businessSuggestionByScope, requestScopeArchitecture, selectedScope]);
+
+  // Render Mermaid preview when the active diagram changes
+  useEffect(() => {
+    if (!activeDiagramScopeId || !mermaidToExcalidrawLib.loaded) {
+      return;
+    }
+    const mermaidCode = diagramByScope[activeDiagramScopeId];
+    if (!mermaidCode) {
+      return;
+    }
+    void convertMermaidToExcalidraw({
+      canvasRef,
+      data: mermaidDataRef,
+      mermaidToExcalidrawLib,
+      setError: setPreviewError,
+      mermaidDefinition: mermaidCode,
+      theme,
+    });
+  }, [activeDiagramScopeId, diagramByScope, mermaidToExcalidrawLib, theme]);
+
+  const handleInsertToCanvas = useCallback(() => {
+    if (mermaidDataRef.current.elements.length === 0) {
+      setGenerationNotice("请先生成架构图后再插入画布。");
+      return;
+    }
+    const mermaidText = activeDiagramScopeId
+      ? diagramByScope[activeDiagramScopeId]
+      : undefined;
+    insertToEditor({
+      app,
+      data: mermaidDataRef,
+      text: mermaidText,
+      shouldSaveMermaidDataToStorage: true,
+    });
+    onInsertToCanvas();
+  }, [activeDiagramScopeId, app, diagramByScope, onInsertToCanvas]);
 
   return (
     <div className="ai-architecture-generation-dialog__step">
@@ -700,34 +773,97 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       <div className="ai-architecture-generation-dialog__actions">
         <button
           type="button"
+          className="ai-architecture-generation-dialog__btn-secondary"
           onClick={generateDiagramByScope}
           disabled={isGeneratingDiagram || isBusinessArchitectureStreaming || !selectedScope}
         >
           {isGeneratingDiagram ? "生成中..." : "生成当前业务架构图"}
         </button>
-        <button type="button" onClick={onContinueCalibrate}>
-          进入 Calibrate
+        <button
+          type="button"
+          className="ai-architecture-generation-dialog__btn-primary"
+          onClick={handleInsertToCanvas}
+          disabled={mermaidDataRef.current.elements.length === 0 && Object.keys(diagramByScope).length === 0}
+        >
+          ✅ 插入画布
+        </button>
+        <button
+          type="button"
+          className="ai-architecture-generation-dialog__btn-ghost"
+          onClick={onContinueCalibrate}
+        >
+          进入校准（可选）
         </button>
       </div>
       {generationNotice && (
         <div className="ai-architecture-generation-dialog__summary">{generationNotice}</div>
       )}
       {Object.keys(diagramByScope).length > 0 && (
-        <div className="ai-architecture-generation-dialog__issue-groups">
-          {Object.entries(diagramByScope).map(([scopeId, diagram]) => {
-            const scopeName =
-              businessScopes.find((scope) => scope.id === scopeId)?.name ?? scopeId;
-            return (
-              <article
-                key={scopeId}
-                className="ai-architecture-generation-dialog__issue-card"
-              >
-                <strong>{scopeName} 架构图草稿</strong>
-                <pre>{diagram}</pre>
-              </article>
-            );
-          })}
-        </div>
+        <>
+          <div className="ai-architecture-generation-dialog__issue-card">
+            <strong>
+              {activeDiagramScopeId
+                ? `${businessScopes.find((scope) => scope.id === activeDiagramScopeId)?.name ?? activeDiagramScopeId} 架构图预览`
+                : "架构图预览"}
+            </strong>
+            {previewError && (
+              <div className="ai-architecture-generation-dialog__error">
+                Mermaid 渲染失败: {previewError.message}
+              </div>
+            )}
+            <div
+              style={{
+                minHeight: 200,
+                border: "1px solid var(--color-border-outline-variant)",
+                borderRadius: "0.5rem",
+                overflow: "hidden",
+                background: "var(--default-bg-color)",
+              }}
+            >
+              <div ref={canvasRef} />
+            </div>
+            {Object.keys(diagramByScope).length > 1 && (
+              <div className="ai-architecture-generation-dialog__inline-form">
+                {Object.keys(diagramByScope).map((scopeId) => {
+                  const scopeName =
+                    businessScopes.find((scope) => scope.id === scopeId)?.name ?? scopeId;
+                  return (
+                    <button
+                      key={scopeId}
+                      type="button"
+                      className={`ai-architecture-generation-dialog__btn-ghost${
+                        activeDiagramScopeId === scopeId ? " ai-architecture-generation-dialog__btn-primary" : ""
+                      }`}
+                      onClick={() => setActiveDiagramScopeId(scopeId)}
+                    >
+                      {scopeName}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <details>
+            <summary style={{ cursor: "pointer", fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+              查看 Mermaid 源码
+            </summary>
+            <div className="ai-architecture-generation-dialog__issue-groups">
+              {Object.entries(diagramByScope).map(([scopeId, diagram]) => {
+                const scopeName =
+                  businessScopes.find((scope) => scope.id === scopeId)?.name ?? scopeId;
+                return (
+                  <article
+                    key={scopeId}
+                    className="ai-architecture-generation-dialog__issue-card"
+                  >
+                    <strong>{scopeName}</strong>
+                    <pre>{diagram}</pre>
+                  </article>
+                );
+              })}
+            </div>
+          </details>
+        </>
       )}
     </div>
   );

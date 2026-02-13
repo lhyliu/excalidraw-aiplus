@@ -5,11 +5,12 @@
  * - types: 统一类型定义
  * - core: 核心数据处理逻辑
  * - state: 分层状态管理
- * - steps: 步骤组件
- * - ai: AI生成器架构
  * - ui: 共享UI组件
  * - utils: 工具函数
  * - compat: 向后兼容层
+ *
+ * 注意: ai/generators/ 和 ai/prompts/ 已删除（死代码，未被任何组件引用）。
+ * 实际 AI 调用在 AIArchitectureGenerationDialog/hooks/ 中通过 runAIStream 实现。
  */
 
 import { getBestFieldMapping, inferFieldMapping } from "./core/inference";
@@ -23,9 +24,6 @@ export * from "./core";
 
 // 状态管理导出
 export * from "./state";
-
-// AI生成器导出
-export * from "./ai";
 
 // UI组件导出
 export * from "./ui";

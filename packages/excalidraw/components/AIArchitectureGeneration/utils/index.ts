@@ -16,17 +16,17 @@ const FIELD_ALIASES: Record<StandardField, string[]> = {
   region: ["region", "dc", "datacenter", "zone", "区域", "数据中心", "可用区"],
 };
 
-/** 推断字段映射 */
-export function inferFieldMapping(headers: string[]): FieldInferenceResult {
+/** 推断字段映射 (旧版兼容，推荐使用 core/inference/inferFieldMapping) */
+export function inferFieldMappingLegacy(headers: string[]): FieldInferenceResult {
   const result: FieldInferenceResult = {};
-  
+
   headers.forEach((header) => {
     const normalizedHeader = header.toLowerCase().trim();
-    
+
     (Object.keys(FIELD_ALIASES) as StandardField[]).forEach((field) => {
       const aliases = FIELD_ALIASES[field];
       const score = calculateMatchScore(normalizedHeader, aliases);
-      
+
       if (score > 0) {
         if (!result[field]) result[field] = [];
         result[field]!.push({
@@ -38,12 +38,12 @@ export function inferFieldMapping(headers: string[]): FieldInferenceResult {
       }
     });
   });
-  
+
   // 按分数排序
   (Object.keys(result) as StandardField[]).forEach((field) => {
     result[field]!.sort((a, b) => b.score - a.score);
   });
-  
+
   return result;
 }
 
@@ -51,34 +51,34 @@ export function inferFieldMapping(headers: string[]): FieldInferenceResult {
 function calculateMatchScore(header: string, aliases: string[]): number {
   // 完全匹配
   if (aliases.includes(header)) return 1.0;
-  
+
   // 包含匹配
   for (const alias of aliases) {
     if (header.includes(alias)) return 0.8;
     if (alias.includes(header)) return 0.6;
   }
-  
+
   // 相似度匹配（简化版）
   for (const alias of aliases) {
     const similarity = calculateSimilarity(header, alias);
     if (similarity > 0.7) return similarity * 0.5;
   }
-  
+
   return 0;
 }
 
 /** 计算字符串相似度（Levenshtein距离） */
 function calculateSimilarity(a: string, b: string): number {
   const matrix: number[][] = [];
-  
+
   for (let i = 0; i <= b.length; i++) {
     matrix[i] = [i];
   }
-  
+
   for (let j = 0; j <= a.length; j++) {
     matrix[0][j] = j;
   }
-  
+
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
       if (b.charAt(i - 1) === a.charAt(j - 1)) {
@@ -92,10 +92,10 @@ function calculateSimilarity(a: string, b: string): number {
       }
     }
   }
-  
+
   const distance = matrix[b.length][a.length];
   const maxLength = Math.max(a.length, b.length);
-  
+
   return 1 - distance / maxLength;
 }
 
@@ -107,30 +107,30 @@ export function generateId(): string {
 /** 解析CSV文本 */
 export function parseCSV(text: string): ParsedCsv {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  
+
   if (lines.length === 0) {
     return { headers: [], rows: [] };
   }
-  
+
   // 解析表头
   const headers = parseCSVLine(lines[0]);
-  
+
   // 解析数据行
   const rows = lines.slice(1).map((line, index) => {
     const values = parseCSVLine(line);
     const rowData: Record<string, string> = {};
-    
+
     headers.forEach((header, i) => {
       rowData[header] = values[i] || "";
     });
-    
+
     return {
       rowId: index,
       values: rowData,
       raw: rowData,
     };
   });
-  
+
   return { headers, rows };
 }
 
@@ -139,10 +139,10 @@ function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
-    
+
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
@@ -157,7 +157,7 @@ function parseCSVLine(line: string): string[] {
       current += char;
     }
   }
-  
+
   result.push(current.trim());
   return result;
 }
@@ -166,7 +166,7 @@ function parseCSVLine(line: string): string[] {
 export function isValidIP(ip: string): boolean {
   const parts = ip.split(".");
   if (parts.length !== 4) return false;
-  
+
   return parts.every((part) => {
     const num = parseInt(part, 10);
     return !isNaN(num) && num >= 0 && num <= 255 && part === String(num);
@@ -190,7 +190,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   delay: number,
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout>;
-  
+
   return (...args: Parameters<T>) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
@@ -203,7 +203,7 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
   limit: number,
 ): (...args: Parameters<T>) => void {
   let inThrottle = false;
-  
+
   return (...args: Parameters<T>) => {
     if (!inThrottle) {
       fn(...args);

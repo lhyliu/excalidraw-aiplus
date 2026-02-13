@@ -9,7 +9,11 @@ import {
   markCalibrationTaskUndoneAtom,
 } from "../AIArchitectureGeneration";
 
-export const CalibrateStep: React.FC = () => {
+interface CalibrateStepProps {
+  onInsertToCanvas: () => void;
+}
+
+export const CalibrateStep: React.FC<CalibrateStepProps> = ({ onInsertToCanvas }) => {
   const calibrationState = useAtomValue(calibrationStateAtom);
   const qualityGate = useAtomValue(calibrationQualityGateAtom);
   const confidenceState = useAtomValue(confidenceStateAtom);
@@ -69,6 +73,15 @@ export const CalibrateStep: React.FC = () => {
             </div>
           </article>
         ))}
+      </div>
+      <div className="ai-architecture-generation-dialog__actions" style={{ marginTop: "0.75rem" }}>
+        <button
+          type="button"
+          className="ai-architecture-generation-dialog__btn-primary"
+          onClick={onInsertToCanvas}
+        >
+          {qualityGate.ready ? "✅ 确认并插入画布" : "跳过校准，直接插入画布"}
+        </button>
       </div>
     </div>
   );

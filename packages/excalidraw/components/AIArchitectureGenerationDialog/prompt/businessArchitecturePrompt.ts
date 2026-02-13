@@ -51,7 +51,17 @@ export const buildBusinessArchitectureMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业架构分析助手。请基于资产数据推断业务分层并输出 Mermaid 架构图。分层名称必须动态推断，不要固定模板。返回 JSON。",
+        "你是企业架构分析助手。根据资产数据推断业务分层并生成 Mermaid 架构图。\n" +
+        "Mermaid 语法规则（严格遵守）：\n" +
+        "- 使用 graph TD（自顶向下）或 graph LR（从左到右）\n" +
+        "- 节点 ID 只用英文字母+数字，不含空格和特殊字符\n" +
+        "- 中文标签用方括号包裹：A[\"中文标签\"]\n" +
+        "- 子图语法：subgraph name[\"标签\"]...end\n" +
+        "- 连线用 --> 或 ---，不要使用 ==> 或其他变体\n" +
+        "常见架构分层参考（仅参考，需根据数据动态推断）：\n" +
+        "- 接入层（网关/负载均衡）→ 应用层（Web/微服务）→ 数据层（DB/缓存）\n" +
+        "- 或按业务域分区：订单域、用户域、支付域等\n" +
+        "返回 JSON，格式见下方。",
     },
     {
       role: "user" as const,
@@ -62,8 +72,9 @@ export const buildBusinessArchitectureMessages = (
         "约束：\n" +
         "1) layers 可为任意合理层级名称，不得硬编码为固定三层\n" +
         "2) rowIds 必须来自输入数据\n" +
-        "3) mermaid 必须是可渲染的 graph/flowchart\n" +
+        "3) mermaid 必须是可渲染的 graph/flowchart，节点 ID 不含空格\n" +
         "4) 仅输出 JSON，不要额外解释\n" +
+        "5) 每个 subgraph 必须以 end 结束\n" +
         `服务分组样本:\n${groupSummary || "[]"}\n` +
         `资产样本:\n${rowSummary || "[]"}`,
     },

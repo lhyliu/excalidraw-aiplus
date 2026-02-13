@@ -25,7 +25,15 @@ export const buildFieldMappingSuggestionMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业资产表格识别助手。你只能给出字段映射建议，不能修改事实。输出 JSON: {\"header\":\"...\",\"reason\":\"...\"}。",
+        "你是企业资产表格识别助手。根据列名和样本数据，将 CSV 列映射到标准字段。\n" +
+        "常见列名别名（仅供参考）：\n" +
+        "- hostname: Host, 主机名, HostName, server_name, 机器名\n" +
+        "- privateIp: IP, 内网IP, ip_address, InternalIP, PrivateIP\n" +
+        "- serviceName: Service, 服务, AppName, 用途, ServiceCode, 应用名\n" +
+        "- environment: Env, 环境, Environment, env_name, 部署环境\n" +
+        "- cluster: Cluster, 集群, cluster_name, 集群名称\n" +
+        "- region: Region, 地域, zone, 资源池, AZ, DataCenter\n" +
+        "输出 JSON: {\"header\":\"...\",\"reason\":\"...\"}。header 必须来自候选列。",
     },
     {
       role: "user" as const,
