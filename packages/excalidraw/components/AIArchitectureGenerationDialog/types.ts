@@ -1,9 +1,7 @@
 export type GenerationStep =
-  | "workspace"
-  | "import"
-  | "mapping"
-  | "issues"
-  | "draft"
-  | "calibrate";
+  | "ingest"
+  | "fieldConfirm"
+  | "issueResolve"
+  | "draftConfirm";
 
 export type GenerationMode = "safe" | "advanced";

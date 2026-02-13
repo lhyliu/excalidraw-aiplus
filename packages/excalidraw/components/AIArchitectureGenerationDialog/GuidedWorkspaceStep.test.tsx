@@ -29,7 +29,7 @@ describe("GuidedWorkspaceStep", () => {
     })),
   );
 
-  it("renders live table with right-side guide and applies grouped fix", () => {
+  it("renders issue resolution workspace and applies grouped fix", () => {
     editorJotaiStore.set(importedCsvAtom, {
       headers: ["Host", "IP", "Service", "Env"],
       rows: [
@@ -64,15 +64,13 @@ describe("GuidedWorkspaceStep", () => {
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText("实时校准工作台")).toBeInTheDocument();
-    expect(screen.getByText(/主机名/)).toBeInTheDocument();
-    expect(screen.getByText("AI 引导修正")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "展开引导" })).toBeInTheDocument();
+    expect(screen.getByText("问题修复工作台")).toBeInTheDocument();
+    expect(screen.getByText(/待修复问题/)).toBeInTheDocument();
+    expect(screen.getByText("问题分组修复")).toBeInTheDocument();
     expect(
       container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开引导" }));
     fireEvent.change(screen.getByLabelText("待确认值"), {
       target: { value: "production" },
     });

@@ -41,7 +41,7 @@ describe("FieldMappingStep", () => {
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText("读懂你的表格")).toBeInTheDocument();
+    expect(screen.getByText(/读懂你的表格/)).toBeInTheDocument();
     expect(screen.getByText(/仅需你确认/)).toBeInTheDocument();
     expect(screen.getByText(/画图必需字段覆盖/)).toBeInTheDocument();
     expect(screen.getByText("展开可选字段（可忽略）")).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("FieldMappingStep", () => {
     expect(screen.getAllByText(/匹配|contains|包含|no alias/i).length).toBeGreaterThan(0);
     expect(screen.getByText("收起透视区")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("确认 AI 理解并继续"));
+    fireEvent.click(screen.getByText("进入问题修复"));
 
     expect(onContinue).toHaveBeenCalledTimes(1);
     const aliases = editorJotaiStore.get(aliasStoreAtom);
@@ -92,7 +92,7 @@ describe("FieldMappingStep", () => {
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "__manual__serviceName" },
     });
-    fireEvent.click(screen.getByText("确认 AI 理解并继续"));
+    fireEvent.click(screen.getByText("进入问题修复"));
 
     expect(onContinue).toHaveBeenCalledTimes(1);
     const aliases = editorJotaiStore.get(aliasStoreAtom);

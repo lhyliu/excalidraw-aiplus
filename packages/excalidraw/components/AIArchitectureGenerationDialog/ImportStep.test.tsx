@@ -8,7 +8,7 @@ import { importedCsvAtom } from "../AIArchitectureGeneration";
 import { ImportStep } from "./ImportStep";
 
 describe("ImportStep", () => {
-  it("allows generating draft directly after csv parse", () => {
+  it("shows parse error for invalid csv input", () => {
     editorJotaiStore.set(importedCsvAtom, { headers: [], rows: [] });
     const onContinue = vi.fn();
     const onGenerateDraft = vi.fn();
@@ -20,32 +20,36 @@ describe("ImportStep", () => {
     );
 
     fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "Host,IP\nweb-01,10.0.0.1" },
+      target: { value: " " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "解析 CSV" }));
-    fireEvent.click(screen.getByRole("button", { name: "一键生成初稿" }));
+    fireEvent.click(screen.getByRole("button", { name: "解析并进入字段确认" }));
 
-    expect(onGenerateDraft).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("请输入 CSV 内容")).toBeInTheDocument();
+    expect(onGenerateDraft).not.toHaveBeenCalled();
     expect(onContinue).not.toHaveBeenCalled();
   });
 
-  it("renders ag-grid preview after csv parse", () => {
+  it("shows quality summary and preview grid after csv parse", () => {
     editorJotaiStore.set(importedCsvAtom, { headers: [], rows: [] });
+    const onContinue = vi.fn();
 
     const { container } = render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <ImportStep onContinue={() => {}} onGenerateDraft={() => {}} />
+        <ImportStep onContinue={onContinue} onGenerateDraft={() => {}} />
       </EditorJotaiProvider>,
     );
 
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Host,IP\nweb-01,10.0.0.1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "解析 CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "解析并进入字段确认" }));
 
+    expect(screen.getByText(/数据质量卡/)).toBeInTheDocument();
+    expect(screen.getByText(/必填字段命中率/)).toBeInTheDocument();
     expect(
       container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
     ).toBeInTheDocument();
     expect(container.querySelector(".ag-root-wrapper")).toBeInTheDocument();
+    expect(onContinue).toHaveBeenCalledTimes(1);
   });
 });

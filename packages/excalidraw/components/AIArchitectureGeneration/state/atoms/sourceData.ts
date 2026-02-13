@@ -3,7 +3,7 @@
  * 存储用户导入的原始数据
  */
 
-import { atom } from "jotai";
+import { atom } from "../../../../editor-jotai";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 import type { ParsedCsv, FieldMapping, CellEdits, IgnoredRows, AliasStore } from "../../types";
 

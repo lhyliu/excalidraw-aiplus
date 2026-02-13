@@ -15,25 +15,14 @@ interface CalibrationStepperProps {
 }
 
 const steps: Array<{ label: string; step: GenerationStep }> = [
-  { label: "数据工作台", step: "workspace" },
-  { label: "架构图视图", step: "draft" },
-  { label: "可信现状", step: "calibrate" },
+  { label: "导入", step: "ingest" },
+  { label: "字段确认", step: "fieldConfirm" },
+  { label: "问题修复", step: "issueResolve" },
+  { label: "草图确认", step: "draftConfirm" },
 ];
 
-const indexFromStep = (step: GenerationStep): number => {
-  if (
-    step === "workspace" ||
-    step === "import" ||
-    step === "mapping" ||
-    step === "issues"
-  ) {
-    return 0;
-  }
-  if (step === "draft") {
-    return 1;
-  }
-  return 2;
-};
+const indexFromStep = (step: GenerationStep): number =>
+  steps.findIndex((item) => item.step === step);
 
 export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
   step,
@@ -46,58 +35,44 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
   onStepChange,
   compact = false,
 }) => {
-  const activeIndex = indexFromStep(step);
+  const activeIndex = Math.max(0, indexFromStep(step));
   const statusLabel =
     archDocStatus === "confirmed"
       ? "已确认"
       : archDocStatus === "draft"
-        ? "初稿"
-        : "校准中";
+        ? "草图中"
+        : "校验中";
+
   const stepState = (itemStep: GenerationStep): "done" | "warning" | "error" | "active" => {
-    if (
-      (itemStep === "workspace" &&
-        (step === "workspace" ||
-          step === "import" ||
-          step === "mapping" ||
-          step === "issues")) ||
-      itemStep === step
-    ) {
+    if (itemStep === step) {
       return "active";
     }
-    if (itemStep === "workspace" && mappingWarningCount > 0) {
+    if (itemStep === "fieldConfirm" && mappingWarningCount > 0) {
       return "warning";
     }
-    if (itemStep === "workspace" && pendingIssueCount > 0) {
+    if (itemStep === "issueResolve" && pendingIssueCount > 0) {
       return "error";
     }
-    if (itemStep === "calibrate" && archDocStatus !== "confirmed") {
+    if (itemStep === "draftConfirm" && !canPreviewDraft) {
       return "warning";
     }
-    return "done";
+    if (indexFromStep(itemStep) < activeIndex) {
+      return "done";
+    }
+    return "warning";
   };
 
   if (compact) {
     return (
       <section className="ai-architecture-generation-dialog__top-stepper">
         <div className="ai-architecture-generation-dialog__inline-form">
-          <strong>AI理解进度</strong>
+          <strong>CSV 生成进度</strong>
           <span className="ai-architecture-generation-dialog__summary">
             状态: {statusLabel}
           </span>
           <span className="ai-architecture-generation-dialog__summary">
-            校准: {calibrationProgress.done}/{calibrationProgress.total}
+            修复: {calibrationProgress.done}/{calibrationProgress.total}
           </span>
-          <button
-            type="button"
-            className={`ai-architecture-generation-dialog__draft-cta${
-              canPreviewDraft ? " is-ready" : ""
-            }`}
-            disabled={!canPreviewDraft}
-            title={!canPreviewDraft ? "请先导入数据" : undefined}
-            onClick={() => onStepChange("draft")}
-          >
-            进入架构图视图
-          </button>
         </div>
         <ol className="ai-architecture-generation-dialog__stepper ai-architecture-generation-dialog__stepper--compact">
           {steps.map((item, index) => (
@@ -122,16 +97,6 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
                   )}`}
                 />
                 {item.label}
-                {item.step === "workspace" && mappingWarningCount > 0 && (
-                  <span className="ai-architecture-generation-dialog__step-badge">
-                    {mappingWarningCount}
-                  </span>
-                )}
-                {item.step === "workspace" && pendingIssueCount > 0 && (
-                  <span className="ai-architecture-generation-dialog__step-badge is-danger">
-                    {pendingIssueCount}
-                  </span>
-                )}
               </button>
             </li>
           ))}
@@ -142,12 +107,12 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
 
   return (
     <aside className="ai-architecture-generation-dialog__side-panel">
-      <h4>AI 理解进度</h4>
+      <h4>CSV 生成进度</h4>
       <div className="ai-architecture-generation-dialog__summary">
         状态: {statusLabel}
       </div>
       <div className="ai-architecture-generation-dialog__summary">
-        校准进度: {calibrationProgress.done}/{calibrationProgress.total}
+        修复进度: {calibrationProgress.done}/{calibrationProgress.total}
       </div>
       <ol className="ai-architecture-generation-dialog__stepper">
         {steps.map((item, index) => (
@@ -172,16 +137,6 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
                 )}`}
               />
               {item.label}
-              {item.step === "workspace" && mappingWarningCount > 0 && (
-                <span className="ai-architecture-generation-dialog__step-badge">
-                  {mappingWarningCount}
-                </span>
-              )}
-              {item.step === "workspace" && pendingIssueCount > 0 && (
-                <span className="ai-architecture-generation-dialog__step-badge is-danger">
-                  {pendingIssueCount}
-                </span>
-              )}
             </button>
           </li>
         ))}
@@ -192,11 +147,12 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
           canPreviewDraft ? " is-ready" : ""
         }`}
         disabled={!canPreviewDraft}
-        title={!canPreviewDraft ? "请先导入数据" : undefined}
-        onClick={() => onStepChange("draft")}
+        title={!canPreviewDraft ? "请先完成字段确认" : undefined}
+        onClick={() => onStepChange("draftConfirm")}
       >
-        进入架构图视图（AI 自动补全剩余信息）
+        进入草图确认
       </button>
     </aside>
   );
 };
+

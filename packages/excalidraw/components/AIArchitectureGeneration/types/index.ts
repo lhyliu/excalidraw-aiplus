@@ -23,12 +23,10 @@ export type StandardField = (typeof STANDARD_FIELDS)[number];
 
 /** 生成步骤 */
 export type GenerationStep =
-  | "workspace"
-  | "import"
-  | "mapping"
-  | "issues"
-  | "draft"
-  | "calibrate";
+  | "ingest"
+  | "fieldConfirm"
+  | "issueResolve"
+  | "draftConfirm";
 
 /** 生成模式 */
 export type GenerationMode = "safe" | "advanced";
@@ -264,11 +262,11 @@ export interface AIArchitectureGenerationSessionState {
 
 /** 默认会话状态 */
 export const DEFAULT_SESSION_STATE: AIArchitectureGenerationSessionState = {
-  step: "workspace",
+  step: "ingest",
   mode: "safe",
   draftFilter: "",
   namingSuggestions: {},
-  version: 2, // 新版本号
+  version: 3, // 新版本号
 };
 
 // ============================================

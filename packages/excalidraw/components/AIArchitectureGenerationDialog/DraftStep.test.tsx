@@ -133,7 +133,9 @@ describe("DraftStep", () => {
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText("Draft 预览")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "草图生成与确认" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("当前业务范围")).toBeInTheDocument();
     expect(screen.queryByText("全选")).not.toBeInTheDocument();
     expect(screen.queryByText("清空")).not.toBeInTheDocument();
@@ -287,5 +289,4 @@ describe("DraftStep", () => {
     });
   });
 });
-
 

@@ -89,32 +89,42 @@ const { parsedCsv, setParsedCsv } = useSourceData();
 
 ### 0.5 AI架构生成模块（CSV 生成）
 
-`AIArchitectureGenerationDialog` (CSV 生成模式) 已统一为 3 段主流程：
+`AIArchitectureGenerationDialog` (CSV 生成模式) 已改为 4 段强校验流程：
 
-1. `数据工作台（workspace）`
-2. `架构图视图（draft）`
-3. `可信现状（calibrate）`
+1. `导入（ingest）`
+2. `字段确认（fieldConfirm）`
+3. `问题修复（issueResolve）`
+4. `草图生成与确认（draftConfirm）`
 
-其中历史步骤 `import / mapping / issues` 仍被兼容，但会自动合并到 `workspace`。
+说明：
 
-#### 数据工作台（workspace）
+1. 不再兼容旧步骤语义（`workspace/import/mapping/issues/draft/calibrate`）。
+2. 会话版本升级为 `v3`，检测到 `v1/v2` 直接重置为默认 `v3` 状态。
+3. 每段门禁未通过时，禁止进入下一段。
 
-1. 中心区域为 AG Grid 原生表格（`SharedAgGrid` 统一封装），支持原生单元格编辑与分页。
-2. `服务名称（组件用途）` 列表头内置 `AI识别` 小按钮，可批量填充缺失的服务用途。
-3. 空服务名行保留按行触发入口（`Row x AI识别`），用于单条补录。
-4. 右侧改为浮层抽屉式“AI 引导修正”，收起态只有一个入口，避免占用表格主体空间。
-5. 批量编辑能力收敛为单一 Overlay（Table Tools），不再单独占步骤页签。
+#### 导入（ingest）
 
-#### 架构图视图（draft）
+1. 支持粘贴/上传 CSV。
+2. 解析后展示数据质量卡、前 20 行预览、必填字段命中率。
+3. 无有效表头或无数据行时不可进入下一步。
 
-1. 每次只处理一个业务范围。
-2. 业务范围优先由 LLM 推断（失败时回退本地分组策略）。
-3. 可请求 AI 业务分层建议并手工拖拽调整后再生成该业务架构草图。
+#### 字段确认（fieldConfirm）
 
-#### 可信现状（calibrate）
+1. 仅确认 `hostname/privateIp/serviceName` 三个关键字段。
+2. 每个字段提供置信度、AI 推荐列、手动覆盖。
+3. 三个关键字段全部确认后方可进入问题修复。
 
-1. 继续沿用任务门禁与 `confirmed` 状态控制。
-2. 未满足关键门槛时，不允许误标记为可信现状。
+#### 问题修复（issueResolve）
+
+1. 问题按类型分组展示，并支持批量应用建议与行级预览。
+2. 支持跳转定位到对应表格行。
+3. `error` 未清零时禁止继续，`warning` 允许带确认继续。
+
+#### 草图生成与确认（draftConfirm）
+
+1. 路径固定为：业务范围选择 -> AI 分层建议 -> 人工调整 -> Mermaid 预览 -> 插入画布。
+2. 未生成有效 Mermaid 时禁止插入画布。
+3. 主 CTA 为 `确认并插入画布`。
 
 #### LLM 调用约束（当前）
 

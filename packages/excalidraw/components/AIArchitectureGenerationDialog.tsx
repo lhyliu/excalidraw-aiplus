@@ -5,20 +5,18 @@ import { t } from "../i18n";
 import { initCompatibilityLayer } from "./AIArchitectureGeneration";
 import {
   buildInitialFieldMapping,
-  calibrationStateAtom,
   confidenceStateAtom,
+  editsAtom,
   fieldMappingAtom,
   importedCsvAtom,
   inferFieldCandidates,
   issuesAtom,
-  normalizedVmRowsAtom,
-  validateFieldMapping,
 } from "./AIArchitectureGeneration";
 import { Dialog } from "./Dialog";
 
-import { CalibrateStep } from "./AIArchitectureGenerationDialog/CalibrateStep";
 import { DraftStep } from "./AIArchitectureGenerationDialog/DraftStep";
 import { ExpertEditOverlay } from "./AIArchitectureGenerationDialog/ExpertEditOverlay";
+import { FieldMappingStep } from "./AIArchitectureGenerationDialog/FieldMappingStep";
 import { GuidedWorkspaceStep } from "./AIArchitectureGenerationDialog/GuidedWorkspaceStep";
 import { ImportStep } from "./AIArchitectureGenerationDialog/ImportStep";
 import { WorkflowShell } from "./AIArchitectureGenerationDialog/layout/WorkflowShell";
@@ -35,43 +33,35 @@ export const AIArchitectureGenerationDialog: React.FC<
   AIArchitectureGenerationDialogProps
 > = ({ onClose }) => {
   const [session, setSession] = useAtom(aiArchitectureGenerationSessionAtom);
-  const calibrationState = useAtomValue(calibrationStateAtom);
   const importedCsv = useAtomValue(importedCsvAtom);
   const fieldMapping = useAtomValue(fieldMappingAtom);
   const issues = useAtomValue(issuesAtom);
-  const normalizedRows = useAtomValue(normalizedVmRowsAtom);
+  const edits = useAtomValue(editsAtom);
+  const confidenceState = useAtomValue(confidenceStateAtom);
   const step = session.step;
   const mode = session.mode;
-  const confidenceState = useAtomValue(confidenceStateAtom);
   const [isExpertOpen, setIsExpertOpen] = useState(false);
   const [expertNotice, setExpertNotice] = useState<string | null>(null);
   const [stepNotice, setStepNotice] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isStepTransitioning, setIsStepTransitioning] = useState(false);
+
   const stepMeta: Record<GenerationStep, { label: string; hint: string }> = {
-    workspace: {
-      label: t("labels.aiGenerationStepWorkspace"),
-      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    ingest: {
+      label: t("labels.aiGenerationStepIngest"),
+      hint: t("labels.aiGenerationStepIngestHint"),
     },
-    import: {
-      label: t("labels.aiGenerationStepWorkspace"),
-      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    fieldConfirm: {
+      label: t("labels.aiGenerationStepFieldConfirm"),
+      hint: t("labels.aiGenerationStepFieldConfirmHint"),
     },
-    mapping: {
-      label: t("labels.aiGenerationStepWorkspace"),
-      hint: t("labels.aiGenerationStepWorkspaceHint"),
+    issueResolve: {
+      label: t("labels.aiGenerationStepIssueResolve"),
+      hint: t("labels.aiGenerationStepIssueResolveHint"),
     },
-    issues: {
-      label: t("labels.aiGenerationStepWorkspace"),
-      hint: t("labels.aiGenerationStepWorkspaceHint"),
-    },
-    draft: {
-      label: t("labels.aiGenerationStepDraft"),
-      hint: t("labels.aiGenerationStepDraftHint"),
-    },
-    calibrate: {
-      label: t("labels.aiGenerationStepCalibrate"),
-      hint: t("labels.aiGenerationStepCalibrateHint"),
+    draftConfirm: {
+      label: t("labels.aiGenerationStepDraftConfirm"),
+      hint: t("labels.aiGenerationStepDraftConfirmHint"),
     },
   };
 
@@ -92,28 +82,44 @@ export const AIArchitectureGenerationDialog: React.FC<
     };
   }, []);
 
+  const hasSourceData = importedCsv.rows.length > 0;
+  const hasRequiredMapping = useMemo(() => {
+    const inferred = inferFieldCandidates(importedCsv.headers);
+    const suggested = buildInitialFieldMapping(inferred);
+    const effectiveMapping = {
+      ...suggested,
+      ...fieldMapping,
+    };
+    return (
+      Boolean(effectiveMapping.hostname) &&
+      Boolean(effectiveMapping.privateIp) &&
+      Boolean(effectiveMapping.serviceName)
+    );
+  }, [fieldMapping, importedCsv.headers]);
+  const unresolvedErrorCount = useMemo(
+    () =>
+      issues.filter((issue) => {
+        if (issue.severity !== "error") {
+          return false;
+        }
+        if (!issue.field) {
+          return true;
+        }
+        return (edits[issue.rowId]?.[issue.field] ?? "").toString().trim().length === 0;
+      }).length,
+    [edits, issues],
+  );
+  const canPreviewDraft = hasSourceData && hasRequiredMapping;
+
   useEffect(() => {
-    if (step === "import" || step === "mapping" || step === "issues") {
-      setSession((prev) => ({
-        ...prev,
-        step: "workspace",
-      }));
+    if (!hasSourceData && step !== "ingest") {
+      setSession((prev) => ({ ...prev, step: "ingest" }));
+      return;
     }
-  }, [setSession, step]);
-
-  const goDraft = useCallback(() => {
-    setSession((prev) => ({
-      ...prev,
-      step: "draft",
-    }));
-  }, [setSession]);
-
-  const goCalibrate = useCallback(() => {
-    setSession((prev) => ({
-      ...prev,
-      step: "calibrate",
-    }));
-  }, [setSession]);
+    if (hasSourceData && !hasRequiredMapping && step === "issueResolve") {
+      setSession((prev) => ({ ...prev, step: "fieldConfirm" }));
+    }
+  }, [hasRequiredMapping, hasSourceData, setSession, step]);
 
   const setDraftFilter = useCallback(
     (draftFilter: string) => {
@@ -152,59 +158,30 @@ export const AIArchitectureGenerationDialog: React.FC<
     if (confidenceState === "confirmed") {
       return "confirmed";
     }
-    if (step === "draft" || step === "calibrate") {
+    if (step === "draftConfirm") {
       return "draft";
     }
     return "calibrating";
   }, [confidenceState, step]);
 
-  const mappingWarningCount = useMemo(() => {
-    if (importedCsv.headers.length === 0) {
-      return 0;
-    }
-    const inferred = inferFieldCandidates(importedCsv.headers);
-    const suggested = buildInitialFieldMapping(inferred);
-    const effectiveMapping = {
-      ...suggested,
-      ...fieldMapping,
-    };
-    const mappedHeaders = new Set(
-      Object.values(effectiveMapping).filter(Boolean) as string[],
-    );
-    return importedCsv.headers.filter((header) => !mappedHeaders.has(header)).length;
-  }, [fieldMapping, importedCsv.headers]);
-
-  const pendingIssueCount = issues.length;
-  const canPreviewDraft = importedCsv.rows.length > 0;
-  const hasSourceData = importedCsv.rows.length > 0;
-  const hasCalibratableAssets = normalizedRows.length > 0;
-  const hasRequiredMapping = useMemo(() => {
-    const inferred = inferFieldCandidates(importedCsv.headers);
-    const suggested = buildInitialFieldMapping(inferred);
-    const effectiveMapping = {
-      ...suggested,
-      ...fieldMapping,
-    };
-    return validateFieldMapping(effectiveMapping).ok;
-  }, [fieldMapping, importedCsv.headers]);
-
   const stepBlockReasons = useMemo(() => {
     const reasons: Partial<Record<GenerationStep, string>> = {};
     if (!hasSourceData) {
-      reasons.draft = t("labels.aiGenerationRequireCsv");
-      reasons.calibrate = t("labels.aiGenerationRequireCsv");
+      reasons.fieldConfirm = t("labels.aiGenerationRequireCsv");
+      reasons.issueResolve = t("labels.aiGenerationRequireCsv");
+      reasons.draftConfirm = t("labels.aiGenerationRequireCsv");
       return reasons;
     }
     if (!hasRequiredMapping) {
-      reasons.draft = t("labels.aiGenerationRequireMapping");
-      reasons.calibrate = t("labels.aiGenerationRequireMapping");
+      reasons.issueResolve = t("labels.aiGenerationRequireMapping");
+      reasons.draftConfirm = t("labels.aiGenerationRequireMapping");
       return reasons;
     }
-    if (!hasCalibratableAssets) {
-      reasons.calibrate = t("labels.aiGenerationNoCalibratableAssets");
+    if (unresolvedErrorCount > 0) {
+      reasons.draftConfirm = t("labels.aiGenerationRequireIssueResolve");
     }
     return reasons;
-  }, [hasCalibratableAssets, hasRequiredMapping, hasSourceData]);
+  }, [hasRequiredMapping, hasSourceData, unresolvedErrorCount]);
 
   const requestStepChange = useCallback(
     (nextStep: GenerationStep) => {
@@ -236,7 +213,7 @@ export const AIArchitectureGenerationDialog: React.FC<
                   ? t("labels.aiArchitectureGenerationModeAdvanced")
                   : t("labels.aiArchitectureGenerationModeGuided"),
               confidence: confidenceState,
-              hint: stepMeta[step].hint,
+              hint: stepMeta[step]?.hint ?? "",
             })}
           </div>
         </header>
@@ -251,72 +228,68 @@ export const AIArchitectureGenerationDialog: React.FC<
           </div>
         )}
 
-        {(step === "import" ||
-          step === "workspace" ||
-          step === "mapping" ||
-          step === "issues" ||
-          step === "draft" ||
-          step === "calibrate") && (
-            <WorkflowShell
-              step={step}
-              archDocStatus={archDocStatus}
-              calibrationProgress={{
-                done: calibrationState.tasks.filter((task) => task.done).length,
-                total: calibrationState.tasks.length,
-              }}
-              mappingWarningCount={mappingWarningCount}
-              pendingIssueCount={pendingIssueCount}
-              canPreviewDraft={canPreviewDraft}
-              stepBlockReasons={stepBlockReasons}
-              onStepChange={requestStepChange}
-              showAiSummary={step === "calibrate"}
-            >
-              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-                !hasSourceData && (
-                  <ImportStep onContinue={() => requestStepChange("workspace")} onGenerateDraft={goDraft} />
-                )}
-              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-                hasSourceData && (
-                  <GuidedWorkspaceStep
-                    onContinueDraft={goDraft}
-                    onOpenExpert={() => {
-                      setExpertNotice(null);
-                      setIsExpertOpen(true);
-                    }}
-                  />
-                )}
-              {step === "draft" && (
-                <DraftStep
-                  onContinueCalibrate={goCalibrate}
-                  onInsertToCanvas={onClose}
-                  filter={session.draftFilter}
-                  onFilterChange={setDraftFilter}
-                  suggestions={session.namingSuggestions}
-                  onSuggestionsChange={setNamingSuggestions}
-                />
-              )}
-              {step === "calibrate" && <CalibrateStep onInsertToCanvas={onClose} />}
-              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-                isExpertOpen && (
-                    <ExpertEditOverlay
-                      onSave={() => {
-                        setIsExpertOpen(false);
-                        setExpertNotice(
-                          t("labels.aiArchitectureGenerationExpertSaved"),
-                        );
-                      }}
-                      onCancel={() => setIsExpertOpen(false)}
-                    />
-                )}
-              {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
-                expertNotice && (
-                  <div className="ai-architecture-generation-dialog__success">
-                    {expertNotice}
-                  </div>
-                )}
-            </WorkflowShell>
+        <WorkflowShell
+          step={step}
+          archDocStatus={archDocStatus}
+          calibrationProgress={{
+            done: Math.max(0, issues.length - unresolvedErrorCount),
+            total: issues.length,
+          }}
+          mappingWarningCount={Math.max(0, 3 - Object.keys(fieldMapping).length)}
+          pendingIssueCount={issues.length}
+          canPreviewDraft={canPreviewDraft}
+          stepBlockReasons={stepBlockReasons}
+          onStepChange={requestStepChange}
+          showAiSummary={step !== "draftConfirm"}
+        >
+          {step === "ingest" && (
+            <ImportStep
+              onContinue={() => requestStepChange("fieldConfirm")}
+              onGenerateDraft={() => requestStepChange("draftConfirm")}
+            />
           )}
+          {step === "fieldConfirm" && (
+            <FieldMappingStep
+              onContinue={() => requestStepChange("issueResolve")}
+              onGenerateDraft={() => requestStepChange("draftConfirm")}
+            />
+          )}
+          {step === "issueResolve" && (
+            <GuidedWorkspaceStep
+              onContinueDraft={() => requestStepChange("draftConfirm")}
+              onOpenExpert={() => {
+                setExpertNotice(null);
+                setIsExpertOpen(true);
+              }}
+            />
+          )}
+          {step === "draftConfirm" && (
+            <DraftStep
+              onContinueCalibrate={() => requestStepChange("issueResolve")}
+              onInsertToCanvas={onClose}
+              filter={session.draftFilter}
+              onFilterChange={setDraftFilter}
+              suggestions={session.namingSuggestions}
+              onSuggestionsChange={setNamingSuggestions}
+            />
+          )}
+          {step === "issueResolve" && isExpertOpen && (
+            <ExpertEditOverlay
+              onSave={() => {
+                setIsExpertOpen(false);
+                setExpertNotice(t("labels.aiArchitectureGenerationExpertSaved"));
+              }}
+              onCancel={() => setIsExpertOpen(false)}
+            />
+          )}
+          {step === "issueResolve" && expertNotice && (
+            <div className="ai-architecture-generation-dialog__success">
+              {expertNotice}
+            </div>
+          )}
+        </WorkflowShell>
       </div>
     </Dialog>
   );
 };
+

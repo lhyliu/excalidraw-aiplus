@@ -9,12 +9,15 @@ import {
   parseCsv,
 } from "../AIArchitectureGeneration";
 import type { StandardField } from "../AIArchitectureGeneration";
+
 import { SharedAgGrid } from "./SharedAgGrid";
 
 interface ImportStepProps {
   onContinue: () => void;
   onGenerateDraft: () => void;
 }
+
+const requiredFields: StandardField[] = ["hostname", "privateIp", "serviceName"];
 
 export const ImportStep: React.FC<ImportStepProps> = ({
   onContinue,
@@ -24,38 +27,27 @@ export const ImportStep: React.FC<ImportStepProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [parsed, setParsed] = useAtom(importedCsvAtom);
-  const [onlyKeyColumns, setOnlyKeyColumns] = useState(true);
 
   const hasData = useMemo(
     () => parsed.headers.length > 0 && parsed.rows.length > 0,
     [parsed.headers.length, parsed.rows.length],
   );
+
   const previewRows = useMemo(() => parsed.rows.slice(0, 20), [parsed.rows]);
-  const previewHeaders = useMemo(() => {
-    if (!onlyKeyColumns) {
-      return parsed.headers;
-    }
-    const inferred = inferFieldCandidates(parsed.headers);
-    const mapping = buildInitialFieldMapping(inferred);
-    const keyFields: StandardField[] = ["hostname", "privateIp", "serviceName"];
-    const keyHeaders = keyFields
-      .map((field) => mapping[field])
-      .filter((header): header is string => Boolean(header));
-    if (keyHeaders.length > 0) {
-      return keyHeaders;
-    }
-    return parsed.headers.slice(0, 6);
-  }, [onlyKeyColumns, parsed.headers]);
-  const previewRowData = useMemo(
-    () =>
-      previewRows.map((row) => ({
-        rowId: row.rowId,
-        ...Object.fromEntries(
-          previewHeaders.map((header) => [header, row.values[header] ?? ""]),
-        ),
-      })),
-    [previewHeaders, previewRows],
+  const inferred = useMemo(() => inferFieldCandidates(parsed.headers), [parsed.headers]);
+  const suggestedMapping = useMemo(
+    () => buildInitialFieldMapping(inferred),
+    [inferred],
   );
+  const requiredMappedCount = useMemo(
+    () => requiredFields.filter((field) => suggestedMapping[field]).length,
+    [suggestedMapping],
+  );
+  const requiredCoverage = useMemo(
+    () => Math.round((requiredMappedCount / requiredFields.length) * 100),
+    [requiredMappedCount],
+  );
+
   const previewColDefs = useMemo<ColDef<Record<string, string | number>>[]>(
     () => [
       {
@@ -66,7 +58,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
         maxWidth: 110,
         suppressMovable: true,
       },
-      ...previewHeaders.map((header) => ({
+      ...parsed.headers.map((header) => ({
         headerName: header,
         field: header,
         minWidth: 150,
@@ -74,24 +66,48 @@ export const ImportStep: React.FC<ImportStepProps> = ({
         suppressMovable: true,
       })),
     ],
-    [previewHeaders],
+    [parsed.headers],
   );
-  const handleParse = useCallback(() => {
-    let result;
-    try {
-      result = parseCsv(csvText);
-    } catch {
-      result = { headers: [], rows: [] };
-    }
-    if (result.headers.length === 0) {
-      setError("CSV 内容为空或格式无效");
-      setNotice(null);
-      return;
-    }
-    setParsed(result);
-    setError(null);
-    setNotice("解析成功，可直接生成初稿，或继续确认字段含义。");
-  }, [csvText, setParsed]);
+  const previewRowData = useMemo(
+    () =>
+      previewRows.map((row) => ({
+        rowId: row.rowId,
+        ...Object.fromEntries(
+          parsed.headers.map((header) => [header, row.values[header] ?? ""]),
+        ),
+      })),
+    [parsed.headers, previewRows],
+  );
+
+  const parseAndContinue = useCallback(
+    (text: string) => {
+      if (!text.trim()) {
+        setError("请输入 CSV 内容");
+        setNotice(null);
+        return;
+      }
+      let result;
+      try {
+        result = parseCsv(text);
+      } catch {
+        result = { headers: [], rows: [] };
+      }
+      if (result.headers.length === 0 || result.rows.length === 0) {
+        setError("CSV 内容为空或格式无效");
+        setNotice(null);
+        return;
+      }
+      setParsed(result);
+      setError(null);
+      setNotice("已完成解析。可进入字段确认继续校验。");
+      onContinue();
+    },
+    [onContinue, setParsed],
+  );
+
+  const handleParseAndContinue = useCallback(() => {
+    parseAndContinue(csvText);
+  }, [csvText, parseAndContinue]);
 
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,34 +117,15 @@ export const ImportStep: React.FC<ImportStepProps> = ({
       }
       const text = await file.text();
       setCsvText(text);
-      let result;
-      try {
-        result = parseCsv(text);
-      } catch {
-        result = { headers: [], rows: [] };
-      }
-      setParsed(result);
-      setError(result.headers.length === 0 ? "CSV 内容为空或格式无效" : null);
-      setNotice(
-        result.headers.length === 0
-          ? null
-          : "文件解析成功，可直接生成初稿，或继续确认字段含义。",
-      );
+      parseAndContinue(text);
     },
-    [setParsed],
+    [parseAndContinue],
   );
-
-  const clearImportedData = useCallback(() => {
-    setCsvText("");
-    setParsed({ headers: [], rows: [] });
-    setError(null);
-    setNotice(null);
-  }, [setParsed]);
 
   return (
     <div className="ai-architecture-generation-dialog__step">
-      <h3>CSV 导入</h3>
-      <p>上传 CSV 后会直接展示表格预览，先看数据是否正确再继续。</p>
+      <h3>导入（Ingest）</h3>
+      <p>粘贴或上传 CSV 后，系统会先完成质量检查并进入字段确认。</p>
       <textarea
         className="ai-architecture-generation-dialog__textarea"
         rows={8}
@@ -138,36 +135,28 @@ export const ImportStep: React.FC<ImportStepProps> = ({
       />
       <div className="ai-architecture-generation-dialog__actions">
         <input type="file" accept=".csv,text/csv" onChange={handleFileUpload} />
-        <button type="button" onClick={handleParse}>
-          解析 CSV
-        </button>
-        <button type="button" onClick={clearImportedData} disabled={!hasData && !csvText}>
-          清空
-        </button>
-        <button type="button" onClick={onContinue} disabled={!hasData}>
-          进入数据工作台
+        <button type="button" onClick={handleParseAndContinue}>
+          解析并进入字段确认
         </button>
         <button type="button" onClick={onGenerateDraft} disabled={!hasData}>
-          一键生成初稿
+          直接进入草图确认
         </button>
       </div>
       {error && <div className="ai-architecture-generation-dialog__error">{error}</div>}
       {notice && <div className="ai-architecture-generation-dialog__success">{notice}</div>}
       {hasData && (
         <>
-          <div className="ai-architecture-generation-dialog__summary">
-            已解析 {parsed.rows.length} 行，字段 {parsed.headers.length} 个。当前预览前{" "}
-            {previewRows.length} 行。
+          <div className="ai-architecture-generation-dialog__issue-card">
+            <strong>数据质量卡</strong>
+            <div className="ai-architecture-generation-dialog__summary">
+              行数: {parsed.rows.length} | 字段数: {parsed.headers.length}
+            </div>
+            <div className="ai-architecture-generation-dialog__summary">
+              必填字段命中率: {requiredMappedCount}/{requiredFields.length} ({requiredCoverage}%)
+            </div>
           </div>
-          <div className="ai-architecture-generation-dialog__inline-form">
-            <label>
-              <input
-                type="checkbox"
-                checked={onlyKeyColumns}
-                onChange={(event) => setOnlyKeyColumns(event.target.checked)}
-              />{" "}
-              仅看关键列（主机名 / 内网IP / 机器用途）
-            </label>
+          <div className="ai-architecture-generation-dialog__summary">
+            预览前 {previewRows.length} 行
           </div>
           <div className="ai-architecture-generation-dialog__table-wrap">
             <SharedAgGrid<Record<string, string | number>>

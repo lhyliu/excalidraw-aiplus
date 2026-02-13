@@ -508,8 +508,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   return (
     <div className="ai-architecture-generation-dialog__step">
-      <h3>Draft 预览</h3>
-      <p>每次只处理一个业务范围，AI 会先分析业务分层，再生成该业务架构图。</p>
+      <h3>草图生成与确认</h3>
+      <p>每次只处理一个业务范围，完成分层调整并生成 Mermaid 后再确认插入。</p>
       <div className="ai-architecture-generation-dialog__issue-card">
         <strong>业务范围确认</strong>
         <div className="ai-architecture-generation-dialog__summary">
@@ -783,16 +783,20 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           type="button"
           className="ai-architecture-generation-dialog__btn-primary"
           onClick={handleInsertToCanvas}
-          disabled={mermaidDataRef.current.elements.length === 0 && Object.keys(diagramByScope).length === 0}
+          disabled={
+            !activeDiagramScopeId ||
+            !diagramByScope[activeDiagramScopeId] ||
+            Boolean(previewError)
+          }
         >
-          ✅ 插入画布
+          确认并插入画布
         </button>
         <button
           type="button"
           className="ai-architecture-generation-dialog__btn-ghost"
           onClick={onContinueCalibrate}
         >
-          进入校准（可选）
+          返回问题修复
         </button>
       </div>
       {generationNotice && (
@@ -811,15 +815,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                 Mermaid 渲染失败: {previewError.message}
               </div>
             )}
-            <div
-              style={{
-                minHeight: 200,
-                border: "1px solid var(--color-border-outline-variant)",
-                borderRadius: "0.5rem",
-                overflow: "hidden",
-                background: "var(--default-bg-color)",
-              }}
-            >
+            <div className="ai-architecture-generation-dialog__draft-preview-canvas">
               <div ref={canvasRef} />
             </div>
             {Object.keys(diagramByScope).length > 1 && (
@@ -844,7 +840,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
             )}
           </div>
           <details>
-            <summary style={{ cursor: "pointer", fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+            <summary className="ai-architecture-generation-dialog__draft-source-toggle">
               查看 Mermaid 源码
             </summary>
             <div className="ai-architecture-generation-dialog__issue-groups">
@@ -868,4 +864,3 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     </div>
   );
 };
-

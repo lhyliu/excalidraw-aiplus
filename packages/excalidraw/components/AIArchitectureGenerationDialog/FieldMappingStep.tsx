@@ -129,7 +129,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
   if (importedCsv.headers.length === 0) {
     return (
       <div className="ai-architecture-generation-dialog__step">
-        <h3>读懂你的表格</h3>
+        <h3>字段确认</h3>
         <p>请先完成 CSV 导入。</p>
       </div>
     );
@@ -137,8 +137,8 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
 
   return (
     <div className="ai-architecture-generation-dialog__step">
-      <h3>读懂你的表格</h3>
-      <p>先确认画图必需字段，其它字段默认可忽略，后续可按需补充。</p>
+      <h3>字段确认</h3>
+      <p>仅确认关键字段 hostname/privateIp/serviceName 后才可进入问题修复。</p>
       <div className="ai-architecture-generation-dialog__summary">
         画图必需字段覆盖: {requiredMappedCount}/{requiredFields.length}
       </div>
@@ -176,10 +176,10 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
       )}
       <div className="ai-architecture-generation-dialog__actions">
         <button type="button" onClick={handleApply}>
-          确认 AI 理解并继续
+          进入问题修复
         </button>
         <button type="button" onClick={onGenerateDraft}>
-          先生成初稿（AI 自动补全）
+          进入草图确认
         </button>
       </div>
     </div>

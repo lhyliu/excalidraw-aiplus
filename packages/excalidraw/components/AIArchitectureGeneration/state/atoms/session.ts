@@ -12,7 +12,7 @@ import type {
 } from "../../types";
 import { DEFAULT_SESSION_STATE } from "../../types";
 
-const STORAGE_KEY = "excalidraw_ai_arch_generation_session_v2";
+const STORAGE_KEY = "excalidraw_ai_arch_generation_session_v3";
 const fallbackMemoryStorage = new Map<string, string>();
 
 const jsonStorage = createJSONStorage(() => {
