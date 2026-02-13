@@ -14,6 +14,25 @@
   - `packages/excalidraw/data/blob.ts`
   - `packages/excalidraw/data/types.ts`
 
+## 更新记录（v2 整改验收，2026-02-13）
+
+本轮整改目标已完成，关键变更如下：
+
+1. 主菜单 AI 入口收敛为单入口（仅保留“AI 架构助手”）。
+2. `ArchitectureOptimizationDialog` 拆分为编排层 + hooks/子组件，主文件行数降至 <1200。
+3. 样式改为模块化分层（`styles/_tokens|_layout|_chat|_workflow|_preview|_overlays.scss`）。
+4. 预览与工作流 UX 增强（渲染中骨架、空态区分、建议恢复入口、工作台加载反馈）。
+5. 新增 Architecture Assistant 局部错误边界，避免单模块异常扩散。
+6. Atoms 纯逻辑测试补齐（`chat/scheme/workflow/ui`）。
+7. 本轮新增/改动文案已切换 i18n key，并补齐 `en` / `zh-CN` 键值。
+
+验收命令（已通过）：
+
+1. `yarn test:architecture`
+2. `yarn test:app --watch=false packages/excalidraw/components/ArchitectureOptimizationDialog/ArchitectureOptimizationDialog.integration.test.ts packages/excalidraw/components/AIArchitectureGenerationDialog/AIArchitectureGenerationDialog.session.test.tsx`
+3. `yarn test:app --watch=false packages/excalidraw/components/ArchitectureOptimizationDialog/atoms/atoms.test.ts`
+4. `yarn test:app --watch=false`
+
 ## 0. AI架构生成模块（重构完成）
 
 ### 0.1 模块结构
@@ -30,9 +49,7 @@ packages/excalidraw/components/AIArchitectureGeneration/
 │   ├── atoms/       # 基础状态
 │   ├── selectors/   # 派生状态
 │   └── persistence/ # 持久化与迁移
-├── ai/              # AI能力
-│   ├── generators/  # AI生成器
-│   └── prompts/     # 提示词模板
+├── ai/              # AI能力导出（兼容层，具体调用在 Dialog hooks）
 ├── compat/          # 向后兼容层
 ├── ui/              # UI组件
 ├── steps/           # 步骤组件
@@ -43,7 +60,7 @@ packages/excalidraw/components/AIArchitectureGeneration/
 
 - **声明式工作流引擎**: 支持步骤验证、生命周期钩子、状态订阅
 - **分层状态管理**: 4层架构（原始数据→编辑→派生→UI）
-- **AI生成器模式**: 可扩展的AI能力（服务命名、架构图、数据修复建议）
+- **AI Hook 调用模式**: AI 能力通过 `AIArchitectureGenerationDialog/hooks/*` + `runAIStream` 提供
 - **向后兼容**: 自动数据迁移，路径映射
 - **完整TypeScript支持**: 类型安全
 
@@ -54,19 +71,25 @@ packages/excalidraw/components/AIArchitectureGeneration/
 import { createDefaultWorkflowEngine } from "./core/engine";
 const engine = createDefaultWorkflowEngine();
 
-// 使用AI生成器
-import { ServiceNamingGenerator } from "./ai/generators";
-const generator = new ServiceNamingGenerator(aiService);
-const result = await generator.generate({ hostname: "web-01", serviceName: "nginx" });
+// 使用 AI Hook（示例）
+import { useServiceNamingSuggestion } from "./hooks/useServiceNamingSuggestion";
+const { suggest } = useServiceNamingSuggestion();
+const result = await suggest({ hostname: "web-01", serviceName: "nginx" });
 
 // 使用状态管理
 import { useSourceData } from "./state";
 const { parsedCsv, setParsedCsv } = useSourceData();
 ```
 
-### 0.4 AI架构生成对话框（当前实现）
+### 0.4 架构助手统一入口（ArchitectureAssistant）
+`ArchitectureAssistant` 是当前 AI 功能的统一容器，通过顶部悬浮 Tab 在以下两个子模块间切换：
 
-当前 `AIArchitectureGenerationDialog` 已统一为 3 段主流程：
+1.  **画布优化 (ArchitectureOptimizationDialog)**: 针对已有架构图的分析、优化建议与方案生成。
+2.  **CSV 生成 (AIArchitectureGenerationDialog)**: 从 CMDB/Excel 数据源生成架构图。
+
+### 0.5 AI架构生成模块（CSV 生成）
+
+`AIArchitectureGenerationDialog` (CSV 生成模式) 已统一为 3 段主流程：
 
 1. `数据工作台（workspace）`
 2. `架构图视图（draft）`
