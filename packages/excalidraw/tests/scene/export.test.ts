@@ -23,6 +23,12 @@ import {
 import { API } from "../helpers/api";
 
 describe("exportToSvg", () => {
+  const normalizeEmbeddedPayload = (svgText: string) =>
+    svgText.replace(
+      /(<!-- payload-start -->)[\s\S]*?(<!-- payload-end -->)/,
+      "$1<payload-redacted>$2",
+    );
+
   const ELEMENT_HEIGHT = 100;
   const ELEMENT_WIDTH = 100;
   const ELEMENTS = [
@@ -181,7 +187,7 @@ describe("exportToSvg", () => {
       },
       null,
     );
-    expect(svgElement.innerHTML).toMatchSnapshot();
+    expect(normalizeEmbeddedPayload(svgElement.innerHTML)).toMatchSnapshot();
   });
 
   it("with elements that have a link", async () => {

@@ -3,13 +3,65 @@
 本文档用于描述 `ArchitectureOptimizationDialog` 的当前真实行为、数据模型、持久化策略与后续可执行迭代。
 
 - 文档状态：Active
-- 最后更新：2026-02-11
+- 最后更新：2026-02-13
 - 适用范围：
   - `packages/excalidraw/components/ArchitectureOptimizationDialog.tsx`
   - `packages/excalidraw/components/ArchitectureOptimizationDialog.scss`
+  - `packages/excalidraw/components/AIArchitectureGeneration/` (重构后的模块)
   - `packages/excalidraw/data/json.ts`
   - `packages/excalidraw/data/blob.ts`
   - `packages/excalidraw/data/types.ts`
+
+## 0. AI架构生成模块（重构完成）
+
+### 0.1 模块结构
+
+```
+packages/excalidraw/components/AIArchitectureGeneration/
+├── types/           # 统一类型定义
+├── core/            # 核心逻辑
+│   ├── data/        # CSV解析、数据标准化
+│   ├── engine/      # 工作流引擎
+│   ├── inference/   # 字段推断、服务分组
+│   └── validation/  # 问题检测
+├── state/           # 状态管理 (Jotai)
+│   ├── atoms/       # 基础状态
+│   ├── selectors/   # 派生状态
+│   └── persistence/ # 持久化与迁移
+├── ai/              # AI能力
+│   ├── generators/  # AI生成器
+│   └── prompts/     # 提示词模板
+├── compat/          # 向后兼容层
+├── ui/              # UI组件
+├── steps/           # 步骤组件
+└── utils/           # 工具函数
+```
+
+### 0.2 核心特性
+
+- **声明式工作流引擎**: 支持步骤验证、生命周期钩子、状态订阅
+- **分层状态管理**: 4层架构（原始数据→编辑→派生→UI）
+- **AI生成器模式**: 可扩展的AI能力（服务命名、架构图、数据修复建议）
+- **向后兼容**: 自动数据迁移，路径映射
+- **完整TypeScript支持**: 类型安全
+
+### 0.3 快速开始
+
+```typescript
+// 使用工作流引擎
+import { createDefaultWorkflowEngine } from "./core/engine";
+const engine = createDefaultWorkflowEngine();
+
+// 使用AI生成器
+import { ServiceNamingGenerator } from "./ai/generators";
+const generator = new ServiceNamingGenerator(aiService);
+const result = await generator.generate({ hostname: "web-01", serviceName: "nginx" });
+
+// 使用状态管理
+import { useSourceData } from "./state";
+const { parsedCsv, setParsedCsv } = useSourceData();
+```
+
 
 ---
 

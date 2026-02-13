@@ -1,10 +1,6 @@
 import { OpenAIIcon } from "@excalidraw/excalidraw/components/icons";
 import { MainMenu } from "@excalidraw/excalidraw/index";
-import React, { useState, useCallback } from "react";
-
-import { AISettingsDialog } from "@excalidraw/excalidraw/components/AISettingsDialog";
-import { ArchitectureOptimizationDialog } from "@excalidraw/excalidraw/components/ArchitectureOptimizationDialog";
-import { useExcalidrawElements } from "@excalidraw/excalidraw/components/App";
+import React from "react";
 
 import type { Theme } from "@excalidraw/element/types";
 
@@ -19,17 +15,10 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   setTheme: (theme: Theme | "system") => void;
   refresh: () => void;
+  onOpenAISettings: () => void;
+  onOpenArchitectureOptimization: () => void;
+  onOpenAIArchitectureGeneration: () => void;
 }> = React.memo((props) => {
-  const [showAISettings, setShowAISettings] = useState(false);
-  const [showArchitectureOptimization, setShowArchitectureOptimization] =
-    useState(false);
-  const elements = useExcalidrawElements();
-
-  const handleOpenAISettings = useCallback(() => {
-    setShowArchitectureOptimization(false);
-    setShowAISettings(true);
-  }, []);
-
   return (
     <>
       <MainMenu>
@@ -50,14 +39,17 @@ export const AppMainMenu: React.FC<{
         <MainMenu.Separator />
         <MainMenu.Item
           icon={OpenAIIcon}
-          onSelect={() => setShowArchitectureOptimization(true)}
+          onSelect={props.onOpenArchitectureOptimization}
         >
           AI架构助手
         </MainMenu.Item>
         <MainMenu.Item
           icon={OpenAIIcon}
-          onSelect={() => setShowAISettings(true)}
+          onSelect={props.onOpenAIArchitectureGeneration}
         >
+          AI架构生成
+        </MainMenu.Item>
+        <MainMenu.Item icon={OpenAIIcon} onSelect={props.onOpenAISettings}>
           AI Settings
         </MainMenu.Item>
         <MainMenu.Separator />
@@ -93,18 +85,6 @@ export const AppMainMenu: React.FC<{
           </MainMenu.Item>
         )}
       </MainMenu>
-
-      {showAISettings && (
-        <AISettingsDialog onClose={() => setShowAISettings(false)} />
-      )}
-
-      {showArchitectureOptimization && (
-        <ArchitectureOptimizationDialog
-          elements={elements}
-          onClose={() => setShowArchitectureOptimization(false)}
-          onOpenAISettings={handleOpenAISettings}
-        />
-      )}
     </>
   );
 });

@@ -47,6 +47,12 @@ Object.defineProperty(window, "TextDecoder", {
 });
 
 describe("export", () => {
+  const normalizeEmbeddedPayload = (svgText: string) =>
+    svgText.replace(
+      /(<!-- payload-start -->)[\s\S]*?(<!-- payload-end -->)/,
+      "$1<payload-redacted>$2",
+    );
+
   beforeEach(async () => {
     await render(<Excalidraw />);
   });
@@ -89,8 +95,14 @@ describe("export", () => {
       {},
     );
     const svgText = svg.outerHTML;
+    const decoded = JSON.parse(decodeSvgBase64Payload({ svg: svgText }));
 
-    expect(svgText).toMatchSnapshot(`svg-embdedded scene export output`);
+    expect(decoded.elements).toEqual([
+      expect.objectContaining({ type: "text", text: "😀" }),
+    ]);
+    expect(normalizeEmbeddedPayload(svgText)).toMatchSnapshot(
+      `svg-embdedded scene export output`,
+    );
   });
 
   it("import embedded png (legacy v1)", async () => {

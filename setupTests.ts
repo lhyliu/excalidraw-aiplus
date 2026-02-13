@@ -68,6 +68,36 @@ Object.defineProperty(window, "EXCALIDRAW_ASSET_PATH", {
   value: `file://${__dirname}/`,
 });
 
+// Node 25 may expose broken storage globals in test runtime.
+// Force deterministic in-memory Storage for tests.
+const createMemoryStorage = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+  };
+};
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: createMemoryStorage(),
+});
+
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  writable: true,
+  value: createMemoryStorage(),
+});
+
 // mock the font fetch only, so that everything else, as font subsetting, can run inside of the (snapshot) tests
 vi.mock(
   "./packages/excalidraw/fonts/ExcalidrawFontFace",
