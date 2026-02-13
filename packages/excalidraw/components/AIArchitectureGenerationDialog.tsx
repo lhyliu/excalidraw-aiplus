@@ -30,19 +30,12 @@ interface AIArchitectureGenerationDialogProps {
   onClose: () => void;
 }
 
-const stepOrder: GenerationStep[] = [
-  "import",
-  "mapping",
-  "issues",
-  "draft",
-  "calibrate",
-];
-
 const stepMeta: Record<GenerationStep, { label: string; hint: string }> = {
-  import: { label: "导入表格", hint: "导入 CSV 并快速预览" },
-  mapping: { label: "读懂表格", hint: "左侧实时表格 + 右侧引导修正" },
-  issues: { label: "待确认项", hint: "继续按任务卡批量修正" },
-  draft: { label: "初步架构图", hint: "先看到可用草稿，再决定是否精修" },
+  workspace: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
+  import: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
+  mapping: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
+  issues: { label: "数据工作台", hint: "导入数据并在同页完成校准修正" },
+  draft: { label: "架构图视图", hint: "按业务范围生成并确认架构图草稿" },
   calibrate: { label: "可信现状", hint: "完成质量门后标记为 confirmed" },
 };
 
@@ -67,23 +60,13 @@ export const AIArchitectureGenerationDialog: React.FC<
   }, []);
 
   useEffect(() => {
-    if (step === "advanced") {
+    if (step === "import" || step === "mapping" || step === "issues") {
       setSession((prev) => ({
         ...prev,
-        step: "issues",
+        step: "workspace",
       }));
     }
   }, [setSession, step]);
-
-  const currentIndex = useMemo(() => stepOrder.indexOf(step), [step]);
-
-  const goNext = useCallback(() => {
-    const nextStep = stepOrder[Math.min(currentIndex + 1, stepOrder.length - 1)];
-    setSession((prev) => ({
-      ...prev,
-      step: nextStep,
-    }));
-  }, [currentIndex, setSession]);
 
   const goDraft = useCallback(() => {
     setSession((prev) => ({
@@ -126,7 +109,7 @@ export const AIArchitectureGenerationDialog: React.FC<
       setStepNotice(null);
       setSession((prev) => ({
         ...prev,
-        step: nextStep === "advanced" ? "issues" : nextStep,
+        step: nextStep,
       }));
     },
     [setSession],
@@ -175,14 +158,12 @@ export const AIArchitectureGenerationDialog: React.FC<
   const stepBlockReasons = useMemo(() => {
     const reasons: Partial<Record<GenerationStep, string>> = {};
     if (!hasSourceData) {
-      reasons.mapping = "请先导入并解析 CSV";
-      reasons.issues = "请先导入并解析 CSV";
       reasons.draft = "请先导入并解析 CSV";
       reasons.calibrate = "请先导入并解析 CSV";
       return reasons;
     }
     if (!hasRequiredMapping) {
-      reasons.issues = "请先确认关键列：hostname、privateIp、serviceName";
+      reasons.draft = "请先确认关键列：hostname、privateIp、serviceName";
       reasons.calibrate = "请先确认关键列：hostname、privateIp、serviceName";
       return reasons;
     }
@@ -223,6 +204,7 @@ export const AIArchitectureGenerationDialog: React.FC<
         )}
 
         {(step === "import" ||
+          step === "workspace" ||
           step === "mapping" ||
           step === "issues" ||
           step === "draft" ||
@@ -239,27 +221,20 @@ export const AIArchitectureGenerationDialog: React.FC<
             canPreviewDraft={canPreviewDraft}
             stepBlockReasons={stepBlockReasons}
             onStepChange={requestStepChange}
-            showAiSummary={step !== "mapping" && step !== "issues"}
+            showAiSummary={step === "calibrate"}
           >
-            {step === "import" && (
-              <ImportStep onContinue={goNext} onGenerateDraft={goDraft} />
-            )}
-            {step === "mapping" && (
+            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+              !hasSourceData && (
+                <ImportStep onContinue={() => requestStepChange("workspace")} onGenerateDraft={goDraft} />
+              )}
+            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+              hasSourceData && (
               <GuidedWorkspaceStep
                 onContinueDraft={goDraft}
                 onOpenExpert={() => {
                   setExpertNotice(null);
                   setIsExpertOpen(true);
                 }}
-              />
-            )}
-            {step === "issues" && (
-              <GuidedWorkspaceStep
-                onOpenExpert={() => {
-                  setExpertNotice(null);
-                  setIsExpertOpen(true);
-                }}
-                onContinueDraft={goDraft}
               />
             )}
             {step === "draft" && (
@@ -272,16 +247,18 @@ export const AIArchitectureGenerationDialog: React.FC<
               />
             )}
             {step === "calibrate" && <CalibrateStep />}
-            {step === "issues" && isExpertOpen && (
+            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+              isExpertOpen && (
               <ExpertEditOverlay
                 onSave={() => {
                   setIsExpertOpen(false);
-                  setExpertNotice("专家模式编辑已保存，AI 校准视图已更新。");
+                  setExpertNotice("批量编辑工具已保存，校准工作台已更新。");
                 }}
                 onCancel={() => setIsExpertOpen(false)}
               />
             )}
-            {step === "issues" && expertNotice && (
+            {(step === "workspace" || step === "import" || step === "mapping" || step === "issues") &&
+              expertNotice && (
               <div className="ai-architecture-generation-dialog__success">
                 {expertNotice}
               </div>

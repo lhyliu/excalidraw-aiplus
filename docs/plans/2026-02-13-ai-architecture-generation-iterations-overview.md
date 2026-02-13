@@ -1,127 +1,101 @@
-# AI 架构生成 Iteration A-D 总览
+# AI 架构生成迭代总览（按当前实现更新）
 
-## 1. 范围与入口
+日期：2026-02-13  
+范围：`packages/excalidraw/components/AIArchitectureGeneration*`
 
-- 功能入口：
-  - 主菜单：`AI架构生成`
-  - 顶部按钮：`AI架构生成`
-- 入口挂载文件：
-  - `excalidraw-app/components/AppMainMenu.tsx`
-  - `excalidraw-app/App.tsx`
-- 主容器：
-  - `packages/excalidraw/components/AIArchitectureGenerationDialog.tsx`
+## 1. 入口与主容器
 
-## 2. 端到端流程（当前实现）
+1. 功能入口：
+- 主菜单 `AI架构生成`
+- 顶部按钮 `AI架构生成`
+2. 主容器：
+- `packages/excalidraw/components/AIArchitectureGenerationDialog.tsx`
 
-`import -> mapping -> issues -> advanced -> draft -> calibrate`
+## 2. 当前端到端流程
 
-- `import`：CSV 导入与解析
-- `mapping`：字段推断 + 字段映射 + aliasStore 记忆
-- `issues`：默认安全修正（Issues 卡片）
-- `advanced`：高级修正（单元格编辑、批量填充、多行忽略）
-- `draft`：服务分组预览 + VM 表格 + AI 命名建议入口
-- `calibrate`：任务驱动校准，阻塞任务完成后进入 `confirmed`
+当前已收敛为三段主流程：
 
-## 3. 数据流与状态流
+1. `数据工作台（workspace）`
+2. `架构图视图（draft）`
+3. `可信现状（calibrate）`
 
-核心数据层（Jotai + atomWithStorage）位于：
-- `packages/excalidraw/components/ArchitectureOptimizationDialog/importWorkflow/state.ts`
+说明：
 
-关键 atoms：
-- `importedCsvAtom`：原始 CSV 结构（headers + rows）
-- `fieldMappingAtom`：当前字段映射
-- `aliasStoreAtom`：字段别名记忆
-- `editsAtom`：表格/卡片修正覆盖
-- `ignoredRowsAtom`：忽略行
-- `normalizedVmRowsAtom`：标准化 VM 行（由 raw + mapping + edits + ignoredRows 派生）
-- `issuesAtom`：问题检测结果
-- `serviceGroupsAtom`：服务分组推断结果
-- `calibrationStateAtom`：校准任务清单与状态
-- `confidenceStateAtom`：`calibrating | confirmed`
-- `completedCalibrationTaskIdsAtom`：已完成校准任务持久化
+1. 历史步骤 `import / mapping / issues` 仅作兼容，不再作为独立导航步骤。
+2. 导入与修正在同一工作台完成（用户无需频繁切页）。
 
-对话框会话持久化（新增）：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/sessionState.ts`
-- 持久化字段：
-  - `step`
-  - `mode`
-  - `draftFilter`
-  - `namingSuggestions`
-
-状态推进逻辑：
-1. `importedCsvAtom` 更新后，触发推断与标准化链路。
-2. `mapping/edits/ignoredRows` 变更会重新计算 `normalizedVmRowsAtom`。
-3. `issuesAtom` 与 `serviceGroupsAtom` 共同生成校准任务。
-4. `markCalibrationTaskDoneAtom` 写入任务完成状态。
-5. 所有阻塞任务完成后 `confidenceStateAtom = confirmed`。
-
-## 4. Iteration 对应实现
-
-### Iteration A（数据与规则）
+## 3. 数据工作台（workspace）现状
 
 目录：
-- `packages/excalidraw/components/ArchitectureOptimizationDialog/importWorkflow/`
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/GuidedWorkspaceStep.tsx`
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/ExpertEditOverlay.tsx`
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/SharedAgGrid.tsx`
 
 能力：
-- `parseCsv`
-- `inferFields`
-- `buildInitialFieldMapping` / `validateFieldMapping`
-- `normalizeVmRows`
-- `detectIssues`
-- `inferServiceGroups`
-- `buildCalibrationState`
 
-### Iteration B（导入与修正 UI）
+1. AG Grid 原生编辑、原生选择、分页浏览。
+2. `服务名称（组件用途）` 表头内置 `AI识别` 按钮（批量补服务名）。
+3. 空服务名支持行级 `AI识别` 入口。
+4. 问题按类型聚合并在右侧抽屉引导修正。
+5. 批量编辑为 Overlay 工具，不再单独步骤页。
 
-目录：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/`
-
-能力：
-- `ImportStep.tsx`
-- `FieldMappingStep.tsx`
-- `IssuesStep.tsx`
-- `AdvancedTableStep.tsx`
-
-### Iteration C（draft 与 AI 命名建议）
+## 4. 架构图视图（draft）现状
 
 目录：
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/DraftStep.tsx`
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useBusinessScopeSuggestion.ts`
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useBusinessArchitectureSuggestion.ts`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useServiceNamingSuggestion.ts`
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/prompt/serviceNamingPrompt.ts`
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/utils/draftProjection.ts`
 
-LLM 约束：
-- 仅复用 `packages/excalidraw/services/aiService.ts` 的 `runAIStream`
-- 命名建议不会自动写入事实，需用户手动“应用”
+能力：
 
-### Iteration D（calibrate 与 confirmed）
+1. 每次只处理一个业务范围（先选范围再生成）。
+2. 业务范围优先使用 LLM 识别，失败回退本地分组策略。
+3. 支持 AI 分层建议 + 人工拖拽调整。
+4. 按业务范围生成架构图草稿（Mermaid）。
+
+## 5. 可信现状（calibrate）现状
 
 目录：
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/CalibrateStep.tsx`
-- `packages/excalidraw/components/ArchitectureOptimizationDialog/importWorkflow/state.ts`
 
 能力：
-- 任务驱动校准
-- 阻塞任务完成后自动标记 `confirmed`
 
-## 5. 当前测试覆盖
+1. 基于校准任务的质量门控制。
+2. 仅满足门槛后才可标记 `confirmed`。
 
-已覆盖目录：
-- `packages/excalidraw/components/ArchitectureOptimizationDialog/importWorkflow/*.test.ts`
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/**/*.test.ts?(x)`
+## 6. 状态与持久化
 
-已验证命令：
-- `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog`
-- `yarn vitest --run packages/excalidraw/components/ArchitectureOptimizationDialog/importWorkflow packages/excalidraw/components/AIArchitectureGenerationDialog`
+核心模块：
+- `packages/excalidraw/components/AIArchitectureGeneration/state/*`
 
-## 6. 联调检查清单
+关键点：
 
-1. 从主菜单和顶部按钮都能打开 `AI架构生成`。
-2. 导入 CSV 后可自动推断字段；映射保存后 aliasStore 记忆生效。
-3. Issues 修复与 Advanced 编辑能正确写入 `editsAtom`。
-4. `ignoredRows` 生效后，标准化行和问题列表同步变化。
-5. Draft 中 AI 命名建议需手动应用，应用后仅写编辑覆盖。
-6. Calibrate 中完成全部阻塞任务后显示 `confirmed`。
+1. 保留原始 CSV（raw 数据）
+2. 支持 `edits` 覆盖
+3. 支持 `ignoredRows`
+4. 支持 `aliasStore` 列名记忆
+5. Dialog 会话状态持久化：
+- `packages/excalidraw/components/AIArchitectureGenerationDialog/sessionState.ts`
 
-联调执行记录：
-- `docs/plans/2026-02-13-ai-architecture-generation-checklist-execution.md`
+## 7. LLM 使用边界（当前）
+
+仅用于“建议”而非“事实自动落库”：
+
+1. 字段识别建议
+2. 服务命名/服务语义建议
+3. 业务范围建议
+4. 业务分层与架构图建议
+
+统一复用仓库既有 AI 调用能力，不引入新 AI SDK。
+
+## 8. 当前验证命令
+
+建议最少回归：
+
+1. `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/GuidedWorkspaceStep.test.tsx packages/excalidraw/components/AIArchitectureGenerationDialog/ExpertEditOverlay.test.tsx`
+2. `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/ImportStep.test.tsx packages/excalidraw/components/AIArchitectureGenerationDialog/DraftStep.test.tsx`
+
+如需扩展回归：
+
+1. `yarn test:architecture`

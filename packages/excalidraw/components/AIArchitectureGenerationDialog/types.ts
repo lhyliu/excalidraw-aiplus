@@ -1,8 +1,8 @@
 export type GenerationStep =
+  | "workspace"
   | "import"
   | "mapping"
   | "issues"
-  | "advanced"
   | "draft"
   | "calibrate";
 

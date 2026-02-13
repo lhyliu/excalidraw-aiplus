@@ -15,27 +15,24 @@ interface CalibrationStepperProps {
 }
 
 const steps: Array<{ label: string; step: GenerationStep }> = [
-  { label: "导入表格", step: "import" },
-  { label: "读懂表格", step: "mapping" },
-  { label: "待确认项", step: "issues" },
-  { label: "初步架构图", step: "draft" },
+  { label: "数据工作台", step: "workspace" },
+  { label: "架构图视图", step: "draft" },
   { label: "可信现状", step: "calibrate" },
 ];
 
 const indexFromStep = (step: GenerationStep): number => {
-  if (step === "import") {
+  if (
+    step === "workspace" ||
+    step === "import" ||
+    step === "mapping" ||
+    step === "issues"
+  ) {
     return 0;
   }
-  if (step === "mapping") {
+  if (step === "draft") {
     return 1;
   }
-  if (step === "issues" || step === "advanced") {
-    return 2;
-  }
-  if (step === "draft") {
-    return 3;
-  }
-  return 4;
+  return 2;
 };
 
 export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
@@ -57,13 +54,20 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
         ? "初稿"
         : "校准中";
   const stepState = (itemStep: GenerationStep): "done" | "warning" | "error" | "active" => {
-    if (itemStep === step || (step === "advanced" && itemStep === "issues")) {
+    if (
+      (itemStep === "workspace" &&
+        (step === "workspace" ||
+          step === "import" ||
+          step === "mapping" ||
+          step === "issues")) ||
+      itemStep === step
+    ) {
       return "active";
     }
-    if (itemStep === "mapping" && mappingWarningCount > 0) {
+    if (itemStep === "workspace" && mappingWarningCount > 0) {
       return "warning";
     }
-    if (itemStep === "issues" && pendingIssueCount > 0) {
+    if (itemStep === "workspace" && pendingIssueCount > 0) {
       return "error";
     }
     if (itemStep === "calibrate" && archDocStatus !== "confirmed") {
@@ -92,7 +96,7 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
             title={!canPreviewDraft ? "请先导入数据" : undefined}
             onClick={() => onStepChange("draft")}
           >
-            先看初步架构图
+            进入架构图视图
           </button>
         </div>
         <ol className="ai-architecture-generation-dialog__stepper ai-architecture-generation-dialog__stepper--compact">
@@ -118,12 +122,12 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
                   )}`}
                 />
                 {item.label}
-                {item.step === "mapping" && mappingWarningCount > 0 && (
+                {item.step === "workspace" && mappingWarningCount > 0 && (
                   <span className="ai-architecture-generation-dialog__step-badge">
                     {mappingWarningCount}
                   </span>
                 )}
-                {item.step === "issues" && pendingIssueCount > 0 && (
+                {item.step === "workspace" && pendingIssueCount > 0 && (
                   <span className="ai-architecture-generation-dialog__step-badge is-danger">
                     {pendingIssueCount}
                   </span>
@@ -168,12 +172,12 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
                 )}`}
               />
               {item.label}
-              {item.step === "mapping" && mappingWarningCount > 0 && (
+              {item.step === "workspace" && mappingWarningCount > 0 && (
                 <span className="ai-architecture-generation-dialog__step-badge">
                   {mappingWarningCount}
                 </span>
               )}
-              {item.step === "issues" && pendingIssueCount > 0 && (
+              {item.step === "workspace" && pendingIssueCount > 0 && (
                 <span className="ai-architecture-generation-dialog__step-badge is-danger">
                   {pendingIssueCount}
                 </span>
@@ -191,7 +195,7 @@ export const CalibrationStepper: React.FC<CalibrationStepperProps> = ({
         title={!canPreviewDraft ? "请先导入数据" : undefined}
         onClick={() => onStepChange("draft")}
       >
-        先看初步架构图（AI 自动补全剩余信息）
+        进入架构图视图（AI 自动补全剩余信息）
       </button>
     </aside>
   );

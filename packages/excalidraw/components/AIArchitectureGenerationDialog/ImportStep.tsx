@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import type { ColDef } from "ag-grid-community";
 
 import { useAtom } from "../../editor-jotai";
 import {
@@ -8,6 +9,7 @@ import {
   parseCsv,
 } from "../AIArchitectureGeneration";
 import type { StandardField } from "../AIArchitectureGeneration";
+import { SharedAgGrid } from "./SharedAgGrid";
 
 interface ImportStepProps {
   onContinue: () => void;
@@ -44,6 +46,36 @@ export const ImportStep: React.FC<ImportStepProps> = ({
     }
     return parsed.headers.slice(0, 6);
   }, [onlyKeyColumns, parsed.headers]);
+  const previewRowData = useMemo(
+    () =>
+      previewRows.map((row) => ({
+        rowId: row.rowId,
+        ...Object.fromEntries(
+          previewHeaders.map((header) => [header, row.values[header] ?? ""]),
+        ),
+      })),
+    [previewHeaders, previewRows],
+  );
+  const previewColDefs = useMemo<ColDef<Record<string, string | number>>[]>(
+    () => [
+      {
+        headerName: "rowId",
+        field: "rowId",
+        width: 90,
+        minWidth: 90,
+        maxWidth: 110,
+        suppressMovable: true,
+      },
+      ...previewHeaders.map((header) => ({
+        headerName: header,
+        field: header,
+        minWidth: 150,
+        flex: 1,
+        suppressMovable: true,
+      })),
+    ],
+    [previewHeaders],
+  );
   const handleParse = useCallback(() => {
     let result;
     try {
@@ -113,7 +145,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
           清空
         </button>
         <button type="button" onClick={onContinue} disabled={!hasData}>
-          继续读懂表格
+          进入数据工作台
         </button>
         <button type="button" onClick={onGenerateDraft} disabled={!hasData}>
           一键生成初稿
@@ -138,26 +170,12 @@ export const ImportStep: React.FC<ImportStepProps> = ({
             </label>
           </div>
           <div className="ai-architecture-generation-dialog__table-wrap">
-            <table className="ai-architecture-generation-dialog__table">
-              <thead>
-                <tr>
-                  <th>rowId</th>
-                  {previewHeaders.map((header) => (
-                    <th key={header}>{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.map((row) => (
-                  <tr key={row.rowId}>
-                    <td>{row.rowId}</td>
-                    {previewHeaders.map((header) => (
-                      <td key={`${row.rowId}:${header}`}>{row.values[header] ?? ""}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <SharedAgGrid<Record<string, string | number>>
+              rowData={previewRowData}
+              columnDefs={previewColDefs}
+              rowHeight={36}
+              headerHeight={36}
+            />
           </div>
         </>
       )}

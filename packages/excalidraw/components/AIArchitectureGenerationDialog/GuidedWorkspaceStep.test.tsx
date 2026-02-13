@@ -58,18 +58,21 @@ describe("GuidedWorkspaceStep", () => {
     });
     editorJotaiStore.set(editsAtom, {});
 
-    render(
+    const { container } = render(
       <EditorJotaiProvider store={editorJotaiStore}>
         <GuidedWorkspaceStep onContinueDraft={() => {}} onOpenExpert={() => {}} />
       </EditorJotaiProvider>,
     );
 
     expect(screen.getByText("实时校准工作台")).toBeInTheDocument();
-    expect(screen.getAllByText("主机名").length).toBeGreaterThan(0);
+    expect(screen.getByText(/主机名/)).toBeInTheDocument();
     expect(screen.getByText("AI 引导修正")).toBeInTheDocument();
-    expect(screen.getByText(/当前有 1 类待确认项/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开引导" })).toBeInTheDocument();
+    expect(
+      container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开AI引导" }));
+    fireEvent.click(screen.getByRole("button", { name: "展开引导" }));
     fireEvent.change(screen.getByLabelText("待确认值"), {
       target: { value: "production" },
     });
@@ -159,8 +162,8 @@ describe("GuidedWorkspaceStep", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI识别服务名称 row 9" }));
 
     await screen.findByText(/已应用 AI 单条识别/);
-    const updatedInput = screen.getByDisplayValue("OMS数据库");
-    expect(updatedInput.closest("td")).toHaveClass(
+    const updatedCellValue = screen.getByText("OMS数据库");
+    expect(updatedCellValue.closest(".ag-cell") ?? updatedCellValue.closest("td")).toHaveClass(
       "ai-architecture-generation-dialog__cell-ai-updated",
     );
     const edits = editorJotaiStore.get(editsAtom);

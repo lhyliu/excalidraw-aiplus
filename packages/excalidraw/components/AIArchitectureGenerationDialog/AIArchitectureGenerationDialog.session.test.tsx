@@ -49,7 +49,7 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
   it("allows navigating by clicking left stepper items", () => {
     const session: AIArchitectureGenerationSessionState = {
-      step: "issues",
+      step: "workspace",
       mode: "safe",
       draftFilter: "",
       namingSuggestions: {},
@@ -73,13 +73,13 @@ describe("AIArchitectureGenerationDialog session restore", () => {
       </EditorJotaiProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "导入表格" }));
-    expect(screen.getByText("CSV 导入")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /数据工作台/ }));
+    expect(screen.getByText("实时校准工作台")).toBeInTheDocument();
   });
 
   it("blocks calibrate step navigation when required mapping is missing", () => {
     const session: AIArchitectureGenerationSessionState = {
-      step: "mapping",
+      step: "workspace",
       mode: "safe",
       draftFilter: "",
       namingSuggestions: {},
@@ -113,7 +113,7 @@ describe("AIArchitectureGenerationDialog session restore", () => {
 
   it("allows entering calibrate step after required mapping is provided", () => {
     const session: AIArchitectureGenerationSessionState = {
-      step: "mapping",
+      step: "workspace",
       mode: "safe",
       draftFilter: "",
       namingSuggestions: {},

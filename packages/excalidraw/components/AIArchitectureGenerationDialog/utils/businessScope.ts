@@ -18,19 +18,6 @@ const normalizeScopeName = (serviceName: string): string => {
     return "未分类业务";
   }
 
-  const presets: Array<{ match: RegExp; scope: string }> = [
-    { match: /(oms|order|订单)/i, scope: "订单业务" },
-    { match: /(pay|payment|billing|支付)/i, scope: "支付业务" },
-    { match: /(inventory|stock|仓储|库存)/i, scope: "库存业务" },
-    { match: /(crm|customer|客户)/i, scope: "客户业务" },
-    { match: /(monitor|alert|ops|运维)/i, scope: "运维平台" },
-  ];
-
-  const preset = presets.find((item) => item.match.test(raw));
-  if (preset) {
-    return preset.scope;
-  }
-
   const firstToken = raw.split(/[\\/\s|:_-]+/).find(Boolean);
   return firstToken ? firstToken : raw;
 };
@@ -88,3 +75,93 @@ export const projectBusinessScopes = (
   return Array.from(scopes.values()).sort((a, b) => b.vmCount - a.vmCount);
 };
 
+export interface BusinessScopeAssignment {
+  name: string;
+  groupIds: string[];
+}
+
+export const projectBusinessScopesByAssignments = (
+  assignments: BusinessScopeAssignment[],
+  groups: ServiceGroup[],
+  rows: NormalizedVmRow[],
+): BusinessScopeView[] => {
+  const rowById = new Map(rows.map((row) => [row.rowId, row]));
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const scopes = new Map<string, BusinessScopeView>();
+
+  assignments.forEach((assignment, index) => {
+    const scopeName = assignment.name.trim() || `业务范围${index + 1}`;
+    const scopeId = `scope:${scopeName}`;
+    const existing =
+      scopes.get(scopeId) ??
+      ({
+        id: scopeId,
+        name: scopeName,
+        groupIds: [],
+        rowIds: [],
+        vmCount: 0,
+        appTypeStats: {},
+      } as BusinessScopeView);
+    assignment.groupIds.forEach((groupId) => {
+      const group = groupById.get(groupId);
+      if (!group) {
+        return;
+      }
+      if (!existing.groupIds.includes(group.id)) {
+        existing.groupIds.push(group.id);
+      }
+      group.rowIds.forEach((rowId) => {
+        if (!existing.rowIds.includes(rowId)) {
+          existing.rowIds.push(rowId);
+        }
+        const row = rowById.get(rowId);
+        if (row) {
+          const appType = inferAppType(row.vm.serviceName, row.vm.hostname);
+          existing.appTypeStats[appType] = (existing.appTypeStats[appType] ?? 0) + 1;
+        }
+      });
+    });
+    existing.vmCount = existing.rowIds.length;
+    scopes.set(scopeId, existing);
+  });
+
+  const scopedGroupIds = new Set(
+    Array.from(scopes.values()).flatMap((scope) => scope.groupIds),
+  );
+  const unscopedGroups = groups.filter((group) => !scopedGroupIds.has(group.id));
+  if (unscopedGroups.length > 0) {
+    const fallbackScopeId = "scope:未分类业务";
+    const fallbackScope =
+      scopes.get(fallbackScopeId) ??
+      ({
+        id: fallbackScopeId,
+        name: "未分类业务",
+        groupIds: [],
+        rowIds: [],
+        vmCount: 0,
+        appTypeStats: {},
+      } as BusinessScopeView);
+    unscopedGroups.forEach((group) => {
+      if (!fallbackScope.groupIds.includes(group.id)) {
+        fallbackScope.groupIds.push(group.id);
+      }
+      group.rowIds.forEach((rowId) => {
+        if (!fallbackScope.rowIds.includes(rowId)) {
+          fallbackScope.rowIds.push(rowId);
+        }
+        const row = rowById.get(rowId);
+        if (row) {
+          const appType = inferAppType(row.vm.serviceName, row.vm.hostname);
+          fallbackScope.appTypeStats[appType] =
+            (fallbackScope.appTypeStats[appType] ?? 0) + 1;
+        }
+      });
+    });
+    fallbackScope.vmCount = fallbackScope.rowIds.length;
+    scopes.set(fallbackScopeId, fallbackScope);
+  }
+
+  return Array.from(scopes.values())
+    .filter((scope) => scope.rowIds.length > 0)
+    .sort((a, b) => b.vmCount - a.vmCount);
+};

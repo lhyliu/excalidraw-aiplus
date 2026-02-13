@@ -8,6 +8,8 @@
   - `packages/excalidraw/components/ArchitectureOptimizationDialog.tsx`
   - `packages/excalidraw/components/ArchitectureOptimizationDialog.scss`
   - `packages/excalidraw/components/AIArchitectureGeneration/` (重构后的模块)
+  - `packages/excalidraw/components/AIArchitectureGenerationDialog.tsx`
+  - `packages/excalidraw/components/AIArchitectureGenerationDialog/*`
   - `packages/excalidraw/data/json.ts`
   - `packages/excalidraw/data/blob.ts`
   - `packages/excalidraw/data/types.ts`
@@ -61,6 +63,46 @@ const result = await generator.generate({ hostname: "web-01", serviceName: "ngin
 import { useSourceData } from "./state";
 const { parsedCsv, setParsedCsv } = useSourceData();
 ```
+
+### 0.4 AI架构生成对话框（当前实现）
+
+当前 `AIArchitectureGenerationDialog` 已统一为 3 段主流程：
+
+1. `数据工作台（workspace）`
+2. `架构图视图（draft）`
+3. `可信现状（calibrate）`
+
+其中历史步骤 `import / mapping / issues` 仍被兼容，但会自动合并到 `workspace`。
+
+#### 数据工作台（workspace）
+
+1. 中心区域为 AG Grid 原生表格（`SharedAgGrid` 统一封装），支持原生单元格编辑与分页。
+2. `服务名称（组件用途）` 列表头内置 `AI识别` 小按钮，可批量填充缺失的服务用途。
+3. 空服务名行保留按行触发入口（`Row x AI识别`），用于单条补录。
+4. 右侧改为浮层抽屉式“AI 引导修正”，收起态只有一个入口，避免占用表格主体空间。
+5. 批量编辑能力收敛为单一 Overlay（Table Tools），不再单独占步骤页签。
+
+#### 架构图视图（draft）
+
+1. 每次只处理一个业务范围。
+2. 业务范围优先由 LLM 推断（失败时回退本地分组策略）。
+3. 可请求 AI 业务分层建议并手工拖拽调整后再生成该业务架构草图。
+
+#### 可信现状（calibrate）
+
+1. 继续沿用任务门禁与 `confirmed` 状态控制。
+2. 未满足关键门槛时，不允许误标记为可信现状。
+
+#### LLM 调用约束（当前）
+
+仅复用仓库既有 AI 服务与流式调用，能力集中在“建议”而非“事实落库”：
+
+1. 字段识别建议（列名理解）
+2. 服务命名/服务语义建议
+3. 业务范围建议
+4. 业务分层与架构草图建议
+
+AI 输出不会直接写入最终事实，必须经过用户确认或显式应用。
 
 
 ---

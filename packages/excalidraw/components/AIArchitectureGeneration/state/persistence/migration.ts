@@ -48,10 +48,10 @@ export function detectVersion(data: unknown): number {
 /** 从v1迁移到v2 */
 function migrateV1ToV2(oldData: OldSessionStateV1): AIArchitectureGenerationSessionState {
   // 验证必要字段
-  const validSteps = ["import", "mapping", "issues", "draft", "calibrate"];
-  const step = validSteps.includes(oldData.step) 
-    ? (oldData.step as AIArchitectureGenerationSessionState["step"])
-    : "import";
+  const validSteps = ["workspace", "import", "mapping", "issues", "draft", "calibrate"];
+  const legacyToWorkspace = new Set(["import", "mapping", "issues"]);
+  const rawStep = validSteps.includes(oldData.step) ? oldData.step : "workspace";
+  const step = (legacyToWorkspace.has(rawStep) ? "workspace" : rawStep) as AIArchitectureGenerationSessionState["step"];
     
   const validModes = ["safe", "advanced"];
   const mode = validModes.includes(oldData.mode)

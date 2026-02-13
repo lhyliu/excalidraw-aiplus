@@ -28,4 +28,24 @@ describe("ImportStep", () => {
     expect(onGenerateDraft).toHaveBeenCalledTimes(1);
     expect(onContinue).not.toHaveBeenCalled();
   });
+
+  it("renders ag-grid preview after csv parse", () => {
+    editorJotaiStore.set(importedCsvAtom, { headers: [], rows: [] });
+
+    const { container } = render(
+      <EditorJotaiProvider store={editorJotaiStore}>
+        <ImportStep onContinue={() => {}} onGenerateDraft={() => {}} />
+      </EditorJotaiProvider>,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Host,IP\nweb-01,10.0.0.1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "解析 CSV" }));
+
+    expect(
+      container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".ag-root-wrapper")).toBeInTheDocument();
+  });
 });

@@ -353,6 +353,32 @@
     align-items: center;
   }
 
+  .ai-architecture-generation-dialog__table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.35rem 0.1rem;
+  }
+
+  .ai-architecture-generation-dialog__toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .ai-architecture-generation-dialog__toolbar-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+
   .ai-architecture-generation-dialog__task-flow {
     display: flex;
     flex-direction: column;
@@ -442,6 +468,42 @@
     overflow: auto;
     border: 1px solid var(--color-border-outline-variant);
     border-radius: 0.5rem;
+    background: var(--color-surface-high);
+  }
+
+  .ai-architecture-generation-dialog__ag-grid {
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+    font-size: 0.8125rem;
+
+    --ag-font-size: 13px;
+    --ag-border-color: color-mix(in srgb, var(--color-border-outline-variant) 92%, #000 8%);
+    --ag-row-border-color: color-mix(in srgb, var(--color-border-outline-variant) 84%, #000 16%);
+    --ag-header-background-color: color-mix(in srgb, var(--color-surface-low) 86%, #000 14%);
+    --ag-odd-row-background-color: color-mix(in srgb, var(--color-surface-low) 96%, transparent);
+    --ag-row-hover-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    --ag-selected-row-background-color: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    --ag-cell-horizontal-padding: 10px;
+    --ag-header-height: 36px;
+    --ag-row-height: 38px;
+
+    .ag-root-wrapper {
+      border: none;
+      border-radius: 0;
+    }
+
+    .ag-header-cell-label {
+      font-weight: 600;
+    }
+
+    .ag-cell {
+      line-height: 1.35;
+    }
+  }
+
+  .ai-architecture-generation-dialog__ag-grid--overlay {
+    height: min(60vh, 620px);
   }
 
   .ai-architecture-generation-dialog__table {
@@ -471,16 +533,49 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+
+    .ai-architecture-generation-dialog__table-ai-btn {
+      height: 1.25rem;
+      padding: 0 0.35rem;
+      border-radius: 0.3rem;
+      border: 1px solid var(--color-border-outline-variant);
+      background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+      color: var(--color-on-surface);
+      font-size: 0.6875rem;
+      line-height: 1;
+      cursor: pointer;
+      white-space: nowrap;
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+    }
   }
 
-  .ai-architecture-generation-dialog__table-ai-btn {
-    font-size: 0.65rem;
-    line-height: 1;
-    padding: 0.15rem 0.3rem;
-    border-radius: 0.3rem;
+  .ai-architecture-generation-dialog__table-ai-fallback {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .ai-architecture-generation-dialog__btn-primary,
+  .ai-architecture-generation-dialog__btn-secondary,
+  .ai-architecture-generation-dialog__btn-ghost {
+    height: 1.9rem;
+    padding: 0 0.55rem;
+    border-radius: 0.375rem;
     border: 1px solid var(--color-border-outline-variant);
-    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    background: var(--color-surface-low);
     color: var(--color-on-surface);
+    font-size: 0.75rem;
     cursor: pointer;
     white-space: nowrap;
 
@@ -488,6 +583,20 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+  }
+
+  .ai-architecture-generation-dialog__btn-primary {
+    border-color: color-mix(in srgb, var(--color-primary) 56%, #000 44%);
+    background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+    font-weight: 600;
+  }
+
+  .ai-architecture-generation-dialog__btn-secondary {
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+
+  .ai-architecture-generation-dialog__btn-ghost {
+    background: transparent;
   }
 
   .ai-architecture-generation-dialog__cell-editor {
@@ -526,18 +635,12 @@
   }
 
   .ai-architecture-generation-dialog__workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 2.1fr) minmax(280px, 0.9fr);
+    position: relative;
+    display: block;
     gap: 0.625rem;
-    align-items: start;
-
-    &.is-guide-collapsed {
-      grid-template-columns: minmax(0, 1fr) 240px;
-    }
   }
 
-  .ai-architecture-generation-dialog__workspace-table,
-  .ai-architecture-generation-dialog__workspace-guide {
+  .ai-architecture-generation-dialog__workspace-table {
     border: 1px solid var(--color-border-outline-variant);
     border-radius: 0.5rem;
     padding: 0.5rem;
@@ -549,8 +652,78 @@
   }
 
   .ai-architecture-generation-dialog__workspace-guide {
-    max-height: 62vh;
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: min(380px, calc(100% - 1rem));
+    max-height: calc(100% - 1rem);
     overflow: auto;
+    border: 1px solid var(--color-border-outline-variant);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    background: color-mix(in srgb, var(--color-surface-low) 96%, #000 4%);
+    backdrop-filter: blur(2px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    z-index: 2;
+
+    &.is-collapsed {
+      width: 112px;
+      padding: 0.4rem;
+      gap: 0.35rem;
+      align-items: stretch;
+
+      h4 {
+        display: none;
+      }
+    }
+  }
+
+  .ai-architecture-generation-dialog__guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+
+    h4 {
+      margin: 0;
+    }
+  }
+
+  .ai-architecture-generation-dialog__guide-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .ai-architecture-generation-dialog__guide-rail-count {
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #b45309;
+    background: #f59e0b1f;
+    border: 1px solid #f59e0b66;
+  }
+
+  .ai-architecture-generation-dialog__issue-card--compact {
+    padding: 0.45rem;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+
+    button {
+      width: 100%;
+      min-height: 1.8rem;
+      border-radius: 0.375rem;
+    }
   }
 
   .ai-architecture-generation-dialog__cell-has-issue {
@@ -561,6 +734,68 @@
     background: #22c55e24;
     box-shadow: inset 0 0 0 1px #22c55e66;
     animation: ai-architecture-generation-cell-flash 0.9s ease;
+  }
+
+  .ai-architecture-generation-dialog__drag-chip {
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.3rem;
+    border: 1px dashed var(--color-border-outline-variant);
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    cursor: grab;
+  }
+
+  .ai-architecture-generation-dialog__layer-board {
+    display: grid;
+    gap: 0.625rem;
+  }
+
+  .ai-architecture-generation-dialog__layer-lane {
+    border: 1px solid var(--color-border-outline-variant);
+    border-radius: 0.5rem;
+    padding: 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--color-surface-low);
+  }
+
+  .ai-architecture-generation-dialog__layer-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-items: end;
+    flex-wrap: wrap;
+  }
+
+  .ai-architecture-generation-dialog__layer-dropzone {
+    min-height: 3.25rem;
+    border: 1px dashed var(--color-border-outline-variant);
+    border-radius: 0.5rem;
+    padding: 0.45rem;
+    display: flex;
+    align-items: center;
+    background: color-mix(in srgb, var(--color-surface-low) 70%, transparent);
+  }
+
+  .ai-architecture-generation-dialog__layer-assets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .ai-architecture-generation-dialog__layer-asset-chip {
+    border: 1px solid var(--color-border-outline-variant);
+    border-radius: 999px;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.7rem;
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+
+  .ai-architecture-generation-dialog__layer-dropzone[data-drop-active="true"] {
+    outline: 1px dashed var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
   }
 
   @keyframes ai-architecture-generation-cell-flash {
@@ -671,7 +906,20 @@
 
   @media (max-width: 1100px) {
     .ai-architecture-generation-dialog__workspace {
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+    }
+
+    .ai-architecture-generation-dialog__workspace-guide {
+      position: static;
+      width: 100%;
+      max-height: none;
+      box-shadow: none;
+
+      &.is-collapsed {
+        width: 100%;
+      }
     }
   }
 
@@ -680,7 +928,7 @@
       min-height: 420px;
     }
     .ai-architecture-generation-dialog__workspace-guide {
-      max-height: 52vh;
+      max-height: min(52vh, calc(100% - 1rem));
     }
   }
 }

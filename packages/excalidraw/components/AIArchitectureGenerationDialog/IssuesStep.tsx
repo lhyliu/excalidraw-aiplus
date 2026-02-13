@@ -241,7 +241,7 @@ export const IssuesStep: React.FC<IssuesStepProps> = ({
       setNotice(
         appliedCount > 0
           ? `已批量应用: ${group.title} (${appliedCount} 项)`
-          : `当前分组缺少可自动应用的建议，请切换专家模式处理。`,
+          : `当前分组缺少可自动应用的建议，请使用批量编辑工具处理。`,
       );
     },
     [getIssueSuggestion, groupDraftValues, setEdits],
@@ -285,7 +285,7 @@ export const IssuesStep: React.FC<IssuesStepProps> = ({
         })),
       );
       if (!suggestion) {
-        setNotice("未生成到可靠 AI 建议，请手动输入或切换专家模式。");
+        setNotice("未生成到可靠 AI 建议，请手动输入或使用批量编辑工具。");
         return;
       }
       setGroupDraftValues((prev) => ({
@@ -304,14 +304,14 @@ export const IssuesStep: React.FC<IssuesStepProps> = ({
       <p>优先按类型批量确认；仅在必要时再进入表格模式精修。</p>
       <section className="ai-architecture-generation-dialog__mode-hints">
         <article className="ai-architecture-generation-dialog__mode-card is-safe">
-          <strong>模式切换：向导模式</strong>
+          <strong>常规引导</strong>
           <div>适合快速确认，系统按问题类型给出批量建议。</div>
         </article>
         <article className="ai-architecture-generation-dialog__mode-card is-expert">
-          <strong>模式切换：表格模式</strong>
+          <strong>批量编辑工具</strong>
           <div>适合批量编辑复杂数据，支持批量填充与多行忽略。</div>
           <button type="button" onClick={onOpenExpert}>
-            打开专家模式（批量编辑）
+            打开批量编辑工具
           </button>
         </article>
       </section>

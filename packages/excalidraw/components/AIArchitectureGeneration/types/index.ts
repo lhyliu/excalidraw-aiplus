@@ -23,6 +23,7 @@ export type StandardField = (typeof STANDARD_FIELDS)[number];
 
 /** 生成步骤 */
 export type GenerationStep =
+  | "workspace"
   | "import"
   | "mapping"
   | "issues"
@@ -263,7 +264,7 @@ export interface AIArchitectureGenerationSessionState {
 
 /** 默认会话状态 */
 export const DEFAULT_SESSION_STATE: AIArchitectureGenerationSessionState = {
-  step: "import",
+  step: "workspace",
   mode: "safe",
   draftFilter: "",
   namingSuggestions: {},

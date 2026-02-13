@@ -1,17 +1,30 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 
 import { useAtom, useAtomValue } from "../../editor-jotai";
 import {
   editsAtom,
   normalizedVmRowsAtom,
-  quickGenerateDiagram,
   serviceGroupsAtom,
 } from "../AIArchitectureGeneration";
 import type { ServiceGroup } from "../AIArchitectureGeneration";
 
+import type { BusinessArchitectureSuggestion } from "./prompt/businessArchitecturePrompt";
+import { useBusinessArchitectureSuggestion } from "./hooks/useBusinessArchitectureSuggestion";
+import { useBusinessScopeSuggestion } from "./hooks/useBusinessScopeSuggestion";
 import { useServiceNamingSuggestion } from "./hooks/useServiceNamingSuggestion";
-import { projectBusinessScopes } from "./utils/businessScope";
+import { SharedAgGrid } from "./SharedAgGrid";
+import {
+  projectBusinessScopes,
+  projectBusinessScopesByAssignments,
+} from "./utils/businessScope";
 import { projectDraftGroups } from "./utils/draftProjection";
+
+const parseRowIdsInput = (raw: string): number[] =>
+  raw
+    .split(/[,\s，]+/)
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value));
 
 interface DraftStepProps {
   onContinueCalibrate: () => void;
@@ -20,6 +33,14 @@ interface DraftStepProps {
   suggestions: Record<string, string[]>;
   onSuggestionsChange: (value: Record<string, string[]>) => void;
 }
+
+type DraftGridRow = {
+  rowId: number;
+  hostname: string;
+  privateIp: string;
+  serviceName: string;
+  environment: string;
+};
 
 export const DraftStep: React.FC<DraftStepProps> = ({
   onContinueCalibrate,
@@ -32,6 +53,12 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   const rows = useAtomValue(normalizedVmRowsAtom);
   const [edits, setEdits] = useAtom(editsAtom);
   const { requestSuggestions, isStreaming } = useServiceNamingSuggestion();
+  const {
+    requestBusinessArchitecture,
+    isStreaming: isBusinessArchitectureStreaming,
+  } = useBusinessArchitectureSuggestion();
+  const { requestBusinessScopes, isStreaming: isBusinessScopeStreaming } =
+    useBusinessScopeSuggestion();
 
   const loadSuggestions = useCallback(
     async (group: ServiceGroup) => {
@@ -63,13 +90,40 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   const views = projectDraftGroups(groups, rows).filter((view) =>
     filter ? view.name.toLowerCase().includes(filter.toLowerCase()) : true,
   );
-  const businessScopes = useMemo(
+  const fallbackBusinessScopes = useMemo(
     () => projectBusinessScopes(groups, rows),
     [groups, rows],
   );
-  const [selectedScopeIds, setSelectedScopeIds] = useState<string[]>([]);
+  const [aiBusinessScopes, setAiBusinessScopes] = useState<
+    ReturnType<typeof projectBusinessScopes> | null
+  >(null);
+  const businessScopes = aiBusinessScopes ?? fallbackBusinessScopes;
+  const scopeInferenceSignatureRef = useRef<string>("");
+  const scopeInferenceSignature = useMemo(() => {
+    const groupSignature = groups
+      .map((group) => `${group.id}:${group.name}:${group.rowIds.join(",")}`)
+      .join("|");
+    const rowSignature = rows
+      .slice(0, 40)
+      .map(
+        (row) =>
+          `${row.rowId}:${row.vm.hostname}:${row.vm.privateIp}:${row.vm.serviceName}`,
+      )
+      .join("|");
+    return `${groupSignature}::${rows.length}::${rowSignature}`;
+  }, [groups, rows]);
+  const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
   const [diagramByScope, setDiagramByScope] = useState<Record<string, string>>({});
+  const [businessSuggestionByScope, setBusinessSuggestionByScope] = useState<
+    Record<string, BusinessArchitectureSuggestion>
+  >({});
+  const [editableLayersByScope, setEditableLayersByScope] = useState<
+    Record<string, BusinessArchitectureSuggestion["layers"]>
+  >({});
   const [isGeneratingDiagram, setIsGeneratingDiagram] = useState(false);
+  const [generationNotice, setGenerationNotice] = useState<string | null>(null);
+  const [draggingRowId, setDraggingRowId] = useState<number | null>(null);
+  const [dragOverLayerIndex, setDragOverLayerIndex] = useState<number | null>(null);
   const scopeByGroupId = useMemo(
     () =>
       businessScopes.reduce(
@@ -83,33 +137,43 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       ),
     [businessScopes],
   );
-  const selectedScopeSet = useMemo(() => new Set(selectedScopeIds), [selectedScopeIds]);
+  const selectedScope = useMemo(
+    () => businessScopes.find((scope) => scope.id === selectedScopeId) ?? null,
+    [businessScopes, selectedScopeId],
+  );
   const filteredViews = useMemo(
     () =>
       views.filter((view) => {
-        if (selectedScopeSet.size === 0) {
+        if (!selectedScope) {
           return false;
         }
         const scopeId = scopeByGroupId[view.id];
-        return scopeId ? selectedScopeSet.has(scopeId) : false;
+        return scopeId === selectedScope.id;
       }),
-    [scopeByGroupId, selectedScopeSet, views],
+    [scopeByGroupId, selectedScope, views],
   );
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState<number>(1);
   const selectedRowIds = useMemo(() => {
-    if (selectedScopeSet.size === 0) {
+    if (!selectedScope) {
       return new Set<number>();
     }
-    return new Set(
-      businessScopes
-        .filter((scope) => selectedScopeSet.has(scope.id))
-        .flatMap((scope) => scope.rowIds),
-    );
-  }, [businessScopes, selectedScopeSet]);
+    return new Set(selectedScope.rowIds);
+  }, [selectedScope]);
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowIds.has(row.rowId)),
     [rows, selectedRowIds],
+  );
+  const selectedRowById = useMemo(
+    () =>
+      selectedRows.reduce(
+        (acc, row) => {
+          acc[row.rowId] = row;
+          return acc;
+        },
+        {} as Record<number, (typeof selectedRows)[number]>,
+      ),
+    [selectedRows],
   );
   const totalPages = Math.max(1, Math.ceil(selectedRows.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -117,91 +181,292 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     const start = (safePage - 1) * pageSize;
     return selectedRows.slice(start, start + pageSize);
   }, [pageSize, safePage, selectedRows]);
+  const draftTableRows = useMemo<DraftGridRow[]>(
+    () =>
+      pageRows.map((row) => ({
+        rowId: row.rowId,
+        hostname: row.vm.hostname,
+        privateIp: row.vm.privateIp,
+        serviceName: String(edits[row.rowId]?.serviceName ?? row.vm.serviceName ?? ""),
+        environment: row.vm.environment,
+      })),
+    [edits, pageRows],
+  );
+  const draftTableColDefs = useMemo<ColDef<DraftGridRow>[]>(
+    () => [
+      {
+        headerName: "拖拽",
+        field: "rowId",
+        width: 92,
+        minWidth: 92,
+        maxWidth: 92,
+        sortable: false,
+        suppressMovable: true,
+        cellRenderer: (params: ICellRendererParams<DraftGridRow, number>) => {
+          const rowId = params.data?.rowId;
+          if (rowId === undefined) {
+            return null;
+          }
+          return (
+            <button
+              type="button"
+              className="ai-architecture-generation-dialog__drag-chip"
+              aria-label={`拖拽资产-${rowId}`}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData("text/plain", String(rowId));
+                setDraggingRowId(rowId);
+              }}
+              onDragEnd={() => {
+                setDraggingRowId(null);
+                setDragOverLayerIndex(null);
+              }}
+            >
+              拖拽
+            </button>
+          );
+        },
+      },
+      {
+        headerName: "rowId",
+        field: "rowId",
+        width: 90,
+        minWidth: 90,
+        maxWidth: 100,
+        suppressMovable: true,
+      },
+      {
+        headerName: "hostname",
+        field: "hostname",
+        minWidth: 180,
+        flex: 1,
+        suppressMovable: true,
+      },
+      {
+        headerName: "privateIp",
+        field: "privateIp",
+        minWidth: 160,
+        flex: 1,
+        suppressMovable: true,
+      },
+      {
+        headerName: "serviceName",
+        field: "serviceName",
+        minWidth: 180,
+        flex: 1,
+        suppressMovable: true,
+      },
+      {
+        headerName: "environment",
+        field: "environment",
+        minWidth: 140,
+        flex: 1,
+        suppressMovable: true,
+      },
+    ],
+    [],
+  );
+
+  const refreshBusinessScopes = useCallback(async () => {
+    if (groups.length === 0 || rows.length === 0) {
+      setAiBusinessScopes(null);
+      return;
+    }
+    const suggestion = await requestBusinessScopes(groups, rows);
+    if (!suggestion) {
+      setAiBusinessScopes(null);
+      return;
+    }
+    const projected = projectBusinessScopesByAssignments(
+      suggestion.scopes.map((scope) => ({
+        name: scope.name,
+        groupIds: scope.groupIds,
+      })),
+      groups,
+      rows,
+    );
+    setAiBusinessScopes(projected.length > 0 ? projected : null);
+  }, [groups, requestBusinessScopes, rows]);
+
+  useEffect(() => {
+    if (!scopeInferenceSignature) {
+      return;
+    }
+    if (scopeInferenceSignatureRef.current === scopeInferenceSignature) {
+      return;
+    }
+    scopeInferenceSignatureRef.current = scopeInferenceSignature;
+    void refreshBusinessScopes();
+  }, [refreshBusinessScopes, scopeInferenceSignature]);
 
   useEffect(() => {
     if (businessScopes.length === 0) {
-      setSelectedScopeIds([]);
+      setSelectedScopeId(null);
       return;
     }
-    setSelectedScopeIds((prev) => {
-      const valid = prev.filter((id) => businessScopes.some((scope) => scope.id === id));
-      if (valid.length > 0) {
-        return valid;
+    setSelectedScopeId((prev) => {
+      if (prev && businessScopes.some((scope) => scope.id === prev)) {
+        return prev;
       }
-      return businessScopes.map((scope) => scope.id);
+      return businessScopes[0]?.id ?? null;
     });
   }, [businessScopes]);
 
-  const toggleScope = useCallback((scopeId: string) => {
-    setSelectedScopeIds((prev) =>
-      prev.includes(scopeId)
-        ? prev.filter((id) => id !== scopeId)
-        : [...prev, scopeId],
+  const requestScopeArchitecture = useCallback(async () => {
+    if (!selectedScope) {
+      setGenerationNotice("请先选择业务范围。");
+      return null;
+    }
+    const scopeGroupIdSet = new Set(selectedScope.groupIds);
+    const scopeGroups = groups.filter((group) => scopeGroupIdSet.has(group.id));
+    const scopeRowIdSet = new Set(selectedScope.rowIds);
+    const scopeRows = rows.filter((row) => scopeRowIdSet.has(row.rowId));
+    const suggestion = await requestBusinessArchitecture(
+      selectedScope.name,
+      scopeGroups,
+      scopeRows,
     );
-  }, []);
+    if (!suggestion) {
+      setGenerationNotice("AI 暂未返回有效架构草图，请调整数据后重试。");
+      return null;
+    }
+    setBusinessSuggestionByScope((prev) => ({
+      ...prev,
+      [selectedScope.id]: suggestion,
+    }));
+    setEditableLayersByScope((prev) => ({
+      ...prev,
+      [selectedScope.id]: suggestion.layers.map((layer) => ({ ...layer })),
+    }));
+    return suggestion;
+  }, [groups, requestBusinessArchitecture, rows, selectedScope]);
+
+  const updateEditableLayer = useCallback(
+    (
+      scopeId: string,
+      layerIndex: number,
+      patch: Partial<BusinessArchitectureSuggestion["layers"][number]>,
+    ) => {
+      setEditableLayersByScope((prev) => {
+        const current = prev[scopeId] ?? [];
+        const next = current.map((layer, idx) =>
+          idx === layerIndex ? { ...layer, ...patch } : layer,
+        );
+        return {
+          ...prev,
+          [scopeId]: next,
+        };
+      });
+    },
+    [],
+  );
+
+  const applyLayerAdjustments = useCallback(() => {
+    if (!selectedScope) {
+      return;
+    }
+    const editableLayers = editableLayersByScope[selectedScope.id] ?? [];
+    setBusinessSuggestionByScope((prev) => {
+      const current = prev[selectedScope.id];
+      if (!current) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [selectedScope.id]: {
+          ...current,
+          layers: editableLayers,
+        },
+      };
+    });
+    setGenerationNotice(`已应用「${selectedScope.name}」分层调整。`);
+  }, [editableLayersByScope, selectedScope]);
+
+  const assignRowToLayer = useCallback(
+    (scopeId: string, targetLayerIndex: number, rowId: number) => {
+      setEditableLayersByScope((prev) => {
+        const current = prev[scopeId] ?? [];
+        const next = current.map((layer, idx) => {
+          const removed = layer.rowIds.filter((id) => id !== rowId);
+          if (idx !== targetLayerIndex) {
+            return {
+              ...layer,
+              rowIds: removed,
+            };
+          }
+          return {
+            ...layer,
+            rowIds: Array.from(new Set([...removed, rowId])),
+          };
+        });
+        return {
+          ...prev,
+          [scopeId]: next,
+        };
+      });
+    },
+    [],
+  );
 
   const generateDiagramByScope = useCallback(async () => {
-    if (selectedScopeIds.length === 0) {
+    if (!selectedScope) {
+      setGenerationNotice("请先选择业务范围。");
       return;
     }
     setIsGeneratingDiagram(true);
-    const nextDiagrams: Record<string, string> = {};
-    for (const scopeId of selectedScopeIds) {
-      const scope = businessScopes.find((item) => item.id === scopeId);
-      if (!scope) {
-        continue;
+    setGenerationNotice(null);
+    try {
+      let suggestion = businessSuggestionByScope[selectedScope.id];
+      if (!suggestion) {
+        suggestion = await requestScopeArchitecture();
       }
-      const scopeGroupIdSet = new Set(scope.groupIds);
-      const scopeGroups = groups.filter((group) => scopeGroupIdSet.has(group.id));
-      const scopeRowIdSet = new Set(scope.rowIds);
-      const scopeRows = rows.filter((row) => scopeRowIdSet.has(row.rowId));
-      const diagram = await quickGenerateDiagram(scopeGroups, scopeRows, "microservices");
-      if (diagram) {
-        nextDiagrams[scope.id] = diagram;
+      if (!suggestion?.mermaid) {
+        return;
       }
+      setDiagramByScope((prev) => ({
+        ...prev,
+        [selectedScope.id]: suggestion.mermaid,
+      }));
+      setGenerationNotice(`已生成「${selectedScope.name}」业务架构图。`);
+    } finally {
+      setIsGeneratingDiagram(false);
     }
-    setDiagramByScope(nextDiagrams);
-    setIsGeneratingDiagram(false);
-  }, [businessScopes, groups, rows, selectedScopeIds]);
+  }, [businessSuggestionByScope, requestScopeArchitecture, selectedScope]);
 
   return (
     <div className="ai-architecture-generation-dialog__step">
       <h3>Draft 预览</h3>
-      <p>先确认业务范围，再按业务生成初步架构图。AI 命名建议仅作候选，需手动应用。</p>
+      <p>每次只处理一个业务范围，AI 会先分析业务分层，再生成该业务架构图。</p>
       <div className="ai-architecture-generation-dialog__issue-card">
         <strong>业务范围确认</strong>
         <div className="ai-architecture-generation-dialog__summary">
           已识别业务范围: {businessScopes.length}
         </div>
+        <div className="ai-architecture-generation-dialog__summary">
+          来源: {aiBusinessScopes ? "AI 推断" : "本地回退分组"}
+        </div>
         <div className="ai-architecture-generation-dialog__inline-form">
+          <label>
+            当前业务范围
+            <select
+              aria-label="当前业务范围"
+              value={selectedScopeId ?? ""}
+              onChange={(event) => setSelectedScopeId(event.target.value || null)}
+            >
+              {businessScopes.map((scope) => (
+                <option key={scope.id} value={scope.id}>
+                  {scope.name} ({scope.vmCount})
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
-            onClick={() => setSelectedScopeIds(businessScopes.map((scope) => scope.id))}
+            onClick={() => void refreshBusinessScopes()}
+            disabled={isBusinessScopeStreaming}
           >
-            全选
+            {isBusinessScopeStreaming ? "识别中..." : "AI 重新识别范围"}
           </button>
-          <button type="button" onClick={() => setSelectedScopeIds([])}>
-            清空
-          </button>
-        </div>
-        <div className="ai-architecture-generation-dialog__issue-groups">
-          {businessScopes.map((scope) => (
-            <label key={scope.id} className="ai-architecture-generation-dialog__issue-type-card">
-              <input
-                type="checkbox"
-                checked={selectedScopeIds.includes(scope.id)}
-                onChange={() => toggleScope(scope.id)}
-              />{" "}
-              {scope.name} ({scope.vmCount})
-              <span className="ai-architecture-generation-dialog__summary">
-                应用类型:{" "}
-                {Object.entries(scope.appTypeStats)
-                  .slice(0, 3)
-                  .map(([type, count]) => `${type}:${count}`)
-                  .join(" / ")}
-              </span>
-            </label>
-          ))}
         </div>
       </div>
       <div className="ai-architecture-generation-dialog__inline-form">
@@ -257,30 +522,144 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           );
         })}
       </div>
+      {selectedScope && (
+        <div className="ai-architecture-generation-dialog__issue-card">
+          <strong>AI 业务分层建议</strong>
+          <div className="ai-architecture-generation-dialog__summary">
+            范围: {selectedScope.name}
+          </div>
+          <div className="ai-architecture-generation-dialog__summary">
+            可将下方资产拖拽到层卡片，快速调整分层归属。
+          </div>
+          <div className="ai-architecture-generation-dialog__inline-form">
+            <button
+              type="button"
+              onClick={requestScopeArchitecture}
+              disabled={isBusinessArchitectureStreaming}
+            >
+              {isBusinessArchitectureStreaming ? "AI 分析中..." : "AI 分析分层"}
+            </button>
+          </div>
+          {businessSuggestionByScope[selectedScope.id]?.summary && (
+            <div>{businessSuggestionByScope[selectedScope.id].summary}</div>
+          )}
+          <div className="ai-architecture-generation-dialog__layer-board">
+            {(editableLayersByScope[selectedScope.id] ??
+              businessSuggestionByScope[selectedScope.id]?.layers ??
+              []
+            ).map((layer, index) => (
+              <article
+                key={`${selectedScope.id}:${index}:${layer.name}`}
+                className="ai-architecture-generation-dialog__layer-lane"
+              >
+                <div className="ai-architecture-generation-dialog__layer-head">
+                  <label>
+                    层名称
+                    <input
+                      aria-label={`层名称-${index}`}
+                      value={layer.name}
+                      onChange={(event) =>
+                        updateEditableLayer(selectedScope.id, index, {
+                          name: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="ai-architecture-generation-dialog__summary">
+                    资产数: {layer.rowIds.length}
+                  </div>
+                </div>
+                {layer.description && <div>{layer.description}</div>}
+                <div
+                  className="ai-architecture-generation-dialog__layer-dropzone"
+                  aria-label={`层卡片-${index}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (draggingRowId !== null) {
+                      setDragOverLayerIndex(index);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverLayerIndex === index) {
+                      setDragOverLayerIndex(null);
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const dropped = Number(event.dataTransfer.getData("text/plain"));
+                    if (!Number.isFinite(dropped) || dropped <= 0) {
+                      return;
+                    }
+                    assignRowToLayer(selectedScope.id, index, dropped);
+                    setDragOverLayerIndex(null);
+                    setDraggingRowId(null);
+                    setGenerationNotice(
+                      `已将资产 Row ${dropped} 分配到「${layer.name}」。`,
+                    );
+                  }}
+                  data-drop-active={dragOverLayerIndex === index ? "true" : "false"}
+                >
+                  {layer.rowIds.length === 0 ? (
+                    <div className="ai-architecture-generation-dialog__summary">
+                      将左侧资产拖到这里完成分层
+                    </div>
+                  ) : (
+                    <div className="ai-architecture-generation-dialog__layer-assets">
+                      {layer.rowIds.map((rowId) => {
+                        const row = selectedRowById[rowId];
+                        return (
+                          <div
+                            key={`${selectedScope.id}:${index}:row-${rowId}`}
+                            className="ai-architecture-generation-dialog__layer-asset-chip"
+                            title={
+                              row
+                                ? `Row ${rowId} · ${row.vm.hostname} · ${row.vm.privateIp}`
+                                : `Row ${rowId}`
+                            }
+                          >
+                            Row {rowId}
+                            {row ? ` · ${row.vm.hostname}` : ""}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <label>
+                  层资产 rowIds
+                  <input
+                    aria-label={`层资产-${index}`}
+                    value={layer.rowIds.join(",")}
+                    onChange={(event) =>
+                      updateEditableLayer(selectedScope.id, index, {
+                        rowIds: parseRowIdsInput(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                {layer.reason && (
+                  <div className="ai-architecture-generation-dialog__summary">
+                    依据: {layer.reason}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+          {(editableLayersByScope[selectedScope.id] ?? []).length > 0 && (
+            <div className="ai-architecture-generation-dialog__inline-form">
+              <button type="button" onClick={applyLayerAdjustments}>
+                应用分层调整
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="ai-architecture-generation-dialog__table-wrap">
-        <table className="ai-architecture-generation-dialog__table">
-          <thead>
-            <tr>
-              <th>rowId</th>
-              <th>hostname</th>
-              <th>privateIp</th>
-              <th>serviceName</th>
-              <th>environment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((row) => (
-              <tr key={row.rowId}>
-                <td>{row.rowId}</td>
-                <td>{row.vm.hostname}</td>
-                <td>{row.vm.privateIp}</td>
-                <td>{edits[row.rowId]?.serviceName ?? row.vm.serviceName}</td>
-                <td>{row.vm.environment}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SharedAgGrid<DraftGridRow>
+          rowData={draftTableRows}
+          columnDefs={draftTableColDefs}
+        />
       </div>
       <div className="ai-architecture-generation-dialog__inline-form">
         <label>
@@ -322,14 +701,17 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         <button
           type="button"
           onClick={generateDiagramByScope}
-          disabled={isGeneratingDiagram || selectedScopeIds.length === 0}
+          disabled={isGeneratingDiagram || isBusinessArchitectureStreaming || !selectedScope}
         >
-          {isGeneratingDiagram ? "生成中..." : "按业务生成架构图"}
+          {isGeneratingDiagram ? "生成中..." : "生成当前业务架构图"}
         </button>
         <button type="button" onClick={onContinueCalibrate}>
           进入 Calibrate
         </button>
       </div>
+      {generationNotice && (
+        <div className="ai-architecture-generation-dialog__summary">{generationNotice}</div>
+      )}
       {Object.keys(diagramByScope).length > 0 && (
         <div className="ai-architecture-generation-dialog__issue-groups">
           {Object.entries(diagramByScope).map(([scopeId, diagram]) => {

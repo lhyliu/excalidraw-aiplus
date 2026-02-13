@@ -1,4 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CellValueChangedEvent,
+  type ColDef,
+  type IHeaderParams,
+  type ICellRendererParams,
+} from "ag-grid-community";
 
 import { useAtom, useAtomValue } from "../../editor-jotai";
 import {
@@ -15,6 +21,7 @@ import {
 import type { Issue, StandardField } from "../AIArchitectureGeneration";
 
 import { InferenceReasonBadge } from "./InferenceReasonBadge";
+import { SharedAgGrid } from "./SharedAgGrid";
 import { useAliasMemory } from "./hooks/useAliasMemory";
 import { useFieldMappingSuggestion } from "./hooks/useFieldMappingSuggestion";
 import { useIssueSuggestion } from "./hooks/useIssueSuggestion";
@@ -62,6 +69,41 @@ const fieldLabelMap: Record<StandardField, string> = {
   region: "地域",
 };
 const manualServiceNameValue = "__manual__serviceName";
+
+type GuidedGridRow = Record<StandardField, string> & {
+  rowId: number;
+  ignored: boolean;
+};
+
+type ServiceNameHeaderProps = IHeaderParams<GuidedGridRow, string> & {
+  onAiFill: () => void;
+  busy: boolean;
+  disabled: boolean;
+};
+
+const ServiceNameHeader: React.FC<ServiceNameHeaderProps> = ({
+  displayName,
+  onAiFill,
+  busy,
+  disabled,
+}) => (
+  <div className="ai-architecture-generation-dialog__header-action">
+    <span>{displayName}</span>
+    <button
+      type="button"
+      className="ai-architecture-generation-dialog__table-ai-btn"
+      aria-label="AI识别服务名称"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onAiFill();
+      }}
+      disabled={disabled}
+    >
+      {busy ? "识别中..." : "AI识别"}
+    </button>
+  </div>
+);
 
 const getConfidenceLabel = (score: number | undefined) => {
   if (score === undefined) {
@@ -297,6 +339,22 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
     const start = (safeTablePage - 1) * tablePageSize;
     return rows.slice(start, start + tablePageSize);
   }, [rows, safeTablePage]);
+  const tableRowData = useMemo<GuidedGridRow[]>(
+    () =>
+      tableRows.map((row) => ({
+        rowId: row.rowId,
+        ignored: ignoredRows.includes(row.rowId),
+        hostname: String(edits[row.rowId]?.hostname ?? row.vm.hostname ?? ""),
+        privateIp: String(edits[row.rowId]?.privateIp ?? row.vm.privateIp ?? ""),
+        serviceName: String(edits[row.rowId]?.serviceName ?? row.vm.serviceName ?? ""),
+        environment: String(edits[row.rowId]?.environment ?? row.vm.environment ?? ""),
+        cpuCores: String(edits[row.rowId]?.cpuCores ?? row.vm.cpuCores ?? ""),
+        memoryGb: String(edits[row.rowId]?.memoryGb ?? row.vm.memoryGb ?? ""),
+        cluster: String(edits[row.rowId]?.cluster ?? row.vm.cluster ?? ""),
+        region: String(edits[row.rowId]?.region ?? row.vm.region ?? ""),
+      })),
+    [edits, ignoredRows, tableRows],
+  );
   const missingServiceRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -371,27 +429,38 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
     setNotice("字段识别已确认，系统会基于当前映射持续刷新校准结果。");
   }, [effectiveMapping, mappingValidation, rememberMapping, setMapping]);
 
-  const updateCell = useCallback(
-    (rowId: number, field: StandardField, value: string) => {
+  const handleGridCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<GuidedGridRow>) => {
+      const rowId = event.data?.rowId;
+      const field = event.colDef.field as StandardField | "ignored" | "rowId" | undefined;
+      if (rowId === undefined || !field || field === "rowId") {
+        return;
+      }
+      if (field === "ignored") {
+        const nextIgnored = Boolean(event.newValue);
+        setIgnoredRows((prev) => {
+          const has = prev.includes(rowId);
+          if (nextIgnored && !has) {
+            return [...prev, rowId];
+          }
+          if (!nextIgnored && has) {
+            return prev.filter((id) => id !== rowId);
+          }
+          return prev;
+        });
+        return;
+      }
       setEdits((prev) => ({
         ...prev,
         [rowId]: {
           ...(prev[rowId] ?? {}),
-          [field]: value,
+          [field]: String(event.newValue ?? ""),
         },
       }));
     },
-    [setEdits],
+    [setEdits, setIgnoredRows],
   );
 
-  const toggleIgnored = useCallback(
-    (rowId: number) => {
-      setIgnoredRows((prev) =>
-        prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId],
-      );
-    },
-    [setIgnoredRows],
-  );
 
   const applyIssueGroupFix = useCallback(
     (group: GuidedIssueGroup) => {
@@ -526,6 +595,71 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
     [inferMissingServiceNames, markAiUpdatedCells, rows, setEdits],
   );
 
+  const tableColDefs = useMemo<ColDef<GuidedGridRow>[]>(
+    () => [
+      {
+        headerName: "忽略",
+        field: "ignored",
+        width: 72,
+        minWidth: 72,
+        maxWidth: 72,
+        suppressMovable: true,
+        sortable: false,
+        editable: true,
+        cellDataType: "boolean",
+        cellRenderer: "agCheckboxCellRenderer",
+        cellEditor: "agCheckboxCellEditor",
+      },
+      {
+        headerName: "rowId",
+        field: "rowId",
+        width: 84,
+        minWidth: 84,
+        maxWidth: 84,
+        suppressMovable: true,
+      },
+      ...editableFields.map((field) => ({
+        headerName: fieldLabelMap[field],
+        field,
+        minWidth: field === "serviceName" ? 220 : 160,
+        flex: 1,
+        suppressMovable: true,
+        editable: true,
+        ...(field === "serviceName"
+          ? {
+              headerComponent: "serviceNameHeader",
+              headerComponentParams: {
+                onAiFill: fillMissingServiceNamesByAI,
+                busy: semanticBusy,
+                disabled: semanticBusy || missingServiceRows.length === 0,
+              },
+            }
+          : {}),
+        cellClass: (params: ICellRendererParams<GuidedGridRow, string>) => {
+          const rowId = params.data?.rowId;
+          if (rowId === undefined) {
+            return undefined;
+          }
+          const classes: string[] = [];
+          if (issueFieldKeySet.has(`${rowId}:${field}`)) {
+            classes.push("ai-architecture-generation-dialog__cell-has-issue");
+          }
+          if (aiUpdatedCells[`${rowId}:${field}`]) {
+            classes.push("ai-architecture-generation-dialog__cell-ai-updated");
+          }
+          return classes.length > 0 ? classes.join(" ") : undefined;
+        },
+      })),
+    ],
+    [
+      aiUpdatedCells,
+      fillMissingServiceNamesByAI,
+      issueFieldKeySet,
+      missingServiceRows.length,
+      semanticBusy,
+    ],
+  );
+
   const requestIssueGroupAISuggestion = useCallback(
     async (group: GuidedIssueGroup) => {
       setAiSuggestionNote(null);
@@ -577,117 +711,67 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
         }`}
       >
         <section className="ai-architecture-generation-dialog__workspace-table">
-          <div className="ai-architecture-generation-dialog__inline-form">
-            <strong>资产明细表（实时）</strong>
-            <span className="ai-architecture-generation-dialog__summary">
-              共 {rows.length} 台
-            </span>
-            <button type="button" onClick={() => setGuideExpanded((prev) => !prev)}>
-              {guideExpanded ? "收起AI引导" : "展开AI引导"}
-            </button>
-            <button type="button" onClick={onOpenExpert}>
-              打开专家模式
-            </button>
+          <div className="ai-architecture-generation-dialog__table-toolbar">
+            <div className="ai-architecture-generation-dialog__toolbar-group">
+              <strong>资产明细表（实时）</strong>
+              <span className="ai-architecture-generation-dialog__summary">
+                共 {rows.length} 台
+              </span>
+            </div>
+            <div className="ai-architecture-generation-dialog__toolbar-group">
+              <button
+                type="button"
+                className="ai-architecture-generation-dialog__btn-primary"
+                onClick={onOpenExpert}
+              >
+                打开批量编辑工具
+              </button>
+            </div>
           </div>
           {semanticReasonPreview && (
             <div className="ai-architecture-generation-dialog__summary">
               AI 识别依据示例: {semanticReasonPreview}
             </div>
           )}
+          <div className="ai-architecture-generation-dialog__summary">
+            列字段：主机名 / 内网 IP / 服务名称（组件用途） / 部署环境 / CPU 核数 / 内存(GB)
+          </div>
+          <button
+            type="button"
+            className="ai-architecture-generation-dialog__table-ai-fallback"
+            aria-label="AI识别服务名称"
+            onClick={fillMissingServiceNamesByAI}
+            disabled={semanticBusy || missingServiceRows.length === 0}
+          >
+            AI识别服务名称
+          </button>
+          {missingServiceRows.length > 0 && (
+            <div className="ai-architecture-generation-dialog__inline-form">
+              <span className="ai-architecture-generation-dialog__summary">空服务名快速识别：</span>
+              {missingServiceRows.slice(0, 8).map((row) => (
+                <button
+                  key={`quick-ai-${row.rowId}`}
+                  type="button"
+                  className="ai-architecture-generation-dialog__cell-ai-btn"
+                  aria-label={`AI识别服务名称 row ${row.rowId}`}
+                  onClick={() => fillSingleServiceNameByAI(row.rowId)}
+                  disabled={semanticBusy}
+                >
+                  {semanticLoadingType === "single" && singleLoadingRowId === row.rowId
+                    ? `Row ${row.rowId} 识别中...`
+                    : `Row ${row.rowId} AI识别`}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="ai-architecture-generation-dialog__table-wrap">
-            <table className="ai-architecture-generation-dialog__table">
-              <thead>
-                <tr>
-                  <th>忽略</th>
-                  <th>rowId</th>
-                  {editableFields.map((field) => (
-                    <th key={field}>
-                      {field === "serviceName" ? (
-                        <span className="ai-architecture-generation-dialog__header-action">
-                          {fieldLabelMap[field]}
-                          <button
-                            type="button"
-                            className="ai-architecture-generation-dialog__table-ai-btn"
-                            aria-label="AI识别服务名称"
-                            onClick={fillMissingServiceNamesByAI}
-                            disabled={semanticBusy || missingServiceRows.length === 0}
-                          >
-                            {semanticLoadingType === "bulk" || isSemanticInferring
-                              ? "AI识别中..."
-                              : "AI识别"}
-                          </button>
-                        </span>
-                      ) : (
-                        fieldLabelMap[field]
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row) => (
-                  <tr key={row.rowId}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={ignoredRows.includes(row.rowId)}
-                        onChange={() => toggleIgnored(row.rowId)}
-                      />
-                    </td>
-                    <td>{row.rowId}</td>
-                    {editableFields.map((field) => {
-                      const issueCount = issueFieldKeySet.has(`${row.rowId}:${field}`);
-                      const currentValue = String(
-                        edits[row.rowId]?.[field] ?? row.vm[field] ?? "",
-                      );
-                      const canSingleSuggest =
-                        field === "serviceName" &&
-                        (currentValue.trim().length === 0 ||
-                          currentValue.trim().toLowerCase() === "unknown");
-                      return (
-                        <td
-                          key={`${row.rowId}:${field}`}
-                          className={[
-                            issueCount
-                              ? "ai-architecture-generation-dialog__cell-has-issue"
-                              : "",
-                            aiUpdatedCells[`${row.rowId}:${field}`]
-                              ? "ai-architecture-generation-dialog__cell-ai-updated"
-                              : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ") || undefined}
-                        >
-                          <span className="ai-architecture-generation-dialog__cell-editor">
-                            <input
-                              value={currentValue}
-                              onChange={(event) =>
-                                updateCell(row.rowId, field, event.target.value)
-                              }
-                            />
-                            {canSingleSuggest && (
-                              <button
-                                type="button"
-                                className="ai-architecture-generation-dialog__cell-ai-btn"
-                                aria-label={`AI识别服务名称 row ${row.rowId}`}
-                                title="点击让 AI 识别该单元格内容"
-                                onClick={() => fillSingleServiceNameByAI(row.rowId)}
-                                disabled={semanticBusy}
-                              >
-                                {semanticLoadingType === "single" &&
-                                singleLoadingRowId === row.rowId
-                                  ? "识别中..."
-                                  : "AI"}
-                              </button>
-                            )}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <SharedAgGrid<GuidedGridRow>
+              rowData={tableRowData}
+              columnDefs={tableColDefs}
+              components={{ serviceNameHeader: ServiceNameHeader }}
+              getRowId={(params) => String(params.data.rowId)}
+              onCellValueChanged={handleGridCellValueChanged}
+            />
           </div>
           <div className="ai-architecture-generation-dialog__inline-form">
             <button
@@ -712,16 +796,34 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
           </div>
         </section>
 
-        <aside className="ai-architecture-generation-dialog__workspace-guide">
-          <h4>AI 引导修正</h4>
+        <aside
+          className={`ai-architecture-generation-dialog__workspace-guide${
+            guideExpanded ? "" : " is-collapsed"
+          }`}
+        >
+          <div className="ai-architecture-generation-dialog__guide-header">
+            <h4>AI 引导修正</h4>
+            {guideExpanded && (
+              <button
+                type="button"
+                className="ai-architecture-generation-dialog__btn-ghost"
+                onClick={() => setGuideExpanded(false)}
+              >
+                收起
+              </button>
+            )}
+          </div>
           {!guideExpanded && (
-            <div className="ai-architecture-generation-dialog__issue-card">
-              <strong>当前有 {groupedIssues.length} 类待确认项</strong>
-              <div className="ai-architecture-generation-dialog__summary">
-                先在表格中直接改，或展开 AI 引导做批量修正。
+            <div className="ai-architecture-generation-dialog__guide-rail">
+              <div className="ai-architecture-generation-dialog__guide-rail-count">
+                {groupedIssues.length}
               </div>
-              <button type="button" onClick={() => setGuideExpanded(true)}>
-                展开引导面板
+              <button
+                type="button"
+                className="ai-architecture-generation-dialog__btn-secondary"
+                onClick={() => setGuideExpanded(true)}
+              >
+                展开引导
               </button>
             </div>
           )}

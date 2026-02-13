@@ -278,7 +278,7 @@ export const CalibrationTaskFlow: React.FC<CalibrationTaskFlowProps> = ({
                 )}
                 {getBatchApplicableCount(currentGroup) === 0 && (
                   <div className="ai-architecture-generation-dialog__summary">
-                    当前分组暂无可靠批量建议，请展开样本逐条处理或切换专家模式。
+                    当前分组暂无可靠批量建议，请展开样本逐条处理或使用批量编辑工具。
                   </div>
                 )}
               </article>
@@ -336,7 +336,7 @@ export const CalibrationTaskFlow: React.FC<CalibrationTaskFlowProps> = ({
                   ))}
                   {currentGroup.items.length > 8 && (
                     <div className="ai-architecture-generation-dialog__summary">
-                      仅展示前 8 条样本，可使用专家模式处理全部数据。
+                      仅展示前 8 条样本，可使用批量编辑工具处理全部数据。
                     </div>
                   )}
                 </div>
