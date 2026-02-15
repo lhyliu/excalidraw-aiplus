@@ -1,6 +1,10 @@
 import { useCallback } from "react";
 
-import { runAIStream } from "../../../services/aiService";
+import {
+  cancelAiTask,
+  createAiTask,
+  subscribeAiTask,
+} from "../../../services/aiTaskService";
 import { useAIStream } from "../../hooks/useAIStream";
 import type {
   NormalizedVmRow,
@@ -48,7 +52,7 @@ export const parseBusinessScopeSuggestion = (
 };
 
 export const useBusinessScopeSuggestion = () => {
-  const { run, isStreaming } = useAIStream();
+  const { run, abort, isStreaming } = useAIStream();
 
   const requestBusinessScopes = useCallback(
     async (
@@ -57,18 +61,34 @@ export const useBusinessScopeSuggestion = () => {
     ): Promise<BusinessScopeSuggestion | null> => {
       const messages = buildBusinessScopeMessages(groups, rows);
       let full = "";
-      const result = await run((signal) =>
-        runAIStream(
-          messages,
-          {
-            onChunk: (chunk) => {
-              full += chunk;
+      const result = await run(async (signal) => {
+        const { taskId } = await createAiTask("business_scope", { messages });
+        const done = await new Promise<boolean>((resolve) => {
+          const unsubscribe = subscribeAiTask(taskId, {
+            onPartial: ({ data }) => {
+              full += data;
             },
-          },
-          signal,
-        ),
-      );
+            onDone: () => {
+              unsubscribe();
+              resolve(true);
+            },
+            onError: () => {
+              unsubscribe();
+              resolve(false);
+            },
+          });
+          signal.addEventListener("abort", () => {
+            void cancelAiTask(taskId);
+            unsubscribe();
+            resolve(false);
+          });
+        });
+        return done;
+      });
       if (!result.success) {
+        return null;
+      }
+      if (!result.data) {
         return null;
       }
       return parseBusinessScopeSuggestion(full);
@@ -78,7 +98,7 @@ export const useBusinessScopeSuggestion = () => {
 
   return {
     requestBusinessScopes,
+    abortBusinessScopeSuggestion: abort,
     isStreaming,
   };
 };
-

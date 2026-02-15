@@ -1,4 +1,4 @@
-export interface ServiceSemanticContextRow {
+﻿export interface ServiceSemanticContextRow {
   rowId: number;
   hostname: string;
   privateIp: string;
@@ -30,17 +30,18 @@ export const buildServiceSemanticMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业IT资产语义识别助手。请根据每一行主机信息推断机器用途（serviceName）。只给建议，不改事实。输出 JSON：{\"suggestions\":[{\"rowId\":1,\"serviceName\":\"...\",\"reason\":\"...\"}]}",
+        "你是企业 IT 资产语义识别助手。请根据每一行主机信息推断机器用途（serviceName）。只输出建议，不改事实。输出严格 JSON：{\"suggestions\":[{\"rowId\":1,\"serviceName\":\"...\",\"reason\":\"...\"}]}",
     },
     {
       role: "user" as const,
       content:
         `请为以下资产逐行识别 serviceName。\n要求：\n` +
-        "1) serviceName 用简洁业务词，如：订单WEB、OMS数据库、WAF防火墙、Redis缓存、MQ队列\n" +
-        "2) 没把握可输出 \"unknown\"\n" +
-        "3) rowId 必须与输入一致\n" +
+        "1) serviceName 使用简洁、可落地的组件/用途名，例如：业务应用服务器、MySQL数据库、WAF防火墙、Redis缓存、消息队列\n" +
+        "2) 可综合 hostname、IP 段、环境、CPU、内存、原始字段语义做判断\n" +
+        "3) 若无法判断可输出 \"unknown\"，但优先给出最可能候选\n" +
+        "4) rowId 必须与输入一致，每行都返回一条 suggestions 项\n" +
+        "5) 只输出 JSON，不要输出额外说明\n" +
         `输入样本:\n${sample}`,
     },
   ];
 };
-

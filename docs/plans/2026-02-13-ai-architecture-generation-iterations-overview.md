@@ -1,101 +1,74 @@
-# AI 架构生成迭代总览（按当前实现更新）
+﻿> [!WARNING]
+> Archived on 2026-02-16. This plan references the retired AIArchitectureGenerationDialog workflow.
+> Current implementation uses page-oriented flow (/ai/csv-fix, /ai/draft-confirm) + SSE task API (/api/ai/tasks).
+> See AI_ARCHITECTURE_ASSISTANT.md and ackend-proxy/README.md for active architecture.
+# AI 鏋舵瀯鐢熸垚杩唬鎬昏锛堟寜褰撳墠瀹炵幇鏇存柊锛?
+鏃ユ湡锛?026-02-13  
+鑼冨洿锛歚packages/excalidraw/components/AIArchitectureGeneration*`
 
-日期：2026-02-13  
-范围：`packages/excalidraw/components/AIArchitectureGeneration*`
+## 1. 鍏ュ彛涓庝富瀹瑰櫒
 
-## 1. 入口与主容器
-
-1. 功能入口：
-- 主菜单 `AI架构生成`
-- 顶部按钮 `AI架构生成`
-2. 主容器：
+1. 鍔熻兘鍏ュ彛锛?- 涓昏彍鍗?`AI鏋舵瀯鐢熸垚`
+- 椤堕儴鎸夐挳 `AI鏋舵瀯鐢熸垚`
+2. 涓诲鍣細
 - `packages/excalidraw/components/AIArchitectureGenerationDialog.tsx`
 
-## 2. 当前端到端流程
+## 2. 褰撳墠绔埌绔祦绋?
+褰撳墠宸叉敹鏁涗负涓夋涓绘祦绋嬶細
 
-当前已收敛为三段主流程：
+1. `鏁版嵁宸ヤ綔鍙帮紙workspace锛塦
+2. `鏋舵瀯鍥捐鍥撅紙draft锛塦
+3. `鍙俊鐜扮姸锛坈alibrate锛塦
 
-1. `数据工作台（workspace）`
-2. `架构图视图（draft）`
-3. `可信现状（calibrate）`
-
-说明：
-
-1. 历史步骤 `import / mapping / issues` 仅作兼容，不再作为独立导航步骤。
-2. 导入与修正在同一工作台完成（用户无需频繁切页）。
-
-## 3. 数据工作台（workspace）现状
-
-目录：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/GuidedWorkspaceStep.tsx`
+璇存槑锛?
+1. 鍘嗗彶姝ラ `import / mapping / issues` 浠呬綔鍏煎锛屼笉鍐嶄綔涓虹嫭绔嬪鑸楠ゃ€?2. 瀵煎叆涓庝慨姝ｅ湪鍚屼竴宸ヤ綔鍙板畬鎴愶紙鐢ㄦ埛鏃犻渶棰戠箒鍒囬〉锛夈€?
+## 3. 鏁版嵁宸ヤ綔鍙帮紙workspace锛夌幇鐘?
+鐩綍锛?- `packages/excalidraw/components/AIArchitectureGenerationDialog/GuidedWorkspaceStep.tsx`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/ExpertEditOverlay.tsx`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/SharedAgGrid.tsx`
 
-能力：
-
-1. AG Grid 原生编辑、原生选择、分页浏览。
-2. `服务名称（组件用途）` 表头内置 `AI识别` 按钮（批量补服务名）。
-3. 空服务名支持行级 `AI识别` 入口。
-4. 问题按类型聚合并在右侧抽屉引导修正。
-5. 批量编辑为 Overlay 工具，不再单独步骤页。
-
-## 4. 架构图视图（draft）现状
-
-目录：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/DraftStep.tsx`
+鑳藉姏锛?
+1. AG Grid 鍘熺敓缂栬緫銆佸師鐢熼€夋嫨銆佸垎椤垫祻瑙堛€?2. `鏈嶅姟鍚嶇О锛堢粍浠剁敤閫旓級` 琛ㄥご鍐呯疆 `AI璇嗗埆` 鎸夐挳锛堟壒閲忚ˉ鏈嶅姟鍚嶏級銆?3. 绌烘湇鍔″悕鏀寔琛岀骇 `AI璇嗗埆` 鍏ュ彛銆?4. 闂鎸夌被鍨嬭仛鍚堝苟鍦ㄥ彸渚ф娊灞夊紩瀵间慨姝ｃ€?5. 鎵归噺缂栬緫涓?Overlay 宸ュ叿锛屼笉鍐嶅崟鐙楠ら〉銆?
+## 4. 鏋舵瀯鍥捐鍥撅紙draft锛夌幇鐘?
+鐩綍锛?- `packages/excalidraw/components/AIArchitectureGenerationDialog/DraftStep.tsx`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useBusinessScopeSuggestion.ts`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useBusinessArchitectureSuggestion.ts`
 - `packages/excalidraw/components/AIArchitectureGenerationDialog/hooks/useServiceNamingSuggestion.ts`
 
-能力：
+鑳藉姏锛?
+1. 姣忔鍙鐞嗕竴涓笟鍔¤寖鍥达紙鍏堥€夎寖鍥村啀鐢熸垚锛夈€?2. 涓氬姟鑼冨洿浼樺厛浣跨敤 LLM 璇嗗埆锛屽け璐ュ洖閫€鏈湴鍒嗙粍绛栫暐銆?3. 鏀寔 AI 鍒嗗眰寤鸿 + 浜哄伐鎷栨嫿璋冩暣銆?4. 鎸変笟鍔¤寖鍥寸敓鎴愭灦鏋勫浘鑽夌锛圡ermaid锛夈€?
+## 5. 鍙俊鐜扮姸锛坈alibrate锛夌幇鐘?
+鐩綍锛?- `packages/excalidraw/components/AIArchitectureGenerationDialog/CalibrateStep.tsx`
 
-1. 每次只处理一个业务范围（先选范围再生成）。
-2. 业务范围优先使用 LLM 识别，失败回退本地分组策略。
-3. 支持 AI 分层建议 + 人工拖拽调整。
-4. 按业务范围生成架构图草稿（Mermaid）。
+鑳藉姏锛?
+1. 鍩轰簬鏍″噯浠诲姟鐨勮川閲忛棬鎺у埗銆?2. 浠呮弧瓒抽棬妲涘悗鎵嶅彲鏍囪 `confirmed`銆?
+## 6. 鐘舵€佷笌鎸佷箙鍖?
+鏍稿績妯″潡锛?- `packages/excalidraw/components/AIArchitectureGeneration/state/*`
 
-## 5. 可信现状（calibrate）现状
+鍏抽敭鐐癸細
 
-目录：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/CalibrateStep.tsx`
+1. 淇濈暀鍘熷 CSV锛坮aw 鏁版嵁锛?2. 鏀寔 `edits` 瑕嗙洊
+3. 鏀寔 `ignoredRows`
+4. 鏀寔 `aliasStore` 鍒楀悕璁板繂
+5. Dialog 浼氳瘽鐘舵€佹寔涔呭寲锛?- `packages/excalidraw/components/AIArchitectureGenerationDialog/sessionState.ts`
 
-能力：
+## 7. LLM 浣跨敤杈圭晫锛堝綋鍓嶏級
 
-1. 基于校准任务的质量门控制。
-2. 仅满足门槛后才可标记 `confirmed`。
+浠呯敤浜庘€滃缓璁€濊€岄潪鈥滀簨瀹炶嚜鍔ㄨ惤搴撯€濓細
 
-## 6. 状态与持久化
+1. 瀛楁璇嗗埆寤鸿
+2. 鏈嶅姟鍛藉悕/鏈嶅姟璇箟寤鸿
+3. 涓氬姟鑼冨洿寤鸿
+4. 涓氬姟鍒嗗眰涓庢灦鏋勫浘寤鸿
 
-核心模块：
-- `packages/excalidraw/components/AIArchitectureGeneration/state/*`
+缁熶竴澶嶇敤浠撳簱鏃㈡湁 AI 璋冪敤鑳藉姏锛屼笉寮曞叆鏂?AI SDK銆?
+## 8. 褰撳墠楠岃瘉鍛戒护
 
-关键点：
-
-1. 保留原始 CSV（raw 数据）
-2. 支持 `edits` 覆盖
-3. 支持 `ignoredRows`
-4. 支持 `aliasStore` 列名记忆
-5. Dialog 会话状态持久化：
-- `packages/excalidraw/components/AIArchitectureGenerationDialog/sessionState.ts`
-
-## 7. LLM 使用边界（当前）
-
-仅用于“建议”而非“事实自动落库”：
-
-1. 字段识别建议
-2. 服务命名/服务语义建议
-3. 业务范围建议
-4. 业务分层与架构图建议
-
-统一复用仓库既有 AI 调用能力，不引入新 AI SDK。
-
-## 8. 当前验证命令
-
-建议最少回归：
+寤鸿鏈€灏戝洖褰掞細
 
 1. `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/GuidedWorkspaceStep.test.tsx packages/excalidraw/components/AIArchitectureGenerationDialog/ExpertEditOverlay.test.tsx`
 2. `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/ImportStep.test.tsx packages/excalidraw/components/AIArchitectureGenerationDialog/DraftStep.test.tsx`
 
-如需扩展回归：
-
+濡傞渶鎵╁睍鍥炲綊锛?
 1. `yarn test:architecture`
+

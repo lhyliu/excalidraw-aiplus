@@ -8,6 +8,7 @@ export interface AISettings {
   apiUrl: string;
   apiKey: string;
   model: string;
+  streamStallTimeoutMs?: number;
 }
 
 export interface StreamCallbacks {
@@ -26,6 +27,20 @@ export type AIMessage = {
 // Constants
 const AI_SETTINGS_KEY = "excalidraw_ai_settings";
 const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_STREAM_STALL_TIMEOUT_MS = 15000;
+const MIN_STREAM_STALL_TIMEOUT_MS = 5000;
+const MAX_STREAM_STALL_TIMEOUT_MS = 120000;
+
+const normalizeStreamStallTimeoutMs = (value: unknown): number => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return DEFAULT_STREAM_STALL_TIMEOUT_MS;
+  }
+  return Math.min(
+    MAX_STREAM_STALL_TIMEOUT_MS,
+    Math.max(MIN_STREAM_STALL_TIMEOUT_MS, Math.floor(numeric)),
+  );
+};
 
 /**
  * Get AI settings from localStorage
@@ -34,7 +49,15 @@ export const getAISettings = (): AISettings | null => {
   try {
     const saved = localStorage.getItem(AI_SETTINGS_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved) as Partial<AISettings>;
+      return {
+        apiUrl: String(parsed.apiUrl ?? ""),
+        apiKey: String(parsed.apiKey ?? ""),
+        model: String(parsed.model ?? ""),
+        streamStallTimeoutMs: normalizeStreamStallTimeoutMs(
+          parsed.streamStallTimeoutMs,
+        ),
+      };
     }
   } catch (e) {
     console.error("Failed to load AI settings:", e);
@@ -47,10 +70,23 @@ export const getAISettings = (): AISettings | null => {
  */
 export const setAISettings = (settings: AISettings): void => {
   try {
-    localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(
+      AI_SETTINGS_KEY,
+      JSON.stringify({
+        ...settings,
+        streamStallTimeoutMs: normalizeStreamStallTimeoutMs(
+          settings.streamStallTimeoutMs,
+        ),
+      }),
+    );
   } catch (e) {
     console.error("Failed to save AI settings:", e);
   }
+};
+
+export const getAIStreamStallTimeoutMs = (): number => {
+  const settings = getAISettings();
+  return normalizeStreamStallTimeoutMs(settings?.streamStallTimeoutMs);
 };
 
 /**

@@ -41,8 +41,9 @@ yarn install
 3. Start dev server / 启动开发环境
 
 ```bash
-yarn start
+npm start
 ```
+This starts frontend and AI proxy together.
 
 4. Open app / 打开应用
 
@@ -81,8 +82,10 @@ Example:
 
 ## Common Scripts / 常用脚本
 
-- `yarn start`  
-  Run dev app (`excalidraw-app` via Vite).
+- `npm start` / `yarn start`  
+  Run frontend + AI proxy together.
+- `yarn start:frontend`  
+  Run frontend only (`excalidraw-app` via Vite).
 - `yarn build`  
   Build production app.
 - `yarn start:production`  
@@ -171,3 +174,84 @@ PR checklist:
 - Upstream repo: https://github.com/excalidraw/excalidraw
 
 License: MIT
+
+## AI Architecture Generation (Current)
+
+The CSV-to-architecture flow now uses a page-oriented path:
+
+- `/ai/csv-fix`: import CSV, confirm mapping, fix issues in table
+- `/ai/draft-confirm`: scope/layer editing, diagram preview, insert to canvas
+
+AI execution is task-based (SSE):
+
+- `POST /api/ai/tasks`
+- `GET /api/ai/tasks/:taskId/stream`
+- `POST /api/ai/tasks/:taskId/cancel`
+
+Frontend client:
+
+- `packages/excalidraw/services/aiTaskService.ts`
+
+### Optional backend proxy (OpenAI SDK compatible)
+
+A reference proxy is included in `backend-proxy/`.
+It uses official `openai` SDK and supports OpenAI-compatible providers such as Volcengine Ark by passing `baseURL + apiKey + model`.
+In current secure-forwarding mode, model key comes from client request and is not stored server-side.
+
+Run:
+
+```bash
+yarn start:ai-proxy
+```
+
+See: `backend-proxy/README.md`
+
+### Production Deployment (Single Port via Nginx)
+
+Use one public port (typically `443`) and reverse proxy both static frontend and AI task APIs.
+
+Example:
+
+```nginx
+server {
+  listen 80;
+  server_name your-domain.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name your-domain.com;
+
+  # Configure your cert paths
+  ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+  # Frontend static files (build output)
+  root /var/www/excalidraw-app;
+  index index.html;
+
+  location / {
+    try_files $uri /index.html;
+  }
+
+  # AI task API -> backend-proxy
+  location /api/ai/tasks {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+  }
+}
+```
+
+Recommended process:
+
+1. Build frontend and deploy static files to `root`.
+2. Run `backend-proxy` as a system service on `127.0.0.1:8787`.
+3. Expose only Nginx (`443`) to public network.

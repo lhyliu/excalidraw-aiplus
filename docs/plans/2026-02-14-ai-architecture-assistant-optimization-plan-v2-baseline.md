@@ -1,109 +1,48 @@
-# AI 架构功能整改计划 v2（对齐现状与可验收版）
-
-> 归档说明：该文件为原始 v2 草案基线版本，保留用于与执行版对照。
-
-## 摘要
-本计划先修复“文档与代码不一致、验收脚本失真”的基础问题，再做组件拆分、样式模块化、UX 打磨和工程化完善。  
-已确认入口策略采用：主菜单单入口统一（仅保留“AI架构助手”）。
-
-## 公共接口与类型变更
-1. `excalidraw-app/components/AppMainMenu.tsx` 移除 `onOpenAIArchitectureGeneration` prop 和“AI架构生成”菜单项，仅保留“AI架构助手”。
-2. `excalidraw-app/App.tsx` 删除对应回调与状态分支，仅保留统一入口调用。
-3. `packages/excalidraw/components/ArchitectureAssistant.tsx` 保留 `defaultTab`，但默认从统一入口进入 `optimize`。
-4. `scripts/test-architecture-fix.js` 校验口径更新为 `renderingSchemeIds` 与 `isPreparingInsert`，与现实现一致。
-5. 不引入破坏性数据模型变更，`Scheme`/`generationSnapshot`/持久化字段保持兼容。
-
-## 阶段 0：事实对齐与门禁修复（P0，必须先完成）
-目标：让“文档、脚本、代码、验收结果”一致。
-
-执行项：
-1. 修正 `scripts/test-architecture-fix.js` 的旧变量校验逻辑（`renderingSchemes` -> `renderingSchemeIds`）。
-2. 更新 `plan20260214.md` 阶段状态与测试口径，移除过时“15/24 文件”计数表达。
-3. 更新 `AI_ARCHITECTURE_ASSISTANT.md` 中已失效的 `ai/generators` 与示例代码，改为当前 hook + `runAIStream` 架构。
-4. 收敛主菜单入口：修改 `excalidraw-app/components/AppMainMenu.tsx` 与 `excalidraw-app/App.tsx`，只保留“AI架构助手”。
-
-验收命令：
-1. `yarn test:architecture`
+﻿> [!WARNING]
+> Archived on 2026-02-16. This plan references the retired AIArchitectureGenerationDialog workflow.
+> Current implementation uses page-oriented flow (/ai/csv-fix, /ai/draft-confirm) + SSE task API (/api/ai/tasks).
+> See AI_ARCHITECTURE_ASSISTANT.md and ackend-proxy/README.md for active architecture.
+# AI 鏋舵瀯鍔熻兘鏁存敼璁″垝 v2锛堝榻愮幇鐘朵笌鍙獙鏀剁増锛?
+> 褰掓。璇存槑锛氳鏂囦欢涓哄師濮?v2 鑽夋鍩虹嚎鐗堟湰锛屼繚鐣欑敤浜庝笌鎵ц鐗堝鐓с€?
+## 鎽樿
+鏈鍒掑厛淇鈥滄枃妗ｄ笌浠ｇ爜涓嶄竴鑷淬€侀獙鏀惰剼鏈け鐪熲€濈殑鍩虹闂锛屽啀鍋氱粍浠舵媶鍒嗐€佹牱寮忔ā鍧楀寲銆乁X 鎵撶（鍜屽伐绋嬪寲瀹屽杽銆? 
+宸茬‘璁ゅ叆鍙ｇ瓥鐣ラ噰鐢細涓昏彍鍗曞崟鍏ュ彛缁熶竴锛堜粎淇濈暀鈥淎I鏋舵瀯鍔╂墜鈥濓級銆?
+## 鍏叡鎺ュ彛涓庣被鍨嬪彉鏇?1. `excalidraw-app/components/AppMainMenu.tsx` 绉婚櫎 `onOpenAIArchitectureGeneration` prop 鍜屸€淎I鏋舵瀯鐢熸垚鈥濊彍鍗曢」锛屼粎淇濈暀鈥淎I鏋舵瀯鍔╂墜鈥濄€?2. `excalidraw-app/App.tsx` 鍒犻櫎瀵瑰簲鍥炶皟涓庣姸鎬佸垎鏀紝浠呬繚鐣欑粺涓€鍏ュ彛璋冪敤銆?3. `packages/excalidraw/components/ArchitectureAssistant.tsx` 淇濈暀 `defaultTab`锛屼絾榛樿浠庣粺涓€鍏ュ彛杩涘叆 `optimize`銆?4. `scripts/test-architecture-fix.js` 鏍￠獙鍙ｅ緞鏇存柊涓?`renderingSchemeIds` 涓?`isPreparingInsert`锛屼笌鐜板疄鐜颁竴鑷淬€?5. 涓嶅紩鍏ョ牬鍧忔€ф暟鎹ā鍨嬪彉鏇达紝`Scheme`/`generationSnapshot`/鎸佷箙鍖栧瓧娈典繚鎸佸吋瀹广€?
+## 闃舵 0锛氫簨瀹炲榻愪笌闂ㄧ淇锛圥0锛屽繀椤诲厛瀹屾垚锛?鐩爣锛氳鈥滄枃妗ｃ€佽剼鏈€佷唬鐮併€侀獙鏀剁粨鏋溾€濅竴鑷淬€?
+鎵ц椤癸細
+1. 淇 `scripts/test-architecture-fix.js` 鐨勬棫鍙橀噺鏍￠獙閫昏緫锛坄renderingSchemes` -> `renderingSchemeIds`锛夈€?2. 鏇存柊 `plan20260214.md` 闃舵鐘舵€佷笌娴嬭瘯鍙ｅ緞锛岀Щ闄よ繃鏃垛€?5/24 鏂囦欢鈥濊鏁拌〃杈俱€?3. 鏇存柊 `AI_ARCHITECTURE_ASSISTANT.md` 涓凡澶辨晥鐨?`ai/generators` 涓庣ず渚嬩唬鐮侊紝鏀逛负褰撳墠 hook + `runAIStream` 鏋舵瀯銆?4. 鏀舵暃涓昏彍鍗曞叆鍙ｏ細淇敼 `excalidraw-app/components/AppMainMenu.tsx` 涓?`excalidraw-app/App.tsx`锛屽彧淇濈暀鈥淎I鏋舵瀯鍔╂墜鈥濄€?
+楠屾敹鍛戒护锛?1. `yarn test:architecture`
 2. `yarn test:app --watch=false packages/excalidraw/components/ArchitectureOptimizationDialog/ArchitectureOptimizationDialog.integration.test.ts packages/excalidraw/components/AIArchitectureGenerationDialog/AIArchitectureGenerationDialog.session.test.tsx`
 
-通过标准：
-1. 两条命令均通过。
-2. 主菜单只出现一个 AI 主入口，功能可通过 Tab 切换覆盖原双入口能力。
-
-## 阶段 1：`ArchitectureOptimizationDialog` 组件与逻辑拆分（P1）
-目标：把巨型文件降为“编排层”，避免继续膨胀。
-
-新增文件：
-1. `packages/excalidraw/components/ArchitectureOptimizationDialog/ConfigurationWaitScreen.tsx`
+閫氳繃鏍囧噯锛?1. 涓ゆ潯鍛戒护鍧囬€氳繃銆?2. 涓昏彍鍗曞彧鍑虹幇涓€涓?AI 涓诲叆鍙ｏ紝鍔熻兘鍙€氳繃 Tab 鍒囨崲瑕嗙洊鍘熷弻鍏ュ彛鑳藉姏銆?
+## 闃舵 1锛歚ArchitectureOptimizationDialog` 缁勪欢涓庨€昏緫鎷嗗垎锛圥1锛?鐩爣锛氭妸宸ㄥ瀷鏂囦欢闄嶄负鈥滅紪鎺掑眰鈥濓紝閬垮厤缁х画鑶ㄨ儉銆?
+鏂板鏂囦欢锛?1. `packages/excalidraw/components/ArchitectureOptimizationDialog/ConfigurationWaitScreen.tsx`
 2. `packages/excalidraw/components/ArchitectureOptimizationDialog/ClearSchemesConfirmDialog.tsx`
 3. `packages/excalidraw/components/ArchitectureOptimizationDialog/SchemeUndoToast.tsx`
 4. `packages/excalidraw/components/ArchitectureOptimizationDialog/hooks/useArchitecturePersistence.ts`
 5. `packages/excalidraw/components/ArchitectureOptimizationDialog/hooks/usePreviewRenderer.ts`
 6. `packages/excalidraw/components/ArchitectureOptimizationDialog/hooks/usePlanGeneration.ts`
 
-修改文件：
-1. `packages/excalidraw/components/ArchitectureOptimizationDialog.tsx` 仅保留状态编排与子组件装配。
-2. `packages/excalidraw/components/ArchitectureOptimizationDialog/PreviewPage.tsx` 与 `WorkflowPage.tsx` 只保留展示逻辑。
-
-通过标准：
-1. `ArchitectureOptimizationDialog.tsx` 行数显著下降（目标 < 1200 行）。
-2. 行为不变，现有 integration/test 全通过。
-
-## 阶段 2：样式模块化与死样式清理（P1）
-目标：结束单文件 4000+ 行样式维护模式。
-
-新增样式文件：
-1. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_tokens.scss`
+淇敼鏂囦欢锛?1. `packages/excalidraw/components/ArchitectureOptimizationDialog.tsx` 浠呬繚鐣欑姸鎬佺紪鎺掍笌瀛愮粍浠惰閰嶃€?2. `packages/excalidraw/components/ArchitectureOptimizationDialog/PreviewPage.tsx` 涓?`WorkflowPage.tsx` 鍙繚鐣欏睍绀洪€昏緫銆?
+閫氳繃鏍囧噯锛?1. `ArchitectureOptimizationDialog.tsx` 琛屾暟鏄捐憲涓嬮檷锛堢洰鏍?< 1200 琛岋級銆?2. 琛屼负涓嶅彉锛岀幇鏈?integration/test 鍏ㄩ€氳繃銆?
+## 闃舵 2锛氭牱寮忔ā鍧楀寲涓庢鏍峰紡娓呯悊锛圥1锛?鐩爣锛氱粨鏉熷崟鏂囦欢 4000+ 琛屾牱寮忕淮鎶ゆā寮忋€?
+鏂板鏍峰紡鏂囦欢锛?1. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_tokens.scss`
 2. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_layout.scss`
 3. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_chat.scss`
 4. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_workflow.scss`
 5. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_preview.scss`
 6. `packages/excalidraw/components/ArchitectureOptimizationDialog/styles/_overlays.scss`
 
-改造策略：
-1. `ArchitectureOptimizationDialog.scss` 仅保留 import 与极少数兼容覆盖。
-2. `ArchitectureOptimizationDialog.layout.scss` 内容并入 `_layout.scss` 后删除，避免双入口样式源。
-
-通过标准：
-1. 样式目录职责清晰。
-2. UI 关键路径无可见回归（对话、建议页、预览页、清空确认、未配置页）。
-
-## 阶段 3：UX 与性能打磨（P2）
-目标：补齐“感知性能”和“失败可理解性”。
-
-执行项：
-1. 在 `PreviewPage.tsx` 增加渲染中骨架与空态区分（无数据/渲染中/失败）。
-2. 在 `WorkflowPage.tsx` 增加建议池空态与恢复提示入口文案强化。
-3. 在 `AIArchitectureGenerationDialog` 工作台路径增加统一加载反馈，不改变业务语义。
-4. 针对小屏断点整理交互（优先 <=960 和 <=600）。
-
-通过标准：
-1. 用户能明确分辨“空状态 vs 加载中 vs 错误”。
-2. 移动端下主要操作可完成，不出现关键按钮遮挡。
-
-## 阶段 4：工程化完善（P2）
-目标：让该模块进入稳定可维护状态。
-
-执行项：
-1. i18n 抽取：把 AI 架构模块硬编码文案迁移到 `packages/excalidraw/locales/en.json` 与 `packages/excalidraw/locales/zh-CN.json`。
-2. Atoms 测试补齐：为 `chatAtoms/schemeAtoms/workflowAtoms/uiAtoms` 增加纯逻辑测试。
-3. 局部错误隔离：为 Architecture Assistant 增加局部错误边界，避免单模块异常影响全局编辑器。
-4. 文档闭环：同步更新 `plan20260214.md` 与 `AI_ARCHITECTURE_ASSISTANT.md` 的状态、命令、验收清单。
-
-通过标准：
-1. 新增测试稳定通过。
-2. 文案走 i18n key，不再新增硬编码中文。
-3. 文档可直接作为发布验收依据。
-
-## 回归测试与验收场景
-1. 统一入口：主菜单单入口可进入助手并在 Tab 间切换两类能力。
-2. 生成与更新语义：新建/更新方案跳转、快照冻结、重试校验保持正确。
-3. 持久化与导入导出：聊天、建议池、方案、页面状态可恢复。
-4. 预览体验：渲染中禁用插入、完成后可插入、空态/错误态提示明确。
-5. 门禁：`yarn test:architecture` 与关键 `yarn test:app --watch=false ...` 通过。
-
-## 假设与默认
-1. 菜单入口采用“单入口统一”，不再保留“AI架构生成”独立菜单项。
-2. 不改动现有数据存储 schema，优先做兼容性安全改造。
-3. i18n 首批覆盖 `en` 与 `zh-CN`，其他语种沿用现有回退机制。
-4. 不在本轮做新功能扩展，只做结构化重整与体验修复。
+鏀归€犵瓥鐣ワ細
+1. `ArchitectureOptimizationDialog.scss` 浠呬繚鐣?import 涓庢瀬灏戞暟鍏煎瑕嗙洊銆?2. `ArchitectureOptimizationDialog.layout.scss` 鍐呭骞跺叆 `_layout.scss` 鍚庡垹闄わ紝閬垮厤鍙屽叆鍙ｆ牱寮忔簮銆?
+閫氳繃鏍囧噯锛?1. 鏍峰紡鐩綍鑱岃矗娓呮櫚銆?2. UI 鍏抽敭璺緞鏃犲彲瑙佸洖褰掞紙瀵硅瘽銆佸缓璁〉銆侀瑙堥〉銆佹竻绌虹‘璁ゃ€佹湭閰嶇疆椤碉級銆?
+## 闃舵 3锛歎X 涓庢€ц兘鎵撶（锛圥2锛?鐩爣锛氳ˉ榻愨€滄劅鐭ユ€ц兘鈥濆拰鈥滃け璐ュ彲鐞嗚В鎬р€濄€?
+鎵ц椤癸細
+1. 鍦?`PreviewPage.tsx` 澧炲姞娓叉煋涓鏋朵笌绌烘€佸尯鍒嗭紙鏃犳暟鎹?娓叉煋涓?澶辫触锛夈€?2. 鍦?`WorkflowPage.tsx` 澧炲姞寤鸿姹犵┖鎬佷笌鎭㈠鎻愮ず鍏ュ彛鏂囨寮哄寲銆?3. 鍦?`AIArchitectureGenerationDialog` 宸ヤ綔鍙拌矾寰勫鍔犵粺涓€鍔犺浇鍙嶉锛屼笉鏀瑰彉涓氬姟璇箟銆?4. 閽堝灏忓睆鏂偣鏁寸悊浜や簰锛堜紭鍏?<=960 鍜?<=600锛夈€?
+閫氳繃鏍囧噯锛?1. 鐢ㄦ埛鑳芥槑纭垎杈ㄢ€滅┖鐘舵€?vs 鍔犺浇涓?vs 閿欒鈥濄€?2. 绉诲姩绔笅涓昏鎿嶄綔鍙畬鎴愶紝涓嶅嚭鐜板叧閿寜閽伄鎸°€?
+## 闃舵 4锛氬伐绋嬪寲瀹屽杽锛圥2锛?鐩爣锛氳璇ユā鍧楄繘鍏ョǔ瀹氬彲缁存姢鐘舵€併€?
+鎵ц椤癸細
+1. i18n 鎶藉彇锛氭妸 AI 鏋舵瀯妯″潡纭紪鐮佹枃妗堣縼绉诲埌 `packages/excalidraw/locales/en.json` 涓?`packages/excalidraw/locales/zh-CN.json`銆?2. Atoms 娴嬭瘯琛ラ綈锛氫负 `chatAtoms/schemeAtoms/workflowAtoms/uiAtoms` 澧炲姞绾€昏緫娴嬭瘯銆?3. 灞€閮ㄩ敊璇殧绂伙細涓?Architecture Assistant 澧炲姞灞€閮ㄩ敊璇竟鐣岋紝閬垮厤鍗曟ā鍧楀紓甯稿奖鍝嶅叏灞€缂栬緫鍣ㄣ€?4. 鏂囨。闂幆锛氬悓姝ユ洿鏂?`plan20260214.md` 涓?`AI_ARCHITECTURE_ASSISTANT.md` 鐨勭姸鎬併€佸懡浠ゃ€侀獙鏀舵竻鍗曘€?
+閫氳繃鏍囧噯锛?1. 鏂板娴嬭瘯绋冲畾閫氳繃銆?2. 鏂囨璧?i18n key锛屼笉鍐嶆柊澧炵‖缂栫爜涓枃銆?3. 鏂囨。鍙洿鎺ヤ綔涓哄彂甯冮獙鏀朵緷鎹€?
+## 鍥炲綊娴嬭瘯涓庨獙鏀跺満鏅?1. 缁熶竴鍏ュ彛锛氫富鑿滃崟鍗曞叆鍙ｅ彲杩涘叆鍔╂墜骞跺湪 Tab 闂村垏鎹袱绫昏兘鍔涖€?2. 鐢熸垚涓庢洿鏂拌涔夛細鏂板缓/鏇存柊鏂规璺宠浆銆佸揩鐓у喕缁撱€侀噸璇曟牎楠屼繚鎸佹纭€?3. 鎸佷箙鍖栦笌瀵煎叆瀵煎嚭锛氳亰澶┿€佸缓璁睜銆佹柟妗堛€侀〉闈㈢姸鎬佸彲鎭㈠銆?4. 棰勮浣撻獙锛氭覆鏌撲腑绂佺敤鎻掑叆銆佸畬鎴愬悗鍙彃鍏ャ€佺┖鎬?閿欒鎬佹彁绀烘槑纭€?5. 闂ㄧ锛歚yarn test:architecture` 涓庡叧閿?`yarn test:app --watch=false ...` 閫氳繃銆?
+## 鍋囪涓庨粯璁?1. 鑿滃崟鍏ュ彛閲囩敤鈥滃崟鍏ュ彛缁熶竴鈥濓紝涓嶅啀淇濈暀鈥淎I鏋舵瀯鐢熸垚鈥濈嫭绔嬭彍鍗曢」銆?2. 涓嶆敼鍔ㄧ幇鏈夋暟鎹瓨鍌?schema锛屼紭鍏堝仛鍏煎鎬у畨鍏ㄦ敼閫犮€?3. i18n 棣栨壒瑕嗙洊 `en` 涓?`zh-CN`锛屽叾浠栬绉嶆部鐢ㄧ幇鏈夊洖閫€鏈哄埗銆?4. 涓嶅湪鏈疆鍋氭柊鍔熻兘鎵╁睍锛屽彧鍋氱粨鏋勫寲閲嶆暣涓庝綋楠屼慨澶嶃€?

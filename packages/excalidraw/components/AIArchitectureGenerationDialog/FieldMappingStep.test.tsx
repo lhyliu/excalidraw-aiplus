@@ -37,19 +37,20 @@ describe("FieldMappingStep", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <FieldMappingStep onContinue={onContinue} onGenerateDraft={() => {}} />
+        <FieldMappingStep onContinue={onContinue} onGenerateDraft={() => { }} />
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText(/读懂你的表格/)).toBeInTheDocument();
+    // Section header should show field confirmation prompts
     expect(screen.getByText(/仅需你确认/)).toBeInTheDocument();
     expect(screen.getByText(/画图必需字段覆盖/)).toBeInTheDocument();
-    expect(screen.getByText("展开可选字段（可忽略）")).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/查看 AI 已确认字段/));
-    expect(screen.getAllByText(/匹配|contains|包含|no alias/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("收起透视区")).toBeInTheDocument();
+    expect(screen.getByText(/展开可选字段（可忽略）/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("进入问题修复"));
+    // Confidence and reason badges should be visible
+    expect(screen.getAllByText(/匹配|contains|包含|no alias/i).length).toBeGreaterThan(0);
+
+    // Click the primary confirm button
+    fireEvent.click(screen.getByRole("button", { name: /确认并进入问题修复/ }));
 
     expect(onContinue).toHaveBeenCalledTimes(1);
     const aliases = editorJotaiStore.get(aliasStoreAtom);
@@ -83,20 +84,28 @@ describe("FieldMappingStep", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <FieldMappingStep onContinue={onContinue} onGenerateDraft={() => {}} />
+        <FieldMappingStep onContinue={onContinue} onGenerateDraft={() => { }} />
       </EditorJotaiProvider>,
     );
 
-    const chooseButtons = screen.getAllByRole("button", { name: "选择列名" });
-    fireEvent.click(chooseButtons[0]);
-    fireEvent.change(screen.getByRole("combobox"), {
+    // Inline selects are always visible now — find the serviceName combobox
+    const selects = screen.getAllByRole("combobox");
+    // The serviceName field should have the manual option — find it
+    const serviceNameSelect = selects.find((select) =>
+      Array.from(select.querySelectorAll("option")).some(
+        (opt) => opt.value === "__manual__serviceName",
+      ),
+    );
+    expect(serviceNameSelect).toBeTruthy();
+    fireEvent.change(serviceNameSelect!, {
       target: { value: "__manual__serviceName" },
     });
-    fireEvent.click(screen.getByText("进入问题修复"));
+    fireEvent.click(screen.getByRole("button", { name: /确认并进入问题修复/ }));
 
     expect(onContinue).toHaveBeenCalledTimes(1);
     const aliases = editorJotaiStore.get(aliasStoreAtom);
     expect(aliases.serviceName ?? []).toEqual([]);
   });
 });
+
 

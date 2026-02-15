@@ -1,7 +1,5 @@
 /**
- * 会话状态管理
- * 存储用户的会话级别状态
- */
+ * 会话状态管�? * 存储用户的会话级别状�? */
 
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 import { atom } from "jotai";
@@ -12,7 +10,7 @@ import type {
 } from "../../types";
 import { DEFAULT_SESSION_STATE } from "../../types";
 
-const STORAGE_KEY = "excalidraw_ai_arch_generation_session_v3";
+const STORAGE_KEY = "excalidraw_ai_arch_generation_session";
 const fallbackMemoryStorage = new Map<string, string>();
 
 const jsonStorage = createJSONStorage(() => {
@@ -37,14 +35,20 @@ const jsonStorage = createJSONStorage(() => {
       fallbackMemoryStorage.delete(key);
     },
   };
-});
+}) as ReturnType<typeof createJSONStorage<any>>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function typedAtomWithStorage<T>(key: string, initialValue: T) {
+  return atomWithStorage<T>(key, initialValue, jsonStorage as any) as unknown as ReturnType<
+    typeof atom<T>
+  >;
+}
 
 /** 会话状态Atom */
 export const sessionStateAtom =
-  atomWithStorage<AIArchitectureGenerationSessionState>(
+  typedAtomWithStorage<AIArchitectureGenerationSessionState>(
     STORAGE_KEY,
     DEFAULT_SESSION_STATE,
-    jsonStorage,
   );
 
 /** 当前步骤 */
@@ -65,7 +69,7 @@ export const generationModeAtom = atom(
   },
 );
 
-/** 草稿过滤器 */
+/** 草稿过滤�?*/
 export const draftFilterAtom = atom(
   (get) => get(sessionStateAtom).draftFilter,
   (get, set, filter: string) => {
@@ -83,7 +87,7 @@ export const namingSuggestionsAtom = atom(
   },
 );
 
-/** 重置会话状态 */
+/** 重置会话状�?*/
 export const resetSessionStateAtom = atom(null, (_get, set) => {
   set(sessionStateAtom, DEFAULT_SESSION_STATE);
 });

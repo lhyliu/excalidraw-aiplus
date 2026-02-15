@@ -7,6 +7,14 @@ This file defines practical rules for coding agents working in this repository.
 - Applies to the whole repository unless a deeper `AGENTS.md` overrides it.
 - Do not invent product behavior that is not present in code.
 
+## Agent Communication Guidelines
+
+- Be succinct; expansive generative AI answers are costly and slow
+- Avoid providing explanations or teaching unless asked
+- Stop apologizing if corrected; just provide correct information or code
+- Prefer code unless asked for explanation
+- Stop summarizing what you've changed after modifications unless asked
+
 ## Repository Facts
 
 - Monorepo with Yarn workspaces (`yarn@1.22.22`).
@@ -122,6 +130,7 @@ yarn rm:build
 - Import using `type` keyword for type-only imports (enforced by ESLint)
 - Prefer allocations-free implementations where possible
 - Trade RAM usage for fewer CPU cycles when choosing implementations
+- Always include `packages/math/src/types.ts` in the context when writing math-related code and always use the Point type instead of `{ x, y }`
 
 ### React
 

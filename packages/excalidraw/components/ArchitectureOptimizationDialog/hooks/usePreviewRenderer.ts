@@ -8,7 +8,7 @@ import { convertMermaidToExcalidraw } from "../../TTDDialog/common";
 
 import type { Dispatch, SetStateAction } from "react";
 import type { ExcalidrawElement, NonDeletedExcalidrawElement, Theme } from "@excalidraw/element/types";
-import type { BinaryFiles } from "../../../types";
+import type { AppState, BinaryFiles } from "../../../types";
 import type { MermaidToExcalidrawLibProps } from "../../TTDDialog/types";
 import type { Scheme } from "../model";
 
@@ -26,7 +26,7 @@ interface UsePreviewRendererOptions {
   mermaidToExcalidrawLib: MermaidToExcalidrawLibProps;
   theme: Theme;
   viewBackgroundColor: string;
-  frameRendering: boolean;
+  frameRendering: AppState["frameRendering"];
   setViewport: Dispatch<SetStateAction<ViewportState>>;
   setRenderingSchemeIds: Dispatch<SetStateAction<string[]>>;
 }

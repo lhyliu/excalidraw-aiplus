@@ -1,4 +1,4 @@
-import type { Issue } from "../../AIArchitectureGeneration";
+﻿import type { Issue } from "../../AIArchitectureGeneration";
 
 export interface IssueSuggestionContextRow {
   rowId: number;
@@ -26,17 +26,11 @@ export const buildIssueSuggestionMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业资产数据校准助手。根据问题类型和上下文给出修正建议。\n" +
-        "常见校准规则：\n" +
-        "- IP 格式: 必须是 x.x.x.x，内网常见段 10.x/172.16-31.x/192.168.x\n" +
-        "- 环境名: 常见值 prod/staging/test/dev/uat/pre\n" +
-        "- 缺失服务名: 可从 hostname 中推断（如 order-web-01 → order-web）\n" +
-        "- 重复项: 建议保留主记录，标记需合并的行\n" +
-        "输出 JSON: {\"suggestedValue\":\"...\",\"reason\":\"...\"}",
+        "你是企业资产数据校准助手。根据问题类型和上下文给出可执行修复建议。输出 JSON: {\"suggestedValue\":\"...\",\"reason\":\"...\"}",
     },
     {
       role: "user" as const,
-      content: `请为以下待确认项提供一个可执行建议值。\n类型:${issueTitle}\ncode:${issueCode}\nfield:${issueField ?? "unknown"}\n样本:\n${sample}\n要求:\n1) suggestedValue 必须是可直接填入该字段的值\n2) reason 用一句话说明依据\n3) 若无法可靠建议，suggestedValue 返回空字符串`,
+      content: `请为以下待确认项提供一个可执行建议值。\n类型:${issueTitle}\ncode:${issueCode}\nfield:${issueField ?? "unknown"}\n样本:\n${sample}\n要求:\n1) suggestedValue 必须可直接填入该字段\n2) reason 用一句话说明依据\n3) 若无法可靠建议，suggestedValue 返回空字符串`,
     },
   ];
 };

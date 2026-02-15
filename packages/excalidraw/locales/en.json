@@ -111,6 +111,19 @@
     "aiGenerationRequireMapping": "Please confirm required columns first: hostname, privateIp, serviceName",
     "aiGenerationRequireIssueResolve": "Please resolve blocking issues first",
     "aiGenerationNoCalibratableAssets": "No calibratable assets found. Please fix field mapping first",
+    "aiTaskCenterTitle": "Recent tasks",
+    "aiTaskActionCancel": "Cancel",
+    "aiTaskTypeServiceNameFill": "Service name fill",
+    "aiTaskTypeBusinessScope": "Business scope",
+    "aiTaskTypeBusinessLayering": "AI layering",
+    "aiTaskTypeDiagramGenerate": "Diagram generation",
+    "aiTaskTypeUnknown": "Unknown task",
+    "aiTaskStatusQueued": "Queued",
+    "aiTaskStatusRunning": "Running",
+    "aiTaskStatusSuccess": "Completed",
+    "aiTaskStatusError": "Failed",
+    "aiTaskStatusCanceled": "Canceled",
+    "aiTaskStatusStalled": "Stalled",
     "duplicateSelection": "Duplicate",
     "untitled": "Untitled",
     "name": "Name",
@@ -728,4 +741,3 @@
     "mmb": "Scroll wheel"
   }
 }
-

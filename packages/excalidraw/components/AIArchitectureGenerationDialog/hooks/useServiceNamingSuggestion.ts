@@ -1,6 +1,10 @@
 import { useCallback } from "react";
 
-import { runAIStream } from "../../../services/aiService";
+import {
+  cancelAiTask,
+  createAiTask,
+  subscribeAiTask,
+} from "../../../services/aiTaskService";
 import { useAIStream } from "../../hooks/useAIStream";
 import type {
   NormalizedVmRow,
@@ -32,25 +36,41 @@ export const parseServiceNameSuggestions = (raw: string): string[] => {
 };
 
 export const useServiceNamingSuggestion = () => {
-  const { run, isStreaming } = useAIStream();
+  const { run, abort, isStreaming } = useAIStream();
 
   const requestSuggestions = useCallback(
     async (group: ServiceGroup, rows: NormalizedVmRow[]): Promise<string[]> => {
       const messages = buildServiceNamingMessages(group, rows);
       let full = "";
-      const result = await run((signal) =>
-        runAIStream(
-          messages,
-          {
-            onChunk: (chunk) => {
-              full += chunk;
+      const result = await run(async (signal) => {
+        const { taskId } = await createAiTask("service_name_fill", { messages });
+        const done = await new Promise<boolean>((resolve) => {
+          const unsubscribe = subscribeAiTask(taskId, {
+            onPartial: ({ data }) => {
+              full += data;
             },
-          },
-          signal,
-        ),
-      );
+            onDone: () => {
+              unsubscribe();
+              resolve(true);
+            },
+            onError: () => {
+              unsubscribe();
+              resolve(false);
+            },
+          });
+          signal.addEventListener("abort", () => {
+            void cancelAiTask(taskId);
+            unsubscribe();
+            resolve(false);
+          });
+        });
+        return done;
+      });
 
       if (!result.success) {
+        return [];
+      }
+      if (!result.data) {
         return [];
       }
 
@@ -61,8 +81,8 @@ export const useServiceNamingSuggestion = () => {
 
   return {
     requestSuggestions,
+    abortServiceNamingSuggestion: abort,
     isStreaming,
   };
 };
-
 

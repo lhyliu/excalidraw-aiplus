@@ -3,13 +3,10 @@
  */
 
 export {
-  parseCsv,
-  readCsvFile,
-  validateCsvData,
-  detectEncoding,
+  CsvParser,
   CsvParseError,
   type ParseCsvOptions,
-} from "./parseCsv";
+} from "./CsvParser";
 
 export {
   normalizeVmRows,

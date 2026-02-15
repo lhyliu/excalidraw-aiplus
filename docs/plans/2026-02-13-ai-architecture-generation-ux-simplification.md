@@ -1,17 +1,18 @@
-# AI 架构生成交互简化 Implementation Plan
+﻿> [!WARNING]
+> Archived on 2026-02-16. This plan references the retired AIArchitectureGenerationDialog workflow.
+> Current implementation uses page-oriented flow (/ai/csv-fix, /ai/draft-confirm) + SSE task API (/api/ai/tasks).
+> See AI_ARCHITECTURE_ASSISTANT.md and ackend-proxy/README.md for active architecture.
+# AI 鏋舵瀯鐢熸垚浜や簰绠€鍖?Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 把当前“字段识别/数据校准”改成“快速出初稿 + 仅确认不确定项”的可懂流程。
-
-**Architecture:** 不改数据结构与路由，只重排现有 `AIArchitectureGenerationDialog` 展示层。中心区以“读懂你的表格”和“待确认事项分组卡片”为主，保留专家模式 Overlay 作为批量兜底。通过最小行为变更让用户可以从导入页直接生成初稿。
-
+**Goal:** 鎶婂綋鍓嶁€滃瓧娈佃瘑鍒?鏁版嵁鏍″噯鈥濇敼鎴愨€滃揩閫熷嚭鍒濈 + 浠呯‘璁や笉纭畾椤光€濈殑鍙噦娴佺▼銆?
+**Architecture:** 涓嶆敼鏁版嵁缁撴瀯涓庤矾鐢憋紝鍙噸鎺掔幇鏈?`AIArchitectureGenerationDialog` 灞曠ず灞傘€備腑蹇冨尯浠モ€滆鎳備綘鐨勮〃鏍尖€濆拰鈥滃緟纭浜嬮」鍒嗙粍鍗＄墖鈥濅负涓伙紝淇濈暀涓撳妯″紡 Overlay 浣滀负鎵归噺鍏滃簳銆傞€氳繃鏈€灏忚涓哄彉鏇磋鐢ㄦ埛鍙互浠庡鍏ラ〉鐩存帴鐢熸垚鍒濈銆?
 **Tech Stack:** React + TypeScript strict + Jotai + Vitest + Testing Library
 
 ---
 
-### Task 1: 导入与字段理解改为“先出图、后细化”
-
+### Task 1: 瀵煎叆涓庡瓧娈电悊瑙ｆ敼涓衡€滃厛鍑哄浘銆佸悗缁嗗寲鈥?
 **Files:**
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/ImportStep.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/FieldMappingStep.tsx`
@@ -20,59 +21,40 @@
 - Create: `packages/excalidraw/components/AIArchitectureGenerationDialog/ImportStep.test.tsx`
 
 **Step 1: Write failing tests**
-- `FieldMappingStep.test.tsx` 断言默认提示“仅需确认不确定项”以及“查看 AI 已确认字段”入口。
-- `ImportStep.test.tsx` 断言 CSV 解析后可直接点击“一键生成初稿”。
-
+- `FieldMappingStep.test.tsx` 鏂█榛樿鎻愮ず鈥滀粎闇€纭涓嶇‘瀹氶」鈥濅互鍙娾€滄煡鐪?AI 宸茬‘璁ゅ瓧娈碘€濆叆鍙ｃ€?- `ImportStep.test.tsx` 鏂█ CSV 瑙ｆ瀽鍚庡彲鐩存帴鐐瑰嚮鈥滀竴閿敓鎴愬垵绋库€濄€?
 **Step 2: Verify RED**
 - Run: `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/FieldMappingStep.test.tsx packages/excalidraw/components/AIArchitectureGenerationDialog/ImportStep.test.tsx`
-- Expected: FAIL（目标文案/按钮尚不存在）
-
+- Expected: FAIL锛堢洰鏍囨枃妗?鎸夐挳灏氫笉瀛樺湪锛?
 **Step 3: Write minimal implementation**
-- `ImportStep` 增加 `onGenerateDraft`，在有数据时显示“一键生成初稿”。
-- `FieldUnderstandingPanel` 默认仅展示低把握或未识别字段；高把握字段折叠。
-- `FieldMappingStep` 增加“确认 AI 理解并继续/直接生成初稿”双路径。
-
+- `ImportStep` 澧炲姞 `onGenerateDraft`锛屽湪鏈夋暟鎹椂鏄剧ず鈥滀竴閿敓鎴愬垵绋库€濄€?- `FieldUnderstandingPanel` 榛樿浠呭睍绀轰綆鎶婃彙鎴栨湭璇嗗埆瀛楁锛涢珮鎶婃彙瀛楁鎶樺彔銆?- `FieldMappingStep` 澧炲姞鈥滅‘璁?AI 鐞嗚В骞剁户缁?鐩存帴鐢熸垚鍒濈鈥濆弻璺緞銆?
 **Step 4: Verify GREEN**
-- Run same tests，预期 PASS。
-
-### Task 2: 待确认页改为“类型卡片 + 批量应用”
-
+- Run same tests锛岄鏈?PASS銆?
+### Task 2: 寰呯‘璁ら〉鏀逛负鈥滅被鍨嬪崱鐗?+ 鎵归噺搴旂敤鈥?
 **Files:**
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/IssuesStep.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/CalibrationTaskFlow.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/IssuesStep.test.tsx`
 
 **Step 1: Write failing test**
-- `IssuesStep.test.tsx` 断言显示“待确认事项 (N 类)”并支持“确认并应用 (count)”。
-
+- `IssuesStep.test.tsx` 鏂█鏄剧ず鈥滃緟纭浜嬮」 (N 绫?鈥濆苟鏀寔鈥滅‘璁ゅ苟搴旂敤 (count)鈥濄€?
 **Step 2: Verify RED**
 - Run: `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog/IssuesStep.test.tsx`
-- Expected: FAIL（当前仍是逐行输入卡片）
-
+- Expected: FAIL锛堝綋鍓嶄粛鏄€愯杈撳叆鍗＄墖锛?
 **Step 3: Write minimal implementation**
-- 按问题类型显示卡片，给出 AI 分析与建议值。
-- 为可建议类型增加批量应用按钮。
-- 行级内容改为“预览涉及主机”展开区，保留专家模式入口。
-
+- 鎸夐棶棰樼被鍨嬫樉绀哄崱鐗囷紝缁欏嚭 AI 鍒嗘瀽涓庡缓璁€笺€?- 涓哄彲寤鸿绫诲瀷澧炲姞鎵归噺搴旂敤鎸夐挳銆?- 琛岀骇鍐呭鏀逛负鈥滈瑙堟秹鍙婁富鏈衡€濆睍寮€鍖猴紝淇濈暀涓撳妯″紡鍏ュ彛銆?
 **Step 4: Verify GREEN**
-- Run same test，预期 PASS。
-
-### Task 3: 全局文案与摘要引导
-
+- Run same test锛岄鏈?PASS銆?
+### Task 3: 鍏ㄥ眬鏂囨涓庢憳瑕佸紩瀵?
 **Files:**
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/CalibrationStepper.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog/AiUnderstandingPanel.tsx`
 - Modify: `packages/excalidraw/components/AIArchitectureGenerationDialog.scss`
 
-**Step 1: Write failing assertions (已有覆盖)**
-- 通过现有对话级测试验证关键入口仍可导航。
-
+**Step 1: Write failing assertions (宸叉湁瑕嗙洊)**
+- 閫氳繃鐜版湁瀵硅瘽绾ф祴璇曢獙璇佸叧閿叆鍙ｄ粛鍙鑸€?
 **Step 2: Write minimal implementation**
-- 左侧步骤文案改为业务化命名（导入表格/读懂表格/待确认项/初步架构图/可信现状）。
-- 右侧摘要顶部改为“下一步建议”。
-- 样式补充：卡片优先级标签、批量操作区、折叠预览区。
-
+- 宸︿晶姝ラ鏂囨鏀逛负涓氬姟鍖栧懡鍚嶏紙瀵煎叆琛ㄦ牸/璇绘噦琛ㄦ牸/寰呯‘璁ら」/鍒濇鏋舵瀯鍥?鍙俊鐜扮姸锛夈€?- 鍙充晶鎽樿椤堕儴鏀逛负鈥滀笅涓€姝ュ缓璁€濄€?- 鏍峰紡琛ュ厖锛氬崱鐗囦紭鍏堢骇鏍囩銆佹壒閲忔搷浣滃尯銆佹姌鍙犻瑙堝尯銆?
 **Step 3: Verify**
 - Run: `yarn vitest --run packages/excalidraw/components/AIArchitectureGenerationDialog`
-- Expected: 全部 PASS。
+- Expected: 鍏ㄩ儴 PASS銆?

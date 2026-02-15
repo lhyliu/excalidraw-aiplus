@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+﻿import React, { useState, useCallback, useEffect } from "react";
 
 import {
   getAISettings,
@@ -23,6 +23,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
     apiUrl: "",
     apiKey: "",
     model: "",
+    streamStallTimeoutMs: 15000,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,6 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
   const { run: runStream, isStreaming } = useAIStream();
 
-  // Load existing settings on mount
   useEffect(() => {
     const existingSettings = getAISettings();
     if (existingSettings) {
@@ -50,14 +50,28 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
     [],
   );
 
+  const handleStallTimeoutChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const seconds = Number(e.target.value);
+      setSettingsState((prev) => ({
+        ...prev,
+        streamStallTimeoutMs: Number.isFinite(seconds)
+          ? Math.max(5, Math.floor(seconds)) * 1000
+          : prev.streamStallTimeoutMs,
+      }));
+      setError(null);
+      setSuccess(false);
+    },
+    [],
+  );
+
   const handleTest = useCallback(async () => {
-    // Validate
     if (!settings.apiUrl.trim()) {
-      setError("请输入API URL");
+      setError("请输入 API URL");
       return;
     }
     if (!settings.apiKey.trim()) {
-      setError("请输入API Key");
+      setError("请输入 API Key");
       return;
     }
 
@@ -78,23 +92,22 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
         ),
       );
       if (result.success) {
-        setTestSuccess("连接成功! (Connection successful)");
+        setTestSuccess("连接成功");
       } else {
-        setError(result.error || "连接失败 (Connection failed)");
+        setError(result.error || "连接失败");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "连接失败 (Connection failed)");
+      setError(e instanceof Error ? e.message : "连接失败");
     }
   }, [settings, runStream]);
 
   const handleSave = useCallback(() => {
-    // Validate
     if (!settings.apiUrl.trim()) {
-      setError("请输入API URL");
+      setError("请输入 API URL");
       return;
     }
     if (!settings.apiKey.trim()) {
-      setError("请输入API Key");
+      setError("请输入 API Key");
       return;
     }
 
@@ -103,7 +116,6 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
     setSuccess(true);
     setIsSaving(false);
 
-    // Close after a short delay to show success
     setTimeout(() => {
       onClose();
     }, 500);
@@ -124,11 +136,10 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             type="text"
             value={settings.apiUrl}
             onChange={handleChange("apiUrl")}
-            placeholder="如 https://api.openai.com 或完整地址 .../chat/completions"
+            placeholder="例如 https://api.openai.com 或完整 .../chat/completions"
           />
           <span className="ai-settings-dialog__hint">
-            支持仅填域名自动补全（如 api.openai.com →
-            /v1/chat/completions），或填写完整地址
+            支持仅填域名自动补全，或填写完整端点。
           </span>
         </div>
 
@@ -142,7 +153,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             placeholder="sk-..."
           />
           <span className="ai-settings-dialog__hint">
-            您的API密钥，将存储在浏览器本地
+            API 密钥仅存储在本地浏览器。
           </span>
         </div>
 
@@ -156,7 +167,24 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
             placeholder="gpt-4o-mini, gpt-4o, deepseek-chat"
           />
           <span className="ai-settings-dialog__hint">
-            模型名称，例如 gpt-4o-mini, gpt-4o, deepseek-chat
+            模型名称，例如 gpt-4o-mini。
+          </span>
+        </div>
+
+        <div className="ai-settings-dialog__field">
+          <label htmlFor="ai-stream-stall-timeout">流式卡住阈值（秒）</label>
+          <input
+            id="ai-stream-stall-timeout"
+            type="number"
+            min={5}
+            max={120}
+            step={1}
+            value={Math.floor((settings.streamStallTimeoutMs ?? 15000) / 1000)}
+            onChange={handleStallTimeoutChange}
+            placeholder="15"
+          />
+          <span className="ai-settings-dialog__hint">
+            连续多少秒无新 token 视为卡住并自动中断，默认 15 秒。
           </span>
         </div>
 
@@ -165,7 +193,7 @@ export const AISettingsDialog: React.FC<AISettingsDialogProps> = ({
           <div className="ai-settings-dialog__success">{testSuccess}</div>
         )}
         {success && (
-          <div className="ai-settings-dialog__success">设置已保存!</div>
+          <div className="ai-settings-dialog__success">设置已保存</div>
         )}
 
         <div className="ai-settings-dialog__actions">

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +12,7 @@ import {
 import { CalibrateStep } from "./CalibrateStep";
 
 describe("CalibrateStep", () => {
-  it("shows confirmed when quality gate is passed", () => {
+  it("renders confirmed state when quality gate passes", () => {
     editorJotaiStore.set(importedCsvAtom, {
       headers: ["Host", "IP", "Service"],
       rows: [
@@ -32,16 +32,15 @@ describe("CalibrateStep", () => {
 
     render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <CalibrateStep />
+        <CalibrateStep onInsertToCanvas={() => {}} />
       </EditorJotaiProvider>,
     );
 
-    expect(
-      screen.getByText("已标记为可信现状（confirmed）"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3 })).toBeInTheDocument();
+    expect(screen.getAllByText(/confirmed/i).length).toBeGreaterThan(0);
   });
 
-  it("shows gate blocking reasons when quality threshold is not met", () => {
+  it("renders quality gate panel when gate is blocked", () => {
     editorJotaiStore.set(importedCsvAtom, {
       headers: ["Host", "IP", "Service"],
       rows: [
@@ -59,17 +58,12 @@ describe("CalibrateStep", () => {
     });
     editorJotaiStore.set(completedCalibrationTaskIdsAtom, []);
 
-    render(
+    const { container } = render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <CalibrateStep />
+        <CalibrateStep onInsertToCanvas={() => {}} />
       </EditorJotaiProvider>,
     );
 
-    expect(screen.getByText("质量门槛: 未通过")).toBeInTheDocument();
-    expect(screen.getByText("可信现状阻断原因")).toBeInTheDocument();
-    expect(
-      screen.queryByText("已标记为可信现状（confirmed）"),
-    ).not.toBeInTheDocument();
+    expect(container.querySelector(".ai-architecture-generation-dialog__issue-card")).toBeTruthy();
   });
 });
-

@@ -8,7 +8,6 @@ import { FieldUnderstandingPanel } from "./FieldUnderstandingPanel";
 
 describe("FieldUnderstandingPanel", () => {
   it("shows AI suggestion action for low-confidence fields and triggers callback", () => {
-    const onStartEdit = vi.fn();
     const onChangeMapping = vi.fn();
     const onRequestAISuggestion = vi.fn();
     const inferred: FieldInferenceResult = {
@@ -35,20 +34,20 @@ describe("FieldUnderstandingPanel", () => {
 
     render(
       <FieldUnderstandingPanel
+        sectionTitle="核心字段"
+        sectionIcon="🎯"
         fields={["hostname", "serviceName"]}
         inferred={inferred}
         mapping={mapping}
         headers={["Host", "Owner"]}
-        editingField={null}
-        onStartEdit={onStartEdit}
         onChangeMapping={onChangeMapping}
         onRequestAISuggestion={onRequestAISuggestion}
         aiSuggestingField={null}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "AI 建议列名" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "AI 建议列名" }));
+    expect(screen.getByText(/AI建议/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/AI建议/));
     expect(onRequestAISuggestion).toHaveBeenCalledWith("serviceName");
   });
 });

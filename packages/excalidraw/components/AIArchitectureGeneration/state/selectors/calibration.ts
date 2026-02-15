@@ -1,4 +1,4 @@
-import { atom } from "jotai";
+﻿import { atom } from "jotai";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 import type {
@@ -10,7 +10,7 @@ import type {
 } from "../../types";
 import { issuesAtom, normalizedRowsAtom, serviceGroupsAtom } from "./derived";
 
-const STORAGE_KEY_PREFIX = "excalidraw_ai_arch_gen_v2";
+const STORAGE_KEY_PREFIX = "excalidraw_ai_arch_gen";
 const fallbackMemoryStorage = new Map<string, string>();
 
 const jsonStorage = createJSONStorage(() => {
@@ -35,12 +35,18 @@ const jsonStorage = createJSONStorage(() => {
       fallbackMemoryStorage.delete(key);
     },
   };
-});
+}) as ReturnType<typeof createJSONStorage<any>>;
 
-export const completedCalibrationTaskIdsAtom = atomWithStorage<string[]>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function typedAtomWithStorage<T>(key: string, initialValue: T) {
+  return atomWithStorage<T>(key, initialValue, jsonStorage as any) as unknown as ReturnType<
+    typeof atom<T>
+  >;
+}
+
+export const completedCalibrationTaskIdsAtom = typedAtomWithStorage<string[]>(
   `${STORAGE_KEY_PREFIX}_completed_tasks`,
   [],
-  jsonStorage,
 );
 
 export const buildCalibrationTasks = (
@@ -111,7 +117,7 @@ export const calibrationQualityGateAtom = atom<CalibrationQualityGate>((get) => 
   if (totalAssets === 0) {
     return {
       ready: false,
-      reasons: ["当前没有可校准资产，请先确认字段映射与数据质量"],
+      reasons: ["当前没有可校准资产，请先确认字段映射与数据质量。"],
       metrics: {
         totalAssets,
         hostnameCoverage: 0,
@@ -129,13 +135,13 @@ export const calibrationQualityGateAtom = atom<CalibrationQualityGate>((get) => 
 
   const reasons: string[] = [];
   if (hostnameCoverage < COVERAGE_THRESHOLD) {
-    reasons.push(`主机名覆盖率不足（${Math.round(hostnameCoverage * 100)}%）`);
+    reasons.push(`主机名覆盖率不足（${Math.round(hostnameCoverage * 100)}%）。`);
   }
   if (ipCoverage < COVERAGE_THRESHOLD) {
-    reasons.push(`内网 IP 覆盖率不足（${Math.round(ipCoverage * 100)}%）`);
+    reasons.push(`内网 IP 覆盖率不足（${Math.round(ipCoverage * 100)}%）。`);
   }
   if (blockingIssueCount > 0) {
-    reasons.push(`仍有 ${blockingIssueCount} 个阻断级待确认项未处理`);
+    reasons.push(`仍有 ${blockingIssueCount} 个阻断级待确认项未处理。`);
   }
 
   return {
@@ -184,7 +190,7 @@ export const markCalibrationTaskUndoneAtom = atom(
     if (prev.includes(taskId)) {
       set(
         completedCalibrationTaskIdsAtom,
-        prev.filter((id) => id !== taskId),
+        prev.filter((id: string) => id !== taskId),
       );
     }
   },

@@ -94,6 +94,7 @@ interface ArchitectureOptimizationDialogProps {
   elements: readonly ExcalidrawElement[];
   onClose: () => void;
   onOpenAISettings: () => void;
+  assistantTabs?: React.ReactNode;
 }
 
 const ARCHITECTURE_DIALOG_WIDTH = 1500;
@@ -105,7 +106,7 @@ const getScopedStorageKey = (baseKey: string, scope?: string) =>
 
 export const ArchitectureOptimizationDialog: React.FC<
   ArchitectureOptimizationDialogProps
-> = ({ elements, onClose, onOpenAISettings }) => {
+> = ({ elements, onClose, onOpenAISettings, assistantTabs }) => {
   const app = useApp();
   const uiAppState = useUIAppState();
   const storageScope = (uiAppState.name || "default").trim();
@@ -980,7 +981,12 @@ export const ArchitectureOptimizationDialog: React.FC<
       <Dialog
         className="architecture-optimization-dialog"
         onCloseRequest={onClose}
-        title="AI架构助手"
+        title={
+          <div className="architecture-assistant__dialog-title">
+            <span>AI架构优化</span>
+            {assistantTabs}
+          </div>
+        }
         size={ARCHITECTURE_DIALOG_WIDTH}
       >
         <ConfigurationWaitScreen
@@ -996,7 +1002,12 @@ export const ArchitectureOptimizationDialog: React.FC<
     <Dialog
       className="architecture-optimization-dialog"
       onCloseRequest={onClose}
-      title="AI架构助手"
+      title={
+        <div className="architecture-assistant__dialog-title">
+          <span>AI架构优化</span>
+          {assistantTabs}
+        </div>
+      }
       size={ARCHITECTURE_DIALOG_WIDTH}
     >
       <div className="architecture-optimization-dialog__content">

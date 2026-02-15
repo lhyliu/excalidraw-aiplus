@@ -1,18 +1,25 @@
-/* Floating tab styles for ArchitectureAssistant */
+/* Dialog header tab styles for ArchitectureAssistant */
+
+.architecture-assistant__dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
 
 .architecture-assistant__tab-bar {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100001;
+  position: static;
+  z-index: auto;
+  width: auto;
+  margin: 0;
   display: flex;
   gap: 2px;
-  padding: 3px;
-  border-radius: 12px;
-  background: rgba(30, 30, 46, 0.85);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--color-surface-low);
+  border: 1px solid var(--color-border-outline-variant);
+  box-shadow: none;
 }
 
 .architecture-assistant__tab {
@@ -26,19 +33,19 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--color-text-secondary);
   background: transparent;
   white-space: nowrap;
 
   &:hover:not(&--active) {
-    color: rgba(255, 255, 255, 0.75);
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-on-surface);
+    background: var(--color-surface-high);
   }
 
   &--active {
-    color: #fff;
-    background: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    color: var(--color-primary-contrast);
+    background: var(--color-primary);
+    box-shadow: none;
   }
 }
 

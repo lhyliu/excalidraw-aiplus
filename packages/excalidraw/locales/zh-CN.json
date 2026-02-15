@@ -111,6 +111,19 @@
     "aiGenerationRequireMapping": "请先确认关键列：hostname、privateIp、serviceName",
     "aiGenerationRequireIssueResolve": "请先清零阻断问题（error）",
     "aiGenerationNoCalibratableAssets": "当前没有可校准资产，请先修正字段映射",
+    "aiTaskCenterTitle": "最近任务",
+    "aiTaskActionCancel": "中断",
+    "aiTaskTypeServiceNameFill": "服务名补全",
+    "aiTaskTypeBusinessScope": "业务范围识别",
+    "aiTaskTypeBusinessLayering": "AI 分层",
+    "aiTaskTypeDiagramGenerate": "架构图生成",
+    "aiTaskTypeUnknown": "未知任务",
+    "aiTaskStatusQueued": "排队中",
+    "aiTaskStatusRunning": "执行中",
+    "aiTaskStatusSuccess": "已完成",
+    "aiTaskStatusError": "失败",
+    "aiTaskStatusCanceled": "已中断",
+    "aiTaskStatusStalled": "疑似卡住",
     "duplicateSelection": "复制",
     "untitled": "无标题",
     "name": "名字",
@@ -728,4 +741,3 @@
     "mmb": "鼠标滚轮"
   }
 }
-

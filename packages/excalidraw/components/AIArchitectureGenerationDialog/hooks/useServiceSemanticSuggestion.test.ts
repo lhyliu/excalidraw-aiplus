@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import { parseServiceSemanticSuggestions } from "./useServiceSemanticSuggestion";
 
@@ -12,8 +12,16 @@ describe("parseServiceSemanticSuggestions", () => {
     ]);
   });
 
+  it("parses wrapped JSON suggestions", () => {
+    const parsed = parseServiceSemanticSuggestions(
+      '以下是结果：{"suggestions":[{"rowId":2,"serviceName":"业务应用服务器","reason":"hostname含应用服务器"}]} 完成',
+    );
+    expect(parsed).toEqual([
+      { rowId: 2, serviceName: "业务应用服务器", reason: "hostname含应用服务器" },
+    ]);
+  });
+
   it("returns empty list for invalid payload", () => {
     expect(parseServiceSemanticSuggestions("not-json")).toEqual([]);
   });
 });
-

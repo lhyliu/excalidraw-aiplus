@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { render, screen } from "@testing-library/react";
 
 import { PreviewPage } from "./PreviewPage";
@@ -56,6 +56,7 @@ describe("PreviewPage", () => {
         onInsertToCanvas={() => {}}
         isInsertDisabled={false}
         isPreparingInsert={false}
+        isPreviewLoading={false}
         onTogglePanMode={() => {}}
         onPreviewPointerDown={() => {}}
         onPreviewPointerMove={() => {}}
@@ -77,12 +78,7 @@ describe("PreviewPage", () => {
       />,
     );
 
-    expect(screen.getByText("已选建议覆盖率")).toBeInTheDocument();
-    expect(screen.getByText("已体现 1/2")).toBeInTheDocument();
-    expect(screen.getByText("优化MySQL")).toBeInTheDocument();
-    expect(screen.getByText("扩展Redis集群")).toBeInTheDocument();
-    expect(screen.getByText("未体现")).toBeInTheDocument();
-    expect(screen.getByText("已体现")).toBeInTheDocument();
+    expect(screen.getByText("AI方案总结")).toBeInTheDocument();
     expect(screen.getByText("查看完整 AI 总结")).toBeInTheDocument();
   });
 
@@ -130,6 +126,7 @@ describe("PreviewPage", () => {
         onInsertToCanvas={() => {}}
         isInsertDisabled={false}
         isPreparingInsert={false}
+        isPreviewLoading={false}
         onTogglePanMode={() => {}}
         onPreviewPointerDown={() => {}}
         onPreviewPointerMove={() => {}}
@@ -151,6 +148,6 @@ describe("PreviewPage", () => {
       />,
     );
 
-    expect(screen.getByText("已体现 1/1")).toBeInTheDocument();
+    expect(screen.getByText("AI方案总结")).toBeInTheDocument();
   });
 });

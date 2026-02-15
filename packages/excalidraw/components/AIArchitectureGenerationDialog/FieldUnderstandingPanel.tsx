@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 
 import type {
   FieldInferenceResult,
@@ -9,20 +9,22 @@ import type {
 import { InferenceReasonBadge } from "./InferenceReasonBadge";
 
 interface FieldUnderstandingPanelProps {
+  sectionTitle: string;
+  sectionIcon: string;
   fields: StandardField[];
   inferred: FieldInferenceResult;
   mapping: FieldMapping;
   headers: string[];
-  editingField: StandardField | null;
-  onStartEdit: (field: StandardField) => void;
+  sampleRow?: Record<string, string>;
   onChangeMapping: (field: StandardField, value: string) => void;
   onRequestAISuggestion: (field: StandardField) => void;
   aiSuggestingField: StandardField | null;
+  defaultExpanded?: boolean;
 }
 
 const getConfidenceLabel = (score: number | undefined) => {
   if (score === undefined) {
-    return { text: "低把握", level: "low" as const };
+    return { text: "未识别", level: "low" as const };
   }
   if (score >= 0.9) {
     return { text: "高把握", level: "high" as const };
@@ -46,136 +48,124 @@ const fieldLabelMap: Record<StandardField, string> = {
 
 const MANUAL_SERVICE_NAME_VALUE = "__manual__serviceName";
 
-const displayMappingValue = (field: StandardField, value: string | undefined) => {
-  if (!value) {
-    return "未识别";
-  }
-  if (field === "serviceName" && value === MANUAL_SERVICE_NAME_VALUE) {
-    return "后续逐台补录";
-  }
-  return value;
-};
-
 export const FieldUnderstandingPanel: React.FC<FieldUnderstandingPanelProps> = ({
+  sectionTitle,
+  sectionIcon,
   fields,
   inferred,
   mapping,
   headers,
-  editingField,
-  onStartEdit,
+  sampleRow,
   onChangeMapping,
   onRequestAISuggestion,
   aiSuggestingField,
 }) => {
-  const [showConfirmed, setShowConfirmed] = useState(false);
   const viewItems = useMemo(
     () =>
       fields.map((field) => {
         const top = inferred[field]?.[0];
         const confidence = getConfidenceLabel(top?.score);
         const isMapped = Boolean(mapping[field]);
-        const canEdit = confidence.level === "low" || !isMapped;
+        const mappedHeader = mapping[field];
+        const sampleValue = mappedHeader && sampleRow ? sampleRow[mappedHeader] : undefined;
         return {
           field,
           top,
           confidence,
           isMapped,
-          canEdit,
+          mappedHeader,
+          sampleValue,
         };
       }),
-    [fields, inferred, mapping],
+    [fields, inferred, mapping, sampleRow],
   );
-  const uncertainItems = viewItems.filter((item) => item.canEdit);
-  const confirmedItems = viewItems.filter((item) => !item.canEdit);
-
-  const renderItem = (item: (typeof viewItems)[number]) => {
-    const isEditing = editingField === item.field;
-    return (
-      <div
-        key={item.field}
-        className="ai-architecture-generation-dialog__mapping-row"
-      >
-        <div className="ai-architecture-generation-dialog__mapping-field">
-          <span className="ai-architecture-generation-dialog__mapping-field-name">
-            {fieldLabelMap[item.field]}
-          </span>
-          <span className="ai-architecture-generation-dialog__summary">
-            {item.field}
-          </span>
-          <div className="ai-architecture-generation-dialog__inline-form">
-            <em
-              className={`ai-architecture-generation-dialog__confidence ai-architecture-generation-dialog__confidence--${item.confidence.level}`}
-            >
-              {item.confidence.text}
-            </em>
-            <InferenceReasonBadge
-              reason={item.top?.reason ?? "no alias match"}
-            />
-          </div>
-        </div>
-        <div className="ai-architecture-generation-dialog__inline-form">
-          <strong>{displayMappingValue(item.field, mapping[item.field])}</strong>
-          {item.canEdit && !isEditing && (
-            <>
-              <button type="button" onClick={() => onStartEdit(item.field)}>
-                选择列名
-              </button>
-              <button
-                type="button"
-                onClick={() => onRequestAISuggestion(item.field)}
-                disabled={aiSuggestingField === item.field}
-              >
-                {aiSuggestingField === item.field
-                  ? "AI 识别中..."
-                  : "AI 建议列名"}
-              </button>
-            </>
-          )}
-          {item.canEdit && isEditing && (
-            <select
-              value={mapping[item.field] ?? ""}
-              onChange={(event) =>
-                onChangeMapping(item.field, event.target.value)
-              }
-            >
-              <option value="">未映射</option>
-              {item.field === "serviceName" && (
-                <option value={MANUAL_SERVICE_NAME_VALUE}>无对应列，后续逐台补录</option>
-              )}
-              {headers.map((header) => (
-                <option key={header} value={header}>
-                  {header}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
-    <div className="ai-architecture-generation-dialog__step">
-      <div className="ai-architecture-generation-dialog__summary">
-        仅需你确认 {uncertainItems.length} 项（低把握或未识别）。
+    <div className="ai-architecture-generation-dialog__field-section">
+      <div className="ai-architecture-generation-dialog__field-section-header">
+        <span>{sectionIcon}</span>
+        <span className="ai-architecture-generation-dialog__field-section-title">
+          {sectionTitle}
+        </span>
+        <span className="ai-architecture-generation-dialog__summary">
+          仅需你确认 {viewItems.filter((i) => !i.isMapped || i.confidence.level === "low").length} 项
+        </span>
       </div>
       <div className="ai-architecture-generation-dialog__mapping-list">
-        {uncertainItems.map(renderItem)}
+        {viewItems.map((item) => (
+          <div
+            key={item.field}
+            className={`ai-architecture-generation-dialog__mapping-row${item.isMapped ? " is-mapped" : " is-unmapped"
+              }`}
+          >
+            {/* Left: Field info */}
+            <div className="ai-architecture-generation-dialog__mapping-field">
+              <span className="ai-architecture-generation-dialog__mapping-status">
+                {item.isMapped ? "✅" : "⚠️"}
+              </span>
+              <div className="ai-architecture-generation-dialog__mapping-field-info">
+                <span className="ai-architecture-generation-dialog__mapping-field-name">
+                  {fieldLabelMap[item.field]}
+                </span>
+                <span className="ai-architecture-generation-dialog__mapping-field-key">
+                  {item.field}
+                </span>
+              </div>
+              <span
+                className={`ai-architecture-generation-dialog__confidence ai-architecture-generation-dialog__confidence--${item.confidence.level}`}
+              >
+                {item.confidence.text}
+              </span>
+              <InferenceReasonBadge reason={item.top?.reason ?? "no alias match"} />
+            </div>
+
+            {/* Center: Arrow */}
+            <span className="ai-architecture-generation-dialog__mapping-arrow">→</span>
+
+            {/* Right: Mapping select + actions */}
+            <div className="ai-architecture-generation-dialog__mapping-value">
+              <select
+                className="ai-architecture-generation-dialog__mapping-select"
+                value={mapping[item.field] ?? ""}
+                onChange={(event) =>
+                  onChangeMapping(item.field, event.target.value)
+                }
+              >
+                <option value="">— 选择列名 —</option>
+                {item.field === "serviceName" && (
+                  <option value={MANUAL_SERVICE_NAME_VALUE}>无对应列，后续逐台补录</option>
+                )}
+                {headers.map((header) => (
+                  <option key={header} value={header}>
+                    {header}
+                  </option>
+                ))}
+              </select>
+              {item.sampleValue !== undefined && (
+                <span
+                  className="ai-architecture-generation-dialog__mapping-sample"
+                  title={`示例值: ${item.sampleValue}`}
+                >
+                  例: {item.sampleValue || "-"}
+                </span>
+              )}
+              {item.confidence.level === "low" && (
+                <button
+                  type="button"
+                  className="ai-architecture-generation-dialog__table-ai-btn"
+                  onClick={() => onRequestAISuggestion(item.field)}
+                  disabled={aiSuggestingField === item.field}
+                >
+                  {aiSuggestingField === item.field ? "识别中..." : "🤖 AI建议"}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="ai-architecture-generation-dialog__actions">
-        <button type="button" onClick={() => setShowConfirmed((prev) => !prev)}>
-          {showConfirmed
-            ? `收起 AI 已确认字段 (${confirmedItems.length})`
-            : `查看 AI 已确认字段 (${confirmedItems.length})`}
-        </button>
-      </div>
-      {showConfirmed && (
-        <div className="ai-architecture-generation-dialog__mapping-list">
-          {confirmedItems.map(renderItem)}
-        </div>
-      )}
     </div>
   );
 };
+
 
 

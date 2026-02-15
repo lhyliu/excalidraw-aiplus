@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   NormalizedVmRow,
   ServiceGroup,
 } from "../../AIArchitectureGeneration";
@@ -47,22 +47,20 @@ export const buildBusinessScopeMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业IT资产分析助手。任务是按业务范围对服务分组进行归类。请避免固定模板，面向多行业数据做语义归并。只输出 JSON。",
+        "你是企业 IT 资产分析助手。任务是按业务范围归并服务分组。只输出 JSON，不输出额外说明。",
     },
     {
       role: "user" as const,
       content:
-        "请将输入的服务分组归并为业务范围，用于后续一次选择一个业务生成架构图。\n" +
+        "请将输入的服务分组归并为业务范围，用于后续按范围生成架构图。\n" +
         "输出 JSON 格式：\n" +
         '{"scopes":[{"name":"业务范围名称","groupIds":["group-0","group-1"],"reason":"归类依据"}]}\n' +
         "约束：\n" +
         "1) groupIds 必须来自输入分组 id\n" +
         "2) 每个分组至少归属到一个 scope\n" +
-        "3) scope 名称应是业务语义，不要使用技术层名\n" +
-        "4) 仅输出 JSON，不要额外解释\n" +
+        "3) scope 名称应是业务语义\n" +
         `服务分组输入:\n${groupSummary || "[]"}\n` +
         `资产样本:\n${rowSummary || "[]"}`,
     },
   ];
 };
-

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,34 +22,37 @@ describe("ImportStep", () => {
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: " " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "解析并进入字段确认" }));
+    fireEvent.click(screen.getByRole("button", { name: /解析并进入字段确认/ }));
 
     expect(screen.getByText("请输入 CSV 内容")).toBeInTheDocument();
     expect(onGenerateDraft).not.toHaveBeenCalled();
     expect(onContinue).not.toHaveBeenCalled();
   });
 
-  it("shows quality summary and preview grid after csv parse", () => {
+  it("shows preview grid and quality pills after csv parse", async () => {
     editorJotaiStore.set(importedCsvAtom, { headers: [], rows: [] });
     const onContinue = vi.fn();
 
     const { container } = render(
       <EditorJotaiProvider store={editorJotaiStore}>
-        <ImportStep onContinue={onContinue} onGenerateDraft={() => {}} />
+        <ImportStep onContinue={onContinue} onGenerateDraft={() => { }} />
       </EditorJotaiProvider>,
     );
 
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Host,IP\nweb-01,10.0.0.1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "解析并进入字段确认" }));
+    fireEvent.click(screen.getByRole("button", { name: /解析并进入字段确认/ }));
 
-    expect(screen.getByText(/数据质量卡/)).toBeInTheDocument();
-    expect(screen.getByText(/必填字段命中率/)).toBeInTheDocument();
+    // Table preview should appear
+    expect(
+      await screen.findByText(/预览前/),
+    ).toBeInTheDocument();
     expect(
       container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
     ).toBeInTheDocument();
     expect(container.querySelector(".ag-root-wrapper")).toBeInTheDocument();
-    expect(onContinue).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
   });
 });
+

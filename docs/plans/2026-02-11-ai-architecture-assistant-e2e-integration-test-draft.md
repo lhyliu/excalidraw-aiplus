@@ -1,9 +1,9 @@
 # AI Architecture Assistant E2E Integration Test Draft
 
 ## Status
-- Date: 2026-02-11
+- Date: 2026-02-15
 - Current: Core integration contract tests are already implemented in `ArchitectureOptimizationDialog.integration.test.ts`.
-- Remaining: Expand to full UI-driven interaction tests (selection toggles, clear-dialog checkbox branches, toast timing) as a follow-up.
+- Update: UI-driven interaction tests for selection toggles, clear-dialog checkbox branches, and toast timing are implemented.
 
 ## Scope
 Convert manual acceptance cases (A-D) into automatable integration tests in Vitest + Testing Library level, with deterministic AI responses.
@@ -17,6 +17,10 @@ Convert manual acceptance cases (A-D) into automatable integration tests in Vite
 - `packages/excalidraw/components/ArchitectureOptimizationDialog/ArchitectureOptimizationDialog.integration.test.tsx`
 - `packages/excalidraw/components/ArchitectureOptimizationDialog/__fixtures__/mockPlanResponses.ts`
 - Optional helper: `packages/excalidraw/components/ArchitectureOptimizationDialog/__testutils__/renderDialog.tsx`
+- Implemented UI-interaction tests:
+  - `packages/excalidraw/components/ArchitectureOptimizationDialog/WorkflowPage.test.tsx`
+  - `packages/excalidraw/components/ArchitectureOptimizationDialog/ClearSchemesConfirmDialog.test.tsx`
+  - `packages/excalidraw/components/ArchitectureOptimizationDialog/SchemeUndoToast.test.tsx`
 
 ## Shared Fixtures
 1. Suggestion fixture
@@ -107,6 +111,7 @@ Asserts:
 ## Commands
 - Single file: `yarn test packages/excalidraw/components/ArchitectureOptimizationDialog/ArchitectureOptimizationDialog.integration.test.tsx --watch=false`
 - Related suite: `yarn test packages/excalidraw/components/ArchitectureOptimizationDialog/*.test.ts* --watch=false`
+- UI-interaction subset: `yarn test:app --watch=false packages/excalidraw/components/ArchitectureOptimizationDialog/WorkflowPage.test.tsx packages/excalidraw/components/ArchitectureOptimizationDialog/ClearSchemesConfirmDialog.test.tsx packages/excalidraw/components/ArchitectureOptimizationDialog/SchemeUndoToast.test.tsx`
 
 ## Definition of Done
 - 5 integration tests pass: Case A/B/C/D + retry path.

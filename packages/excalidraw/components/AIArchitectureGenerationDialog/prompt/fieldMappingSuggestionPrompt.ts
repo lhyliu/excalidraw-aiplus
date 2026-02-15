@@ -1,4 +1,4 @@
-import type { StandardField } from "../../AIArchitectureGeneration";
+﻿import type { StandardField } from "../../AIArchitectureGeneration";
 
 const fieldBusinessLabel: Record<StandardField, string> = {
   hostname: "主机名",
@@ -25,20 +25,12 @@ export const buildFieldMappingSuggestionMessages = (
     {
       role: "system" as const,
       content:
-        "你是企业资产表格识别助手。根据列名和样本数据，将 CSV 列映射到标准字段。\n" +
-        "常见列名别名（仅供参考）：\n" +
-        "- hostname: Host, 主机名, HostName, server_name, 机器名\n" +
-        "- privateIp: IP, 内网IP, ip_address, InternalIP, PrivateIP\n" +
-        "- serviceName: Service, 服务, AppName, 用途, ServiceCode, 应用名\n" +
-        "- environment: Env, 环境, Environment, env_name, 部署环境\n" +
-        "- cluster: Cluster, 集群, cluster_name, 集群名称\n" +
-        "- region: Region, 地域, zone, 资源池, AZ, DataCenter\n" +
-        "输出 JSON: {\"header\":\"...\",\"reason\":\"...\"}。header 必须来自候选列。",
+        "你是企业资产表格识别助手。请根据列名与样本数据，把 CSV 列映射到标准字段。输出 JSON: {\"header\":\"...\",\"reason\":\"...\"}。header 必须来自候选列。",
     },
     {
       role: "user" as const,
-      content: `请在候选列中为目标字段选择最可能的列名。\n目标字段: ${field} (${fieldBusinessLabel[field]})\n候选列: ${headers.join(", ")}\n样本行:\n${sample}\n要求:\n1) header 必须来自候选列，无法判断则返回空字符串\n2) reason 用一句话说明依据\n3) 不要输出额外文本`,
+      content:
+        `请在候选列中为目标字段选择最可能的列名。\n目标字段: ${field} (${fieldBusinessLabel[field]})\n候选列: ${headers.join(", ")}\n样本行:\n${sample}\n要求:\n1) header 必须来自候选列，无法判断返回空字符串\n2) reason 用一句话说明依据\n3) 只输出 JSON`,
     },
   ];
 };
-

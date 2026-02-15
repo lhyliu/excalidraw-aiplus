@@ -1,6 +1,6 @@
-/**
- * AI架构生成模块 - 统一类型定义
- * 整合原 importWorkflow/types.ts 和组件内部类型
+﻿/**
+ * AI 架构生成模块 - 统一类型定义
+ * 整合原 importWorkflow/types.ts 与组件内类型
  */
 
 // ============================================
@@ -30,19 +30,27 @@ export type GenerationStep =
 
 /** 生成模式 */
 export type GenerationMode = "safe" | "advanced";
+export type DraftStage = "scopeReady" | "layerReady" | "diagramReady";
+export type DiagramStatus = "idle" | "generating" | "ready" | "error";
+export interface LayerDraft {
+  name: string;
+  description: string;
+  rowIds: number[];
+  reason: string;
+}
 
 // ============================================
 // 数据类型定义
 // ============================================
 
-/** 原始CSV行 */
+/** 原始 CSV 行 */
 export type RawCsvRow = {
   rowId: number;
   values: Record<string, string>;
   raw: Record<string, string>;
 };
 
-/** 解析后的CSV数据 */
+/** 解析后的 CSV 数据 */
 export type ParsedCsv = {
   headers: string[];
   rows: RawCsvRow[];
@@ -73,7 +81,7 @@ export type FieldMappingValidation =
 /** 单元格编辑 */
 export type CellEdits = Record<number, Record<string, string>>;
 
-/** 忽略的行 */
+/** 忽略行 */
 export type IgnoredRows = number[];
 
 /** 规范化后的虚拟机数据 */
@@ -108,7 +116,7 @@ export type IssueCode =
   | "duplicate_ip"
   | "unknown_environment";
 
-/** 问题严重程度 */
+/** 问题严重级别 */
 export type IssueSeverity = "warning" | "error";
 
 /** 数据问题 */
@@ -159,7 +167,7 @@ export type CalibrationState = {
   status: "idle" | "in_progress" | "confirmed";
 };
 
-/** 置信度状态 */
+/** 置信状态 */
 export type ConfidenceState = "draft" | "calibrating" | "confirmed";
 
 // ============================================
@@ -184,7 +192,7 @@ export interface StepConfig {
   skippable?: boolean;
 }
 
-/** 工作流程状态 */
+/** 工作流状态 */
 export interface WorkflowState {
   currentStep: GenerationStep;
   completedSteps: GenerationStep[];
@@ -202,15 +210,15 @@ export interface WorkflowState {
 }
 
 // ============================================
-// AI生成器类型定义
+// AI 生成器类型定义
 // ============================================
 
-/** AI生成结果 */
+/** AI 生成结果 */
 export type AIResult<T> =
   | { success: true; data: T; confidence: number }
   | { success: false; error: string; retryable: boolean };
 
-/** AI生成器接口 */
+/** AI 生成器接口 */
 export interface AIGenerator<TInput, TOutput> {
   readonly id: string;
   readonly name: string;
@@ -251,13 +259,25 @@ export interface DataFixSuggestion {
 // 会话状态类型
 // ============================================
 
-/** AI架构生成会话状态 */
+/** AI 架构生成会话状态 */
 export interface AIArchitectureGenerationSessionState {
   step: GenerationStep;
   mode: GenerationMode;
   draftFilter: string;
   namingSuggestions: Record<string, string[]>;
-  version: number; // 用于数据迁移
+  issueFilter?: string | null;
+  draftActiveScopeId?: string;
+  draftLayerEditsByScope?: Record<string, LayerDraft[]>;
+  draftDiagramByScope?: Record<string, string>;
+  draftDiagramStatusByScope?: Record<string, DiagramStatus>;
+  progressSnapshot?: {
+    stepCompletion: number;
+    blockingErrorCount: number;
+    unresolvedIssueCount: number;
+    totalIssueCount: number;
+    resolvedIssueCount: number;
+    updatedAt: number;
+  };
 }
 
 /** 默认会话状态 */
@@ -266,14 +286,19 @@ export const DEFAULT_SESSION_STATE: AIArchitectureGenerationSessionState = {
   mode: "safe",
   draftFilter: "",
   namingSuggestions: {},
-  version: 3, // 新版本号
+  issueFilter: null,
+  draftActiveScopeId: undefined,
+  draftLayerEditsByScope: {},
+  draftDiagramByScope: {},
+  draftDiagramStatusByScope: {},
+  progressSnapshot: undefined,
 };
 
 // ============================================
-// UI状态类型
+// UI 状态类型
 // ============================================
 
-/** UI状态 */
+/** UI 状态 */
 export interface UIState {
   isLoading: boolean;
   error: string | null;

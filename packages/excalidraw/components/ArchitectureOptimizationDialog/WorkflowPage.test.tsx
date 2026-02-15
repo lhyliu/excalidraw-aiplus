@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { WorkflowPage } from "./WorkflowPage";
 
@@ -33,7 +33,7 @@ describe("WorkflowPage", () => {
         suggestionSearchKeyword=""
         showArchivedSuggestions={false}
         editingSuggestionId={null}
-        expandedSuggestionIds={new Set()}
+        expandedSuggestionIds={[]}
         architectureStyle="standard"
         activeSchemeId="scheme-1"
         isStreaming={false}
@@ -48,6 +48,8 @@ describe("WorkflowPage", () => {
         onUpdateSuggestionNote={() => {}}
         onStartAnalysis={() => {}}
         onSendPresetQuestion={() => {}}
+        canReactivateLastSuggestions={false}
+        onReactivateLastSuggestions={() => {}}
         onSetArchitectureStyle={() => {}}
         onGenerateNewFromSelected={() => {}}
         onUpdateCurrentFromSelected={() => {}}
@@ -64,5 +66,71 @@ describe("WorkflowPage", () => {
     expect(
       screen.getByText("仅使用已勾选建议生成，不会自动包含未勾选建议。"),
     ).toBeInTheDocument();
+  });
+
+  it("triggers selection toggle by click and keyboard", () => {
+    const onToggleSuggestionSelection = vi.fn();
+
+    render(
+      <WorkflowPage
+        suggestionToast={null}
+        onCloseSuggestionToast={() => {}}
+        stagingAreaRef={{ current: null }}
+        selectedSuggestions={[]}
+        suggestionPool={[
+          {
+            id: "s1",
+            category: "performance",
+            title: "优化MySQL",
+            content: "实现读写分离",
+            fullContent: "优化MySQL实现读写分离",
+            selected: false,
+          },
+        ]}
+        visibleSuggestions={[
+          {
+            id: "s1",
+            category: "performance",
+            title: "优化MySQL",
+            content: "实现读写分离",
+            fullContent: "优化MySQL实现读写分离",
+            selected: false,
+          },
+        ]}
+        suggestionSearchKeyword=""
+        showArchivedSuggestions={false}
+        editingSuggestionId={null}
+        expandedSuggestionIds={[]}
+        architectureStyle="standard"
+        activeSchemeId={null}
+        isStreaming={false}
+        onClearSelectedSuggestions={() => {}}
+        onToggleSuggestionSelection={onToggleSuggestionSelection}
+        onClearSuggestionPool={() => {}}
+        onSetSuggestionSearchKeyword={() => {}}
+        onSetShowArchivedSuggestions={() => {}}
+        onSetEditingSuggestionId={() => {}}
+        onArchiveSuggestion={() => {}}
+        onToggleExpandedSuggestion={() => {}}
+        onUpdateSuggestionNote={() => {}}
+        onStartAnalysis={() => {}}
+        onSendPresetQuestion={() => {}}
+        canReactivateLastSuggestions={false}
+        onReactivateLastSuggestions={() => {}}
+        onSetArchitectureStyle={() => {}}
+        onGenerateNewFromSelected={() => {}}
+        onUpdateCurrentFromSelected={() => {}}
+      />,
+    );
+
+    const checkboxCard = screen.getByRole("checkbox", { name: "优化MySQL" });
+    fireEvent.click(checkboxCard);
+    fireEvent.keyDown(checkboxCard, { key: "Enter" });
+    fireEvent.keyDown(checkboxCard, { key: " " });
+
+    expect(onToggleSuggestionSelection).toHaveBeenCalledTimes(3);
+    expect(onToggleSuggestionSelection).toHaveBeenNthCalledWith(1, "s1");
+    expect(onToggleSuggestionSelection).toHaveBeenNthCalledWith(2, "s1");
+    expect(onToggleSuggestionSelection).toHaveBeenNthCalledWith(3, "s1");
   });
 });

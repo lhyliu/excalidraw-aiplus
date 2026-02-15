@@ -11,7 +11,6 @@ import {
 import type { StandardField } from "../AIArchitectureGeneration";
 
 import { FieldUnderstandingPanel } from "./FieldUnderstandingPanel";
-import { RawColumnsViewer } from "./RawColumnsViewer";
 import { useAliasMemory } from "./hooks/useAliasMemory";
 import { useFieldMappingSuggestion } from "./hooks/useFieldMappingSuggestion";
 
@@ -41,7 +40,6 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
   const [error, setError] = useState<string | null>(null);
   const { rememberMapping } = useAliasMemory();
   const [notice, setNotice] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<StandardField | null>(null);
   const [showOptionalFields, setShowOptionalFields] = useState(false);
   const [aiSuggestingField, setAiSuggestingField] = useState<StandardField | null>(
     null,
@@ -68,7 +66,6 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
         [field]: value || undefined,
       }));
       setNotice(null);
-      setEditingField(null);
     },
     [setMapping],
   );
@@ -124,7 +121,10 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
   const optionalMappedCount = optionalFields.filter(
     (field) => effectiveMapping[field],
   ).length;
-  const displayFields = showOptionalFields ? orderedFields : requiredFields;
+  const allRequiredMapped = requiredMappedCount === requiredFields.length;
+  const progressPercent = Math.round(
+    (requiredMappedCount / requiredFields.length) * 100,
+  );
 
   if (importedCsv.headers.length === 0) {
     return (
@@ -136,53 +136,110 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
   }
 
   return (
-    <div className="ai-architecture-generation-dialog__step">
-      <h3>字段确认</h3>
-      <p>仅确认关键字段 hostname/privateIp/serviceName 后才可进入问题修复。</p>
-      <div className="ai-architecture-generation-dialog__summary">
-        画图必需字段覆盖: {requiredMappedCount}/{requiredFields.length}
+    <div className="ai-architecture-generation-dialog__step ai-architecture-generation-dialog__step--field-mapping">
+      {/* Header with title and action buttons */}
+      <div className="ai-architecture-generation-dialog__field-mapping-header">
+        <h3>字段确认</h3>
+        <div className="ai-architecture-generation-dialog__import-actions-inline">
+          <button
+            type="button"
+            className="ai-architecture-generation-dialog__btn-primary"
+            onClick={handleApply}
+          >
+            确认并进入问题修复
+          </button>
+          <button
+            type="button"
+            className="ai-architecture-generation-dialog__btn-secondary"
+            onClick={onGenerateDraft}
+          >
+            直接进入草图确认
+          </button>
+        </div>
       </div>
-      <div className="ai-architecture-generation-dialog__summary">
-        可选字段已识别: {optionalMappedCount}/{optionalFields.length}（默认不强制）
+
+      {/* Progress bar */}
+      <div className="ai-architecture-generation-dialog__field-progress">
+        <div className="ai-architecture-generation-dialog__field-progress-header">
+          <span className="ai-architecture-generation-dialog__summary">
+            画图必需字段覆盖: {requiredMappedCount}/{requiredFields.length}
+          </span>
+          {allRequiredMapped ? (
+            <span className="ai-architecture-generation-dialog__field-progress-badge ai-architecture-generation-dialog__field-progress-badge--done">
+              ✓ 必填已就绪
+            </span>
+          ) : (
+            <span className="ai-architecture-generation-dialog__field-progress-badge">
+              请确认下方字段映射
+            </span>
+          )}
+        </div>
+        <div className="ai-architecture-generation-dialog__field-progress-bar">
+          <div
+            className={`ai-architecture-generation-dialog__field-progress-fill${allRequiredMapped ? " is-complete" : ""}`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
       </div>
-      <div className="ai-architecture-generation-dialog__actions">
-        <button
-          type="button"
-          onClick={() => setShowOptionalFields((prev) => !prev)}
-        >
-          {showOptionalFields ? "收起可选字段" : "展开可选字段（可忽略）"}
-        </button>
+
+      {/* Guidance tip */}
+      <div className="ai-architecture-generation-dialog__next-tip">
+        {allRequiredMapped
+          ? "所有必填字段已映射，可以继续下一步。也可展开可选字段进一步完善。"
+          : "请为每个必填字段选择对应的 CSV 列。AI 已自动识别部分映射，标记为高把握的无需修改。"}
       </div>
+
+      {/* Required fields section */}
       <FieldUnderstandingPanel
-        fields={displayFields}
+        sectionTitle="必填字段"
+        sectionIcon="🔴"
+        fields={requiredFields}
         inferred={inferred}
         mapping={effectiveMapping}
         headers={importedCsv.headers}
-        editingField={editingField}
-        onStartEdit={setEditingField}
+        sampleRow={importedCsv.rows[0]?.raw}
         onChangeMapping={handleChange}
         onRequestAISuggestion={handleRequestAISuggestion}
         aiSuggestingField={aiSuggestingField}
+        defaultExpanded
       />
-      <RawColumnsViewer
-        headers={importedCsv.headers}
-        sampleRow={importedCsv.rows[0]?.raw}
-        inferred={inferred}
-        mapping={effectiveMapping}
-      />
+
+      {/* Optional fields section */}
+      <div className="ai-architecture-generation-dialog__field-section-toggle">
+        <button
+          type="button"
+          className="ai-architecture-generation-dialog__btn-ghost"
+          onClick={() => setShowOptionalFields((prev) => !prev)}
+        >
+          {showOptionalFields
+            ? `收起可选字段 (${optionalMappedCount}/${optionalFields.length} 已识别)`
+            : `展开可选字段（可忽略） (${optionalMappedCount}/${optionalFields.length} 已识别)`}
+        </button>
+      </div>
+
+      {showOptionalFields && (
+        <FieldUnderstandingPanel
+          sectionTitle="可选字段"
+          sectionIcon="⚪"
+          fields={optionalFields}
+          inferred={inferred}
+          mapping={effectiveMapping}
+          headers={importedCsv.headers}
+          sampleRow={importedCsv.rows[0]?.raw}
+          onChangeMapping={handleChange}
+          onRequestAISuggestion={handleRequestAISuggestion}
+          aiSuggestingField={aiSuggestingField}
+          defaultExpanded
+        />
+      )}
+
+      {/* Notices / Errors */}
       {error && <div className="ai-architecture-generation-dialog__error">{error}</div>}
       {notice && (
         <div className="ai-architecture-generation-dialog__success">{notice}</div>
       )}
-      <div className="ai-architecture-generation-dialog__actions">
-        <button type="button" onClick={handleApply}>
-          进入问题修复
-        </button>
-        <button type="button" onClick={onGenerateDraft}>
-          进入草图确认
-        </button>
-      </div>
     </div>
   );
 };
+
 

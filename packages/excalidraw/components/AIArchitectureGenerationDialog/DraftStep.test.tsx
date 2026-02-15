@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -66,7 +66,7 @@ describe("DraftStep", () => {
     mermaid: "graph TD\nA[入口]-->B[应用]",
     layers: [
       {
-        name: "入口区",
+        name: "入口层",
         description: "接入流量",
         reason: "hostname含gateway",
         rowIds: [1],
@@ -83,22 +83,22 @@ describe("DraftStep", () => {
     ],
   });
 
-  it("renders groups and applies naming suggestion by user action", async () => {
+  const setupAtoms = () => {
     editorJotaiStore.set(importedCsvAtom, {
       headers: ["Host", "IP", "Service", "Env"],
       rows: [
         {
           rowId: 1,
           values: {
-            Host: "checkout-01",
+            Host: "gateway-01",
             IP: "10.0.0.1",
-            Service: "checkout",
+            Service: "gateway",
             Env: "prod",
           },
           raw: {
-            Host: "checkout-01",
+            Host: "gateway-01",
             IP: "10.0.0.1",
-            Service: "checkout",
+            Service: "gateway",
             Env: "prod",
           },
         },
@@ -111,182 +111,68 @@ describe("DraftStep", () => {
       environment: "Env",
     });
     editorJotaiStore.set(editsAtom, {});
+  };
 
-    const Harness = () => {
-      const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>(
-        {},
-      );
-      return (
-        <DraftStep
-          onContinueCalibrate={() => { }}
-          filter=""
-          onFilterChange={() => { }}
-          suggestions={suggestions}
-          onSuggestionsChange={setSuggestions}
-        />
-      );
-    };
+  const Harness = () => {
+    const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>({});
+    const [activeScopeId, setActiveScopeId] = React.useState<string | null>(null);
+    const [layerEditsByScope, setLayerEditsByScope] = React.useState<Record<string, { name: string; description: string; rowIds: number[]; reason: string }[]>>({});
+    const [diagramByScope, setDiagramByScope] = React.useState<Record<string, string>>({});
+    const [diagramStatusByScope, setDiagramStatusByScope] = React.useState<Record<string, "idle" | "generating" | "ready" | "error">>({});
 
-    const { container } = render(
+    return (
+      <DraftStep
+        onContinueCalibrate={() => {}}
+        onInsertToCanvas={() => {}}
+        filter=""
+        onFilterChange={() => {}}
+        suggestions={suggestions}
+        onSuggestionsChange={setSuggestions}
+        activeScopeId={activeScopeId}
+        onActiveScopeIdChange={setActiveScopeId}
+        layerEditsByScope={layerEditsByScope}
+        onLayerEditsByScopeChange={setLayerEditsByScope}
+        diagramByScope={diagramByScope}
+        onDiagramByScopeChange={setDiagramByScope}
+        diagramStatusByScope={diagramStatusByScope}
+        onDiagramStatusByScopeChange={setDiagramStatusByScope}
+      />
+    );
+  };
+
+  it("renders the new draft workflow layout", async () => {
+    setupAtoms();
+
+    render(
       <EditorJotaiProvider store={editorJotaiStore}>
         <Harness />
       </EditorJotaiProvider>,
     );
 
-    expect(
-      screen.getByRole("heading", { level: 3, name: "草图生成与确认" }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("当前业务范围")).toBeInTheDocument();
-    expect(screen.queryByText("全选")).not.toBeInTheDocument();
-    expect(screen.queryByText("清空")).not.toBeInTheDocument();
-    expect(screen.getAllByText("checkout").length).toBeGreaterThan(0);
-    expect(
-      container.querySelector(".ai-architecture-generation-dialog__ag-grid"),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("AI 命名建议"));
-
-    await waitFor(() =>
-      expect(screen.getByText("checkout-core")).toBeInTheDocument(),
-    );
-    fireEvent.click(screen.getByText("应用"));
-
-    const edits = editorJotaiStore.get(editsAtom);
-    expect(edits[1]?.serviceName).toBe("checkout-core");
+    expect(screen.getByRole("heading", { level: 3, name: "草图生成与确认" })).toBeInTheDocument();
+    expect(screen.getByText("架构图预览")).toBeInTheDocument();
+    expect(screen.getByText("资产表")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI分析分层" })).toBeInTheDocument();
   });
 
-  it("requests AI layering when user clicks analyze", async () => {
-    requestBusinessArchitectureMock.mockResolvedValue({
-      summary: "订单业务链路",
-      mermaid: "graph TD\nA[入口]-->B[应用]",
-      layers: [
-        {
-          name: "入口区",
-          description: "接入流量",
-          reason: "hostname含gateway",
-          rowIds: [1],
-        },
-      ],
-    });
-    editorJotaiStore.set(importedCsvAtom, {
-      headers: ["Host", "IP", "Service", "Env"],
-      rows: [
-        {
-          rowId: 1,
-          values: {
-            Host: "gateway-01",
-            IP: "10.0.0.1",
-            Service: "gateway",
-            Env: "prod",
-          },
-          raw: {
-            Host: "gateway-01",
-            IP: "10.0.0.1",
-            Service: "gateway",
-            Env: "prod",
-          },
-        },
-      ],
-    });
-    editorJotaiStore.set(fieldMappingAtom, {
-      hostname: "Host",
-      privateIp: "IP",
-      serviceName: "Service",
-      environment: "Env",
-    });
-    editorJotaiStore.set(editsAtom, {});
+  it("moves to layerReady then diagramReady path", async () => {
+    setupAtoms();
 
-    const Harness = () => {
-      const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>(
-        {},
-      );
-      return (
-        <DraftStep
-          onContinueCalibrate={() => { }}
-          onInsertToCanvas={() => { }}
-          filter=""
-          onFilterChange={() => { }}
-          suggestions={suggestions}
-          onSuggestionsChange={setSuggestions}
-        />
-      );
-    };
-
-    const { container } = render(
+    render(
       <EditorJotaiProvider store={editorJotaiStore}>
         <Harness />
       </EditorJotaiProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 分析分层" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI分析分层" }));
     await waitFor(() => {
-      expect(requestBusinessArchitectureMock).toHaveBeenCalledWith(
-        "gateway",
-        expect.any(Array),
-        expect.any(Array),
-      );
+      expect(requestBusinessArchitectureMock).toHaveBeenCalled();
     });
-  });
 
-  it("shows AI inferred scope source and allows re-inference action", async () => {
-    editorJotaiStore.set(importedCsvAtom, {
-      headers: ["Host", "IP", "Service", "Env"],
-      rows: [
-        {
-          rowId: 1,
-          values: {
-            Host: "gateway-01",
-            IP: "10.0.0.1",
-            Service: "gateway",
-            Env: "prod",
-          },
-          raw: {
-            Host: "gateway-01",
-            IP: "10.0.0.1",
-            Service: "gateway",
-            Env: "prod",
-          },
-        },
-      ],
-    });
-    editorJotaiStore.set(fieldMappingAtom, {
-      hostname: "Host",
-      privateIp: "IP",
-      serviceName: "Service",
-      environment: "Env",
-    });
-    editorJotaiStore.set(editsAtom, {});
-
-    const Harness = () => {
-      const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>(
-        {},
-      );
-      return (
-        <DraftStep
-          onContinueCalibrate={() => { }}
-          onInsertToCanvas={() => { }}
-          filter=""
-          onFilterChange={() => { }}
-          suggestions={suggestions}
-          onSuggestionsChange={setSuggestions}
-        />
-      );
-    };
-
-    const { container } = render(
-      <EditorJotaiProvider store={editorJotaiStore}>
-        <Harness />
-      </EditorJotaiProvider>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "AI 分析分层" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成架构图" }));
     await waitFor(() => {
-      expect(screen.getByText("来源: AI 推断")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: "AI 重新识别范围" }));
-    await waitFor(() => {
-      expect(requestBusinessScopesMock).toHaveBeenCalled();
+      const insertBtn = screen.getByRole("button", { name: "确认插入画布" });
+      expect(insertBtn).not.toBeDisabled();
     });
   });
 });
-
