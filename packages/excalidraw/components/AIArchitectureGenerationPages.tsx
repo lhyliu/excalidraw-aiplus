@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from "../editor-jotai";
 import {
   buildInitialFieldMapping,
   confidenceStateAtom,
+  type DraftViewMode,
   editsAtom,
   fieldMappingAtom,
   importedCsvAtom,
@@ -171,6 +172,26 @@ export const AIArchitectureGenerationPages: React.FC<
     [setSession],
   );
 
+  const setDraftSelectedScopeIds = useCallback(
+    (draftSelectedScopeIds: string[]) => {
+      setSession((prev) => ({
+        ...prev,
+        draftSelectedScopeIds,
+      }));
+    },
+    [setSession],
+  );
+
+  const setDraftViewMode = useCallback(
+    (draftViewMode: DraftViewMode) => {
+      setSession((prev) => ({
+        ...prev,
+        draftViewMode,
+      }));
+    },
+    [setSession],
+  );
+
   const setDraftLayerEditsByScope = useCallback(
     (
       draftLayerEditsByScope: Record<
@@ -201,6 +222,26 @@ export const AIArchitectureGenerationPages: React.FC<
       setSession((prev) => ({
         ...prev,
         draftDiagramStatusByScope,
+      }));
+    },
+    [setSession],
+  );
+
+  const setDraftPanoramaDiagram = useCallback(
+    (draftPanoramaDiagram: string) => {
+      setSession((prev) => ({
+        ...prev,
+        draftPanoramaDiagram,
+      }));
+    },
+    [setSession],
+  );
+
+  const setDraftPanoramaDiagramStatus = useCallback(
+    (draftPanoramaDiagramStatus: "idle" | "generating" | "ready" | "error") => {
+      setSession((prev) => ({
+        ...prev,
+        draftPanoramaDiagramStatus,
       }));
     },
     [setSession],
@@ -370,12 +411,20 @@ export const AIArchitectureGenerationPages: React.FC<
             onSuggestionsChange={setNamingSuggestions}
             activeScopeId={session.draftActiveScopeId ?? null}
             onActiveScopeIdChange={setDraftActiveScopeId}
+            selectedScopeIds={session.draftSelectedScopeIds ?? []}
+            onSelectedScopeIdsChange={setDraftSelectedScopeIds}
+            viewMode={session.draftViewMode ?? "panorama"}
+            onViewModeChange={setDraftViewMode}
             layerEditsByScope={session.draftLayerEditsByScope ?? {}}
             onLayerEditsByScopeChange={setDraftLayerEditsByScope}
             diagramByScope={session.draftDiagramByScope ?? {}}
             onDiagramByScopeChange={setDraftDiagramByScope}
             diagramStatusByScope={session.draftDiagramStatusByScope ?? {}}
             onDiagramStatusByScopeChange={setDraftDiagramStatusByScope}
+            panoramaDiagram={session.draftPanoramaDiagram ?? ""}
+            onPanoramaDiagramChange={setDraftPanoramaDiagram}
+            panoramaDiagramStatus={session.draftPanoramaDiagramStatus ?? "idle"}
+            onPanoramaDiagramStatusChange={setDraftPanoramaDiagramStatus}
           />
         )}
       </div>

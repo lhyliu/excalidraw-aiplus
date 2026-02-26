@@ -13,6 +13,7 @@ import {
 } from "../AIArchitectureGeneration";
 import type {
   DiagramStatus,
+  DraftViewMode,
   DraftStage,
   LayerDraft,
   ServiceGroup,
@@ -50,12 +51,20 @@ interface DraftStepProps {
   onSuggestionsChange: (value: Record<string, string[]>) => void;
   activeScopeId: string | null;
   onActiveScopeIdChange: (scopeId: string | null) => void;
+  selectedScopeIds: string[];
+  onSelectedScopeIdsChange: (scopeIds: string[]) => void;
+  viewMode: DraftViewMode;
+  onViewModeChange: (mode: DraftViewMode) => void;
   layerEditsByScope: Record<string, LayerDraft[]>;
   onLayerEditsByScopeChange: (value: Record<string, LayerDraft[]>) => void;
   diagramByScope: Record<string, string>;
   onDiagramByScopeChange: (value: Record<string, string>) => void;
   diagramStatusByScope: Record<string, DiagramStatus>;
   onDiagramStatusByScopeChange: (value: Record<string, DiagramStatus>) => void;
+  panoramaDiagram: string;
+  onPanoramaDiagramChange: (value: string) => void;
+  panoramaDiagramStatus: DiagramStatus;
+  onPanoramaDiagramStatusChange: (value: DiagramStatus) => void;
 }
 
 type DraftGridRow = {
@@ -75,12 +84,20 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   onSuggestionsChange,
   activeScopeId,
   onActiveScopeIdChange,
+  selectedScopeIds,
+  onSelectedScopeIdsChange,
+  viewMode,
+  onViewModeChange,
   layerEditsByScope,
   onLayerEditsByScopeChange,
   diagramByScope,
   onDiagramByScopeChange,
   diagramStatusByScope,
   onDiagramStatusByScopeChange,
+  panoramaDiagram,
+  onPanoramaDiagramChange,
+  panoramaDiagramStatus,
+  onPanoramaDiagramStatusChange,
 }) => {
   const groups = useAtomValue(serviceGroupsAtom);
   const rows = useAtomValue(normalizedVmRowsAtom);
@@ -118,6 +135,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   >({});
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState<number>(1);
+  const initializedScopeSelectionRef = useRef(false);
+  const panoramaContextRef = useRef<string>("");
 
   useEffect(() => {
     const loadLib = async () => {
@@ -140,44 +159,85 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     [groups, rows],
   );
   const businessScopes = aiBusinessScopes ?? fallbackBusinessScopes;
+  const panoramaContext = useMemo(
+    () => `${viewMode}:${selectedScopeIds.slice().sort().join(",")}`,
+    [selectedScopeIds, viewMode],
+  );
 
   useEffect(() => {
     if (businessScopes.length === 0) {
+      initializedScopeSelectionRef.current = false;
       onActiveScopeIdChange(null);
+      onSelectedScopeIdsChange([]);
       return;
     }
-    if (activeScopeId && businessScopes.some((scope) => scope.id === activeScopeId)) {
+    const validScopeIds = new Set(businessScopes.map((scope) => scope.id));
+    const nextSelected = selectedScopeIds.filter((scopeId) => validScopeIds.has(scopeId));
+    if (nextSelected.length === 0) {
+      if (!initializedScopeSelectionRef.current) {
+        initializedScopeSelectionRef.current = true;
+        onSelectedScopeIdsChange(businessScopes.map((scope) => scope.id));
+      }
       return;
     }
-    onActiveScopeIdChange(businessScopes[0]?.id ?? null);
-  }, [activeScopeId, businessScopes, onActiveScopeIdChange]);
+    initializedScopeSelectionRef.current = true;
+    if (nextSelected.length !== selectedScopeIds.length) {
+      onSelectedScopeIdsChange(nextSelected);
+      return;
+    }
+    if (!activeScopeId || !validScopeIds.has(activeScopeId)) {
+      onActiveScopeIdChange(nextSelected[0] ?? businessScopes[0]?.id ?? null);
+    }
+  }, [
+    activeScopeId,
+    businessScopes,
+    onActiveScopeIdChange,
+    onSelectedScopeIdsChange,
+    selectedScopeIds,
+  ]);
+
+  useEffect(() => {
+    if (panoramaContextRef.current && panoramaContextRef.current !== panoramaContext) {
+      onPanoramaDiagramStatusChange("idle");
+    }
+    panoramaContextRef.current = panoramaContext;
+  }, [onPanoramaDiagramStatusChange, panoramaContext]);
 
   const selectedScope = useMemo(
     () => businessScopes.find((scope) => scope.id === activeScopeId) ?? null,
     [activeScopeId, businessScopes],
   );
+  const selectedScopeIdSet = useMemo(
+    () => new Set(selectedScopeIds),
+    [selectedScopeIds],
+  );
+  const selectedScopes = useMemo(
+    () => businessScopes.filter((scope) => selectedScopeIdSet.has(scope.id)),
+    [businessScopes, selectedScopeIdSet],
+  );
+  const focusScope = selectedScope ?? selectedScopes[0] ?? null;
 
   const selectedScopeLayers = useMemo(
-    () => (selectedScope ? (layerEditsByScope[selectedScope.id] ?? []) : []),
-    [layerEditsByScope, selectedScope],
+    () => (focusScope ? (layerEditsByScope[focusScope.id] ?? []) : []),
+    [focusScope, layerEditsByScope],
   );
 
-  const selectedScopeDiagramStatus = selectedScope
-    ? (diagramStatusByScope[selectedScope.id] ?? "idle")
+  const selectedScopeDiagramStatus = focusScope
+    ? (diagramStatusByScope[focusScope.id] ?? "idle")
     : "idle";
 
   const draftStage: DraftStage = useMemo(() => {
-    if (!selectedScope) {
-      return "scopeReady";
-    }
-    if (selectedScopeDiagramStatus === "ready") {
+    if (panoramaDiagramStatus === "ready") {
       return "diagramReady";
+    }
+    if (!focusScope) {
+      return "scopeReady";
     }
     if (selectedScopeLayers.length > 0) {
       return "layerReady";
     }
     return "scopeReady";
-  }, [selectedScope, selectedScopeDiagramStatus, selectedScopeLayers.length]);
+  }, [focusScope, panoramaDiagramStatus, selectedScopeLayers.length]);
 
   const updateLayerEditsForScope = useCallback(
     (scopeId: string, layers: LayerDraft[]) => {
@@ -197,7 +257,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     const suggestion = await requestBusinessScopes(groups, rows);
     if (!suggestion) {
       setAiBusinessScopes(null);
-      setGenerationNotice("AI 未返回范围结果，已使用本地分组。");
+      setGenerationNotice("AI 未返回业务分区结果，已使用本地分组。");
       return;
     }
     const projected = projectBusinessScopesByAssignments(
@@ -207,11 +267,11 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     );
     if (projected.length === 0) {
       setAiBusinessScopes(null);
-      setGenerationNotice("AI 范围结果为空，已使用本地分组。");
+      setGenerationNotice("AI 业务分区结果为空，已使用本地分组。");
       return;
     }
     setAiBusinessScopes(projected);
-    setGenerationNotice("已刷新业务范围。");
+    setGenerationNotice("已刷新业务分区。");
   }, [groups, requestBusinessScopes, rows]);
 
   const loadSuggestions = useCallback(
@@ -240,18 +300,23 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   );
 
   const requestScopeArchitecture = useCallback(async () => {
-    if (!selectedScope) {
-      setGenerationNotice("请先选择业务范围。");
+    if (!focusScope) {
+      setGenerationNotice("请先选择主业务分区。");
       return null;
     }
-    const scopeGroupIdSet = new Set(selectedScope.groupIds);
+    const scopeGroupIdSet = new Set(focusScope.groupIds);
     const scopeGroups = groups.filter((group) => scopeGroupIdSet.has(group.id));
-    const scopeRowIdSet = new Set(selectedScope.rowIds);
+    const scopeRowIdSet = new Set(focusScope.rowIds);
     const scopeRows = rows.filter((row) => scopeRowIdSet.has(row.rowId));
     const suggestion = await requestBusinessArchitecture(
-      selectedScope.name,
+      focusScope.name,
       scopeGroups,
       scopeRows,
+      {
+        targetMode: "focus",
+        selectedScopeNames: [focusScope.name],
+        detailLevel: "service-level",
+      },
     );
     if (!suggestion) {
       setGenerationNotice("AI 暂未返回有效分层建议，请重试。");
@@ -259,17 +324,17 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     }
     setBusinessSuggestionByScope((prev) => ({
       ...prev,
-      [selectedScope.id]: suggestion,
+      [focusScope.id]: suggestion,
     }));
-    updateLayerEditsForScope(selectedScope.id, suggestion.layers);
+    updateLayerEditsForScope(focusScope.id, suggestion.layers);
     onDiagramStatusByScopeChange({
       ...diagramStatusByScope,
-      [selectedScope.id]: "idle",
+      [focusScope.id]: "idle",
     });
-    setGenerationNotice(`已生成「${selectedScope.name}」分层建议。`);
+    setGenerationNotice(`已生成「${focusScope.name}」分层建议。`);
     return suggestion;
   }, [
-    selectedScope,
+    focusScope,
     groups,
     rows,
     requestBusinessArchitecture,
@@ -280,21 +345,21 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   const updateLayer = useCallback(
     (layerIndex: number, patch: Partial<LayerDraft>) => {
-      if (!selectedScope) {
+      if (!focusScope) {
         return;
       }
-      const current = layerEditsByScope[selectedScope.id] ?? [];
+      const current = layerEditsByScope[focusScope.id] ?? [];
       const next = current.map((layer, index) =>
         index === layerIndex ? { ...layer, ...patch } : layer,
       );
-      updateLayerEditsForScope(selectedScope.id, next);
+      updateLayerEditsForScope(focusScope.id, next);
       onDiagramStatusByScopeChange({
         ...diagramStatusByScope,
-        [selectedScope.id]: "idle",
+        [focusScope.id]: "idle",
       });
     },
     [
-      selectedScope,
+      focusScope,
       layerEditsByScope,
       updateLayerEditsForScope,
       onDiagramStatusByScopeChange,
@@ -304,10 +369,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   const assignRowToLayer = useCallback(
     (targetLayerIndex: number, rowId: number) => {
-      if (!selectedScope) {
+      if (!focusScope) {
         return;
       }
-      const current = layerEditsByScope[selectedScope.id] ?? [];
+      const current = layerEditsByScope[focusScope.id] ?? [];
       const next = current.map((layer, index) => {
         const removed = layer.rowIds.filter((id) => id !== rowId);
         if (index !== targetLayerIndex) {
@@ -315,15 +380,15 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         }
         return { ...layer, rowIds: Array.from(new Set([...removed, rowId])) };
       });
-      updateLayerEditsForScope(selectedScope.id, next);
+      updateLayerEditsForScope(focusScope.id, next);
       onDiagramStatusByScopeChange({
         ...diagramStatusByScope,
-        [selectedScope.id]: "idle",
+        [focusScope.id]: "idle",
       });
       setGenerationNotice(`已将 Row ${rowId} 分配到图层。`);
     },
     [
-      selectedScope,
+      focusScope,
       layerEditsByScope,
       updateLayerEditsForScope,
       onDiagramStatusByScopeChange,
@@ -332,11 +397,11 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   );
 
   const generateDiagram = useCallback(async () => {
-    if (!selectedScope) {
-      setGenerationNotice("请先选择业务范围。");
+    if (!focusScope) {
+      setGenerationNotice("请先选择主业务分区。");
       return;
     }
-    const layers = layerEditsByScope[selectedScope.id] ?? [];
+    const layers = layerEditsByScope[focusScope.id] ?? [];
     if (layers.length === 0) {
       setGenerationNotice("请先执行 AI 分析分层。");
       return;
@@ -344,39 +409,39 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
     onDiagramStatusByScopeChange({
       ...diagramStatusByScope,
-      [selectedScope.id]: "generating",
+      [focusScope.id]: "generating",
     });
     setGenerationNotice(null);
 
     try {
-      const existing = businessSuggestionByScope[selectedScope.id];
+      const existing = businessSuggestionByScope[focusScope.id];
       const suggestion = existing ?? (await requestScopeArchitecture());
       if (!suggestion?.mermaid) {
         onDiagramStatusByScopeChange({
           ...diagramStatusByScope,
-          [selectedScope.id]: "error",
+          [focusScope.id]: "error",
         });
         setGenerationNotice("AI 未返回可用架构图，请重试。");
         return;
       }
       onDiagramByScopeChange({
         ...diagramByScope,
-        [selectedScope.id]: suggestion.mermaid,
+        [focusScope.id]: suggestion.mermaid,
       });
       onDiagramStatusByScopeChange({
         ...diagramStatusByScope,
-        [selectedScope.id]: "ready",
+        [focusScope.id]: "ready",
       });
-      setGenerationNotice(`已生成「${selectedScope.name}」架构图。`);
+      setGenerationNotice(`已生成「${focusScope.name}」架构图。`);
     } catch {
       onDiagramStatusByScopeChange({
         ...diagramStatusByScope,
-        [selectedScope.id]: "error",
+        [focusScope.id]: "error",
       });
       setGenerationNotice("架构图生成失败，请重试。");
     }
   }, [
-    selectedScope,
+    focusScope,
     layerEditsByScope,
     diagramStatusByScope,
     onDiagramStatusByScopeChange,
@@ -386,11 +451,73 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     diagramByScope,
   ]);
 
-  useEffect(() => {
-    if (!selectedScope || !mermaidToExcalidrawLib.loaded) {
+  const generatePanoramaDiagram = useCallback(async () => {
+    if (selectedScopes.length === 0) {
+      setGenerationNotice("请至少选择一个业务分区。");
       return;
     }
-    const mermaidCode = diagramByScope[selectedScope.id];
+    const selectedScopeNameSet = new Set(selectedScopes.map((scope) => scope.name));
+    const selectedGroupIdSet = new Set(selectedScopes.flatMap((scope) => scope.groupIds));
+    const selectedRowIdSet = new Set(selectedScopes.flatMap((scope) => scope.rowIds));
+    const scopeGroups = groups.filter((group) => selectedGroupIdSet.has(group.id));
+    const scopeRows = rows.filter((row) => selectedRowIdSet.has(row.rowId));
+
+    onPanoramaDiagramStatusChange("generating");
+    setGenerationNotice(null);
+    try {
+      const suggestion = await requestBusinessArchitecture(
+        "企业业务全景",
+        scopeGroups,
+        scopeRows,
+        {
+          targetMode: viewMode,
+          selectedScopeNames: Array.from(selectedScopeNameSet),
+          detailLevel: "service-level",
+        },
+      );
+      if (!suggestion?.mermaid) {
+        onPanoramaDiagramStatusChange("error");
+        setGenerationNotice("AI 未返回可用全景图，请重试。");
+        return;
+      }
+      onPanoramaDiagramChange(suggestion.mermaid);
+      onPanoramaDiagramStatusChange("ready");
+      panoramaContextRef.current = panoramaContext;
+      setGenerationNotice(
+        suggestion.topologySummary
+          ? `已生成全景图：${suggestion.topologySummary}`
+          : "已生成全景架构图。",
+      );
+    } catch {
+      onPanoramaDiagramStatusChange("error");
+      setGenerationNotice("全景架构图生成失败，请重试。");
+    }
+  }, [
+    groups,
+    onPanoramaDiagramChange,
+    onPanoramaDiagramStatusChange,
+    requestBusinessArchitecture,
+    rows,
+    selectedScopes,
+    viewMode,
+    panoramaContext,
+  ]);
+
+  const displayMermaid = useMemo(() => {
+    if (viewMode === "panorama") {
+      return panoramaDiagram;
+    }
+    if (focusScope && diagramByScope[focusScope.id]) {
+      return diagramByScope[focusScope.id];
+    }
+    return panoramaDiagram;
+  }, [diagramByScope, focusScope, panoramaDiagram, viewMode]);
+
+  useEffect(() => {
+    if (!mermaidToExcalidrawLib.loaded) {
+      return;
+    }
+    const mermaidCode = displayMermaid;
     if (!mermaidCode) {
       return;
     }
@@ -402,13 +529,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       mermaidDefinition: mermaidCode,
       theme,
     });
-  }, [diagramByScope, mermaidToExcalidrawLib, selectedScope, theme]);
+  }, [displayMermaid, mermaidToExcalidrawLib, theme]);
 
   const handleInsertToCanvas = useCallback(() => {
-    if (!selectedScope) {
-      return;
-    }
-    if (diagramStatusByScope[selectedScope.id] !== "ready") {
+    if (panoramaDiagramStatus !== "ready") {
       setGenerationNotice("请先生成架构图后再插入画布。");
       return;
     }
@@ -416,7 +540,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       setGenerationNotice("预览异常，请重新生成后再插入。");
       return;
     }
-    const mermaidText = diagramByScope[selectedScope.id];
+    const mermaidText = displayMermaid;
     insertToEditor({
       app,
       data: mermaidDataRef,
@@ -426,11 +550,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     onInsertToCanvas();
   }, [
     app,
-    diagramByScope,
-    diagramStatusByScope,
+    displayMermaid,
     onInsertToCanvas,
+    panoramaDiagramStatus,
     previewError,
-    selectedScope,
   ]);
 
   const scopeByGroupId = useMemo(
@@ -450,15 +573,16 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   const filteredViews = useMemo(
     () =>
       views.filter((view) => {
-        if (!selectedScope) {
-          return false;
-        }
-        return scopeByGroupId[view.id] === selectedScope.id;
+        const scopeId = scopeByGroupId[view.id];
+        return Boolean(scopeId && selectedScopeIdSet.has(scopeId));
       }),
-    [scopeByGroupId, selectedScope, views],
+    [scopeByGroupId, selectedScopeIdSet, views],
   );
 
-  const selectedRowIds = useMemo(() => new Set(selectedScope?.rowIds ?? []), [selectedScope]);
+  const selectedRowIds = useMemo(
+    () => new Set(selectedScopes.flatMap((scope) => scope.rowIds)),
+    [selectedScopes],
+  );
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowIds.has(row.rowId)),
     [rows, selectedRowIds],
@@ -542,51 +666,52 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   );
 
   const statusText =
-    draftStage === "diagramReady"
-      ? "图已生成"
-      : draftStage === "layerReady"
-        ? "分层可编辑"
-        : "未分析分层";
+    panoramaDiagramStatus === "ready"
+      ? "全景图已生成"
+      : panoramaDiagramStatus === "generating"
+        ? "全景图生成中"
+        : draftStage === "layerReady"
+          ? "主业务分层可编辑"
+          : "未生成全景图";
+
+  const relationshipCount = useMemo(() => {
+    if (!displayMermaid) {
+      return 0;
+    }
+    return (displayMermaid.match(/-->|---/g) ?? []).length;
+  }, [displayMermaid]);
 
   const handlePrimaryAction = useCallback(() => {
     if (draftStage === "diagramReady") {
       handleInsertToCanvas();
       return;
     }
-    if (draftStage === "scopeReady") {
-      void requestScopeArchitecture();
-      return;
-    }
-    void generateDiagram();
-  }, [draftStage, generateDiagram, handleInsertToCanvas, requestScopeArchitecture]);
+    void generatePanoramaDiagram();
+  }, [draftStage, generatePanoramaDiagram, handleInsertToCanvas]);
 
   const primaryActionLabel = useMemo(() => {
     if (draftStage === "diagramReady") {
       return "确认插入画布";
     }
-    if (draftStage === "scopeReady") {
-      return isBusinessArchitectureStreaming ? "分析中..." : "AI分析分层";
-    }
-    return selectedScopeDiagramStatus === "generating" ? "生成中..." : "生成架构图";
-  }, [draftStage, isBusinessArchitectureStreaming, selectedScopeDiagramStatus]);
+    return panoramaDiagramStatus === "generating" || isBusinessArchitectureStreaming
+      ? "全景生成中..."
+      : "生成全景架构图";
+  }, [draftStage, isBusinessArchitectureStreaming, panoramaDiagramStatus]);
 
   const isPrimaryActionDisabled = useMemo(() => {
-    if (!selectedScope) {
+    if (selectedScopes.length === 0) {
       return true;
     }
     if (draftStage === "diagramReady") {
-      return selectedScopeDiagramStatus !== "ready" || Boolean(previewError);
+      return panoramaDiagramStatus !== "ready" || Boolean(previewError);
     }
-    if (draftStage === "scopeReady") {
-      return isBusinessArchitectureStreaming;
-    }
-    return isBusinessArchitectureStreaming || selectedScopeDiagramStatus === "generating";
+    return isBusinessArchitectureStreaming || panoramaDiagramStatus === "generating";
   }, [
     draftStage,
     isBusinessArchitectureStreaming,
+    panoramaDiagramStatus,
     previewError,
-    selectedScope,
-    selectedScopeDiagramStatus,
+    selectedScopes.length,
   ]);
 
   return (
@@ -594,11 +719,13 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       <h3>草图生成与确认</h3>
       <div className="ai-architecture-generation-dialog__draft-status-bar">
         <div className="ai-architecture-generation-dialog__toolbar-group">
-          <strong>当前范围：</strong>
-          <span>{selectedScope?.name ?? "未选择"}</span>
+          <strong>当前视角：</strong>
+          <span>{viewMode === "panorama" ? "全景视图" : "业务聚焦"}</span>
           <span className="ai-architecture-generation-dialog__summary">
-            资产数：{selectedScope?.vmCount ?? 0}
+            选中：{selectedScopes.length}/{businessScopes.length}
           </span>
+          <span className="ai-architecture-generation-dialog__summary">资产数：{selectedRows.length}</span>
+          <span className="ai-architecture-generation-dialog__summary">关系数：{relationshipCount}</span>
           <span className="ai-architecture-generation-dialog__summary">状态：{statusText}</span>
         </div>
         <div className="ai-architecture-generation-dialog__toolbar-group">
@@ -618,40 +745,71 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       <div className="ai-architecture-generation-dialog__draft-main-grid">
         <section className="ai-architecture-generation-dialog__issue-card">
           <div className="ai-architecture-generation-dialog__inline-form">
-            <label>
-              业务范围
-              <select
-                aria-label="当前业务范围"
-                value={activeScopeId ?? ""}
-                onChange={(event) => {
-                  const nextScopeId = event.target.value || null;
-                  const currentHasDraft = selectedScope && (layerEditsByScope[selectedScope.id]?.length ?? 0) > 0;
-                  if (currentHasDraft && nextScopeId !== activeScopeId) {
-                    const keep = window.confirm("当前范围有分层草稿，是否保留并切换？");
-                    if (!keep) {
-                      onLayerEditsByScopeChange({
-                        ...layerEditsByScope,
-                        [selectedScope.id]: [],
-                      });
-                    }
-                  }
-                  onActiveScopeIdChange(nextScopeId);
-                }}
+            <strong>业务分区</strong>
+            <div className="ai-architecture-generation-dialog__toolbar-group">
+              <button
+                type="button"
+                onClick={() => onSelectedScopeIdsChange(businessScopes.map((scope) => scope.id))}
               >
-                {businessScopes.map((scope) => (
-                  <option key={scope.id} value={scope.id}>
-                    {scope.name} ({scope.vmCount})
-                  </option>
-                ))}
-              </select>
-            </label>
+                全选
+              </button>
+              <button type="button" onClick={() => onSelectedScopeIdsChange([])}>
+                清空
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => void refreshBusinessScopes()}
               disabled={isBusinessScopeStreaming}
             >
-              {isBusinessScopeStreaming ? "识别中..." : "重识别范围"}
+              {isBusinessScopeStreaming ? "识别中..." : "重识别业务分区"}
             </button>
+          </div>
+
+          <div className="ai-architecture-generation-dialog__issue-groups">
+            {businessScopes.map((scope) => (
+              <div key={scope.id} className="ai-architecture-generation-dialog__inline-form">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedScopeIdSet.has(scope.id)}
+                    onChange={(event) => {
+                      const next = event.target.checked
+                        ? Array.from(new Set([...selectedScopeIds, scope.id]))
+                        : selectedScopeIds.filter((id) => id !== scope.id);
+                      onSelectedScopeIdsChange(next);
+                      if (!next.includes(activeScopeId ?? "")) {
+                        onActiveScopeIdChange(next[0] ?? null);
+                      }
+                    }}
+                  />
+                  {scope.name} ({scope.vmCount})
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onActiveScopeIdChange(scope.id)}
+                  disabled={activeScopeId === scope.id}
+                >
+                  设为主业务
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="ai-architecture-generation-dialog__inline-form">
+            <label>
+              显示模式
+              <select
+                aria-label="显示模式"
+                value={viewMode}
+                onChange={(event) =>
+                  onViewModeChange(event.target.value as "panorama" | "focus")
+                }
+              >
+                <option value="panorama">全景视图</option>
+                <option value="focus">业务聚焦</option>
+              </select>
+            </label>
           </div>
 
           <div className="ai-architecture-generation-dialog__inline-form">
@@ -694,9 +852,29 @@ export const DraftStep: React.FC<DraftStepProps> = ({
             </div>
           </details>
 
+          <div className="ai-architecture-generation-dialog__inline-form">
+            <button
+              type="button"
+              onClick={() => void requestScopeArchitecture()}
+              disabled={!focusScope || isBusinessArchitectureStreaming}
+            >
+              {isBusinessArchitectureStreaming ? "分析中..." : "分析主业务分层"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void generateDiagram()}
+              disabled={!focusScope || selectedScopeDiagramStatus === "generating"}
+            >
+              {selectedScopeDiagramStatus === "generating" ? "生成中..." : "生成主业务分层图"}
+            </button>
+            <span className="ai-architecture-generation-dialog__summary">
+              主业务：{focusScope?.name ?? "未选择"}
+            </span>
+          </div>
+
           <div className="ai-architecture-generation-dialog__layer-board">
             {selectedScopeLayers.map((layer, index) => (
-              <article key={`${selectedScope?.id ?? "none"}:${index}:${layer.name}`} className="ai-architecture-generation-dialog__layer-lane">
+              <article key={`${focusScope?.id ?? "none"}:${index}:${layer.name}`} className="ai-architecture-generation-dialog__layer-lane">
                 <div className="ai-architecture-generation-dialog__layer-head">
                   <label>
                     层名称
@@ -779,7 +957,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
             <summary className="ai-architecture-generation-dialog__draft-source-toggle">
               查看 Mermaid 源码
             </summary>
-            <pre>{selectedScope ? diagramByScope[selectedScope.id] ?? "" : ""}</pre>
+            <pre>{displayMermaid}</pre>
           </details>
         </section>
       </div>
@@ -787,7 +965,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       <div className="ai-architecture-generation-dialog__issue-card">
         <strong>资产表</strong>
         <div className="ai-architecture-generation-dialog__summary">
-          当前范围资产: {selectedRows.length}
+          当前选中业务资产: {selectedRows.length}
           {activeRowId !== null ? ` | 当前高亮 Row ${activeRowId}` : ""}
         </div>
         <div className="ai-architecture-generation-dialog__table-wrap">

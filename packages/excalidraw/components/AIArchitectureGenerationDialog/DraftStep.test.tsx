@@ -63,6 +63,7 @@ vi.mock("@excalidraw/mermaid-to-excalidraw", () => ({
 describe("DraftStep", () => {
   requestBusinessArchitectureMock.mockResolvedValue({
     summary: "订单业务链路",
+    topologySummary: "入口到应用主链路",
     mermaid: "graph TD\nA[入口]-->B[应用]",
     layers: [
       {
@@ -116,9 +117,15 @@ describe("DraftStep", () => {
   const Harness = () => {
     const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>({});
     const [activeScopeId, setActiveScopeId] = React.useState<string | null>(null);
+    const [selectedScopeIds, setSelectedScopeIds] = React.useState<string[]>([]);
+    const [viewMode, setViewMode] = React.useState<"panorama" | "focus">("panorama");
     const [layerEditsByScope, setLayerEditsByScope] = React.useState<Record<string, { name: string; description: string; rowIds: number[]; reason: string }[]>>({});
     const [diagramByScope, setDiagramByScope] = React.useState<Record<string, string>>({});
     const [diagramStatusByScope, setDiagramStatusByScope] = React.useState<Record<string, "idle" | "generating" | "ready" | "error">>({});
+    const [panoramaDiagram, setPanoramaDiagram] = React.useState<string>("");
+    const [panoramaDiagramStatus, setPanoramaDiagramStatus] = React.useState<
+      "idle" | "generating" | "ready" | "error"
+    >("idle");
 
     return (
       <DraftStep
@@ -130,12 +137,20 @@ describe("DraftStep", () => {
         onSuggestionsChange={setSuggestions}
         activeScopeId={activeScopeId}
         onActiveScopeIdChange={setActiveScopeId}
+        selectedScopeIds={selectedScopeIds}
+        onSelectedScopeIdsChange={setSelectedScopeIds}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
         layerEditsByScope={layerEditsByScope}
         onLayerEditsByScopeChange={setLayerEditsByScope}
         diagramByScope={diagramByScope}
         onDiagramByScopeChange={setDiagramByScope}
         diagramStatusByScope={diagramStatusByScope}
         onDiagramStatusByScopeChange={setDiagramStatusByScope}
+        panoramaDiagram={panoramaDiagram}
+        onPanoramaDiagramChange={setPanoramaDiagram}
+        panoramaDiagramStatus={panoramaDiagramStatus}
+        onPanoramaDiagramStatusChange={setPanoramaDiagramStatus}
       />
     );
   };
@@ -152,10 +167,10 @@ describe("DraftStep", () => {
     expect(screen.getByRole("heading", { level: 3, name: "草图生成与确认" })).toBeInTheDocument();
     expect(screen.getByText("架构图预览")).toBeInTheDocument();
     expect(screen.getByText("资产表")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "AI分析分层" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "生成全景架构图" })).toBeInTheDocument();
   });
 
-  it("moves to layerReady then diagramReady path", async () => {
+  it("generates panorama and allows insert", async () => {
     setupAtoms();
 
     render(
@@ -164,12 +179,10 @@ describe("DraftStep", () => {
       </EditorJotaiProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "AI分析分层" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成全景架构图" }));
     await waitFor(() => {
       expect(requestBusinessArchitectureMock).toHaveBeenCalled();
     });
-
-    fireEvent.click(screen.getByRole("button", { name: "生成架构图" }));
     await waitFor(() => {
       const insertBtn = screen.getByRole("button", { name: "确认插入画布" });
       expect(insertBtn).not.toBeDisabled();

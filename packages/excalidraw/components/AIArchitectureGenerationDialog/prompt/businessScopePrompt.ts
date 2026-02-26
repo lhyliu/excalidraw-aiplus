@@ -59,6 +59,7 @@ export const buildBusinessScopeMessages = (
         "1) groupIds 必须来自输入分组 id\n" +
         "2) 每个分组至少归属到一个 scope\n" +
         "3) scope 名称应是业务语义\n" +
+        "4) 允许将共享基础能力单独归为一个 scope（例如中间件平台、共享网关）\n" +
         `服务分组输入:\n${groupSummary || "[]"}\n` +
         `资产样本:\n${rowSummary || "[]"}`,
     },

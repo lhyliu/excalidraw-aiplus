@@ -1,7 +1,7 @@
 ﻿import React from "react";
 
 import { DraftStep } from "../../AIArchitectureGenerationDialog/DraftStep";
-import type { DiagramStatus } from "../../AIArchitectureGeneration";
+import type { DiagramStatus, DraftViewMode } from "../../AIArchitectureGeneration";
 
 interface DraftConfirmPageProps {
   onContinueCalibrate: () => void;
@@ -12,6 +12,10 @@ interface DraftConfirmPageProps {
   onSuggestionsChange: (value: Record<string, string[]>) => void;
   activeScopeId: string | null;
   onActiveScopeIdChange: (scopeId: string | null) => void;
+  selectedScopeIds: string[];
+  onSelectedScopeIdsChange: (scopeIds: string[]) => void;
+  viewMode: DraftViewMode;
+  onViewModeChange: (mode: DraftViewMode) => void;
   layerEditsByScope: Record<
     string,
     { name: string; description: string; rowIds: number[]; reason: string }[]
@@ -28,6 +32,10 @@ interface DraftConfirmPageProps {
   onDiagramStatusByScopeChange: (
     value: Record<string, "idle" | "generating" | "ready" | "error">,
   ) => void;
+  panoramaDiagram: string;
+  onPanoramaDiagramChange: (value: string) => void;
+  panoramaDiagramStatus: DiagramStatus;
+  onPanoramaDiagramStatusChange: (value: DiagramStatus) => void;
 }
 
 export const DraftConfirmPage: React.FC<DraftConfirmPageProps> = (props) => {

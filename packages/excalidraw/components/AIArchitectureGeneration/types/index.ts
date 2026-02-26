@@ -32,6 +32,7 @@ export type GenerationStep =
 export type GenerationMode = "safe" | "advanced";
 export type DraftStage = "scopeReady" | "layerReady" | "diagramReady";
 export type DiagramStatus = "idle" | "generating" | "ready" | "error";
+export type DraftViewMode = "panorama" | "focus";
 export interface LayerDraft {
   name: string;
   description: string;
@@ -267,9 +268,13 @@ export interface AIArchitectureGenerationSessionState {
   namingSuggestions: Record<string, string[]>;
   issueFilter?: string | null;
   draftActiveScopeId?: string;
+  draftSelectedScopeIds?: string[];
+  draftViewMode?: DraftViewMode;
   draftLayerEditsByScope?: Record<string, LayerDraft[]>;
   draftDiagramByScope?: Record<string, string>;
   draftDiagramStatusByScope?: Record<string, DiagramStatus>;
+  draftPanoramaDiagram?: string;
+  draftPanoramaDiagramStatus?: DiagramStatus;
   progressSnapshot?: {
     stepCompletion: number;
     blockingErrorCount: number;
@@ -288,9 +293,13 @@ export const DEFAULT_SESSION_STATE: AIArchitectureGenerationSessionState = {
   namingSuggestions: {},
   issueFilter: null,
   draftActiveScopeId: undefined,
+  draftSelectedScopeIds: [],
+  draftViewMode: "panorama",
   draftLayerEditsByScope: {},
   draftDiagramByScope: {},
   draftDiagramStatusByScope: {},
+  draftPanoramaDiagram: "",
+  draftPanoramaDiagramStatus: "idle",
   progressSnapshot: undefined,
 };
 

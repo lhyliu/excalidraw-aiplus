@@ -71,6 +71,7 @@ export const parseBusinessArchitectureSuggestion = (
 
       return {
         summary: String(root.summary ?? "").trim(),
+        topologySummary: String(root.topologySummary ?? "").trim(),
         mermaid,
         layers,
       };
@@ -90,8 +91,18 @@ export const useBusinessArchitectureSuggestion = () => {
       scopeName: string,
       groups: ServiceGroup[],
       rows: NormalizedVmRow[],
+      options?: {
+        targetMode?: "panorama" | "focus";
+        selectedScopeNames?: string[];
+        detailLevel?: "service-level";
+      },
     ): Promise<BusinessArchitectureSuggestion | null> => {
-      const messages = buildBusinessArchitectureMessages(scopeName, groups, rows);
+      const messages = buildBusinessArchitectureMessages(
+        scopeName,
+        groups,
+        rows,
+        options,
+      );
       let full = "";
       const result = await run(async (signal) => {
         const { taskId } = await createAiTask("business_layering", { messages });

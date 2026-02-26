@@ -1,6 +1,6 @@
 ﻿# AI 架构助手文档（当前实现）
 
-最后更新：2026-02-16
+最后更新：2026-02-26
 
 ## 1. 当前入口与页面
 
@@ -8,7 +8,7 @@ AI 架构助手入口：`packages/excalidraw/components/ArchitectureAssistant.ts
 
 CSV 到架构图流程已切换为页面化主路径：
 - `/ai/csv-fix`：导入 CSV -> 字段确认 -> 问题修复
-- `/ai/draft-confirm`：范围分层 -> 架构图预览 -> 插入画布
+- `/ai/draft-confirm`：全景生成 -> 业务聚焦分层（可选）-> 架构图预览 -> 插入画布
 
 主容器：`packages/excalidraw/components/AIArchitectureGenerationPages.tsx`
 页面组件：
@@ -78,6 +78,21 @@ CSV 到架构图流程已切换为页面化主路径：
 - 本地存储保留工作区数据（source/mapping/edits/draft）
 - 仅用户手动清空时重置
 - 清空 atom：`resetAIArchitectureWorkspaceAtom`
+
+草图会话（draft）关键字段（2026-02-26）：
+- `draftSelectedScopeIds`：业务分区多选（默认全选）
+- `draftViewMode`：`panorama | focus`
+- `draftPanoramaDiagram`：全景 Mermaid
+- `draftPanoramaDiagramStatus`：全景图状态
+- 兼容保留：`draftActiveScopeId`、`draftLayerEditsByScope`、`draftDiagramByScope`、`draftDiagramStatusByScope`（用于主业务局部分层与局部图）
+
+语义变更：
+- “业务范围”不再用于裁剪数据输入，改为全景视图的分区控制器。
+- 默认流程优先生成全景图；“主业务”用于局部分层编辑与细化。
+
+提示词约束（2026-02-26）：
+- `business_scope`：允许输出共享基础能力分区（如中间件平台）。
+- `business_layering`：默认全景、服务级粒度、限制每业务核心节点数量、保留跨业务主路径，并新增 `topologySummary` 输出字段。
 
 ## 6. 开发与验证
 
