@@ -7,6 +7,11 @@ This file defines practical rules for coding agents working in this repository.
 - Applies to the whole repository unless a deeper `AGENTS.md` overrides it.
 - Do not invent product behavior that is not present in code.
 
+## Domain Doc Entry
+
+- Product/domain behavior for AI architecture assistant lives in `AI_ARCHITECTURE_ASSISTANT.md`.
+- `AGENTS.md` defines agent execution rules; do not treat `AI_ARCHITECTURE_ASSISTANT.md` as agent policy.
+
 ## Agent Communication Guidelines
 
 - Be succinct; expansive generative AI answers are costly and slow
