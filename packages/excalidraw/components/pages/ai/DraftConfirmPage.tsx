@@ -6,6 +6,8 @@ import type { DiagramStatus, DraftViewMode } from "../../AIArchitectureGeneratio
 interface DraftConfirmPageProps {
   onContinueCalibrate: () => void;
   onInsertToCanvas: () => void;
+  readOnly: boolean;
+  readOnlyReason?: string;
   filter: string;
   onFilterChange: (value: string) => void;
   suggestions: Record<string, string[]>;

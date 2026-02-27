@@ -182,6 +182,14 @@ The CSV-to-architecture flow now uses a page-oriented path:
 - `/ai/csv-fix`: import CSV, confirm mapping, fix issues in table
 - `/ai/draft-confirm`: scope/layer editing, diagram preview, insert to canvas
 
+Navigation and progress behavior:
+
+- A single global step header is shown across both pages (no duplicated local stepbars).
+- Step viewing and step progress are separated:
+  - `viewStep`: current page being viewed
+  - `step`: actual workflow progress
+- If prerequisites are not met, users can still switch to the page in read-only preview mode; mutating actions and AI-triggering actions are disabled until requirements are satisfied.
+
 AI execution is task-based (SSE):
 
 - `POST /api/ai/tasks`

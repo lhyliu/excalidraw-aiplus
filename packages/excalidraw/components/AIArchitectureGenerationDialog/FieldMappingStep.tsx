@@ -17,6 +17,7 @@ import { useFieldMappingSuggestion } from "./hooks/useFieldMappingSuggestion";
 interface FieldMappingStepProps {
   onContinue: () => void;
   onGenerateDraft: () => void;
+  readOnly?: boolean;
 }
 
 const requiredFields: StandardField[] = ["hostname", "privateIp", "serviceName"];
@@ -34,6 +35,7 @@ const orderedFields: StandardField[] = [
 export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
   onContinue,
   onGenerateDraft,
+  readOnly = false,
 }) => {
   const importedCsv = useAtomValue(importedCsvAtom);
   const [mapping, setMapping] = useAtom(fieldMappingAtom);
@@ -61,16 +63,22 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
 
   const handleChange = useCallback(
     (field: StandardField, value: string) => {
+      if (readOnly) {
+        return;
+      }
       setMapping((prev) => ({
         ...prev,
         [field]: value || undefined,
       }));
       setNotice(null);
     },
-    [setMapping],
+    [readOnly, setMapping],
   );
 
   const handleApply = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     const validation = validateFieldMapping(effectiveMapping);
     if (!validation.ok) {
       setError(`缺少必填映射: ${validation.missingRequiredFields.join(", ")}`);
@@ -82,10 +90,13 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
     setError(null);
     setNotice("AI 理解已确认，并已写入字段别名记忆。");
     onContinue();
-  }, [effectiveMapping, onContinue, rememberMapping, setMapping]);
+  }, [effectiveMapping, onContinue, readOnly, rememberMapping, setMapping]);
 
   const handleRequestAISuggestion = useCallback(
     async (field: StandardField) => {
+      if (readOnly) {
+        return;
+      }
       setAiSuggestingField(field);
       setNotice(null);
       const sampleRows = importedCsv.rows.map((row) => row.raw);
@@ -109,7 +120,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
           : `AI 建议: ${field} ← ${suggestion.header}`,
       );
     },
-    [importedCsv.headers, importedCsv.rows, requestSuggestion, setMapping],
+    [importedCsv.headers, importedCsv.rows, readOnly, requestSuggestion, setMapping],
   );
 
   const requiredMappedCount = requiredFields.filter(
@@ -145,6 +156,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
             type="button"
             className="ai-architecture-generation-dialog__btn-primary"
             onClick={handleApply}
+            disabled={readOnly}
           >
             确认并进入问题修复
           </button>
@@ -152,6 +164,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
             type="button"
             className="ai-architecture-generation-dialog__btn-secondary"
             onClick={onGenerateDraft}
+            disabled={readOnly}
           >
             直接进入草图确认
           </button>
@@ -202,6 +215,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
         onRequestAISuggestion={handleRequestAISuggestion}
         aiSuggestingField={aiSuggestingField}
         defaultExpanded
+        readOnly={readOnly}
       />
 
       {/* Optional fields section */}
@@ -210,6 +224,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
           type="button"
           className="ai-architecture-generation-dialog__btn-ghost"
           onClick={() => setShowOptionalFields((prev) => !prev)}
+          disabled={readOnly}
         >
           {showOptionalFields
             ? `收起可选字段 (${optionalMappedCount}/${optionalFields.length} 已识别)`
@@ -230,6 +245,7 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
           onRequestAISuggestion={handleRequestAISuggestion}
           aiSuggestingField={aiSuggestingField}
           defaultExpanded
+          readOnly={readOnly}
         />
       )}
 
@@ -241,5 +257,3 @@ export const FieldMappingStep: React.FC<FieldMappingStepProps> = ({
     </div>
   );
 };
-
-

@@ -25,6 +25,7 @@ interface GuidedWorkspaceStepProps {
   onContinueDraft: () => void;
   activeIssueFilterKey: string | null;
   onActiveIssueFilterKeyChange: (issueFilter: string | null) => void;
+  readOnly?: boolean;
 }
 
 interface GuidedIssueGroup {
@@ -52,6 +53,7 @@ type ServiceNameCellRendererProps = ICellRendererParams<GuidedGridRow, string> &
   onAiFillSingle: (rowId: number) => void;
   aiBusy: boolean;
   singleLoadingRowId: number | null;
+  readOnly: boolean;
 };
 
 const editableFields: StandardField[] = [
@@ -105,6 +107,7 @@ const ServiceNameCellRenderer: React.FC<ServiceNameCellRendererProps> = ({
   onAiFillSingle,
   aiBusy,
   singleLoadingRowId,
+  readOnly,
 }) => {
   if (!data) {
     return null;
@@ -126,7 +129,7 @@ const ServiceNameCellRenderer: React.FC<ServiceNameCellRendererProps> = ({
         event.stopPropagation();
         onAiFillSingle(data.rowId);
       }}
-      disabled={aiBusy}
+      disabled={aiBusy || readOnly}
     >
       {loading ? "..." : "AI"}
     </button>
@@ -181,6 +184,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
   onContinueDraft,
   activeIssueFilterKey,
   onActiveIssueFilterKeyChange,
+  readOnly = false,
 }) => {
   const importedCsv = useAtomValue(importedCsvAtom);
   const rows = useAtomValue(normalizedVmRowsAtom);
@@ -374,6 +378,9 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
 
   const handleGridCellValueChanged = useCallback(
     (event: CellValueChangedEvent<GuidedGridRow>) => {
+      if (readOnly) {
+        return;
+      }
       const rowId = event.data?.rowId;
       const field = event.colDef.field as StandardField | "ignored" | "rowId" | undefined;
       if (rowId === undefined || !field || field === "rowId") {
@@ -403,10 +410,13 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
         },
       }));
     },
-    [setEdits, setIgnoredRows],
+    [readOnly, setEdits, setIgnoredRows],
   );
 
   const fillMissingServiceNamesByAI = useCallback(async () => {
+    if (readOnly) {
+      return;
+    }
     setSemanticReasonPreview(null);
     const targetRows = (activeIssueFilterKey ? filteredRows : rows).filter((row) => {
       const edited = String(edits[row.rowId]?.serviceName ?? "").trim();
@@ -546,6 +556,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
     inferMissingServiceNames,
     markAiUpdatedCells,
     rows,
+    readOnly,
     setEdits,
   ]);
 
@@ -559,6 +570,9 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
 
   const fillSingleServiceNameByAI = useCallback(
     async (rowId: number) => {
+      if (readOnly) {
+        return;
+      }
       const row = rows.find((item) => item.rowId === rowId);
       if (!row) {
         return;
@@ -628,7 +642,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
         }
       }
     },
-    [abortSemanticInference, inferMissingServiceNames, markAiUpdatedCells, rows, setEdits],
+    [abortSemanticInference, inferMissingServiceNames, markAiUpdatedCells, readOnly, rows, setEdits],
   );
 
   useEffect(() => {
@@ -661,7 +675,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
         maxWidth: 72,
         suppressMovable: true,
         sortable: false,
-        editable: true,
+        editable: !readOnly,
         cellDataType: "boolean",
         cellRenderer: "agCheckboxCellRenderer",
         cellEditor: "agCheckboxCellEditor",
@@ -680,20 +694,21 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
         minWidth: field === "serviceName" ? 220 : 160,
         flex: 1,
         suppressMovable: true,
-        editable: true,
+        editable: !readOnly,
         ...(field === "serviceName"
           ? {
             headerComponent: "serviceNameHeader",
             headerComponentParams: {
               onAiFill: fillMissingServiceNamesByAI,
               busy: semanticBusy,
-              disabled: semanticBusy,
+              disabled: semanticBusy || readOnly,
             },
             cellRenderer: "serviceNameCellRenderer",
             cellRendererParams: {
               onAiFillSingle: fillSingleServiceNameByAI,
               aiBusy: semanticLoadingType === "single",
               singleLoadingRowId,
+              readOnly,
             },
           }
           : {}),
@@ -731,6 +746,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
       fillMissingServiceNamesByAI,
       fillSingleServiceNameByAI,
       issueFieldKeySet,
+      readOnly,
       semanticBusy,
       singleLoadingRowId,
     ],
@@ -760,7 +776,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
           type="button"
           className="ai-architecture-generation-dialog__btn-primary"
           onClick={onContinueDraft}
-          disabled={!canContinueDraft}
+          disabled={!canContinueDraft || readOnly}
         >
           进入草图生成
         </button>
@@ -832,6 +848,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
                 setShowFullscreenHint(false);
                 setHasDismissedFullscreenHint(true);
               }}
+              disabled={readOnly}
             >
               {isFullscreenEditing ? "⤡" : "⤢"}
             </button>
@@ -850,6 +867,7 @@ export const GuidedWorkspaceStep: React.FC<GuidedWorkspaceStepProps> = ({
               type="button"
               className="ai-architecture-generation-dialog__btn-ghost"
               onClick={cancelBulkAiFill}
+              disabled={readOnly}
             >
               中断
             </button>

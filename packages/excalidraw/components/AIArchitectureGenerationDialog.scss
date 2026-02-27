@@ -695,6 +695,24 @@
     background: var(--color-border-outline-variant);
   }
 
+  .ai-architecture-generation-dialog__workflow-header {
+    margin-bottom: 0.5rem;
+  }
+
+  .ai-architecture-generation-dialog__progress-step.is-view-only {
+    border-style: dashed;
+  }
+
+  .ai-architecture-generation-dialog__readonly-banner {
+    @include glass-panel(62%, 8px);
+    border-radius: 0.5rem;
+    border: 1px dashed var(--color-border-outline-variant);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.55rem;
+  }
+
   .ai-architecture-generation-dialog__focus-content {
     display: flex;
     flex-direction: column;
@@ -1761,4 +1779,3 @@
   padding: 0 0 0.55rem;
   margin-bottom: 0.85rem;
 }
-

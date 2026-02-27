@@ -3,7 +3,7 @@
 说明：本文件用于记录 AI 架构助手的产品/实现现状，不定义编码代理行为规范。代理执行规则请以 `AGENTS.md` 为准。
 
 
-最后更新：2026-02-26
+最后更新：2026-02-27
 
 ## 1. 当前入口与页面
 
@@ -17,6 +17,14 @@ CSV 到架构图流程已切换为页面化主路径：
 页面组件：
 - `packages/excalidraw/components/pages/ai/CsvFixPage.tsx`
 - `packages/excalidraw/components/pages/ai/DraftConfirmPage.tsx`
+- `packages/excalidraw/components/pages/ai/GenerationWorkflowHeader.tsx`（全局唯一步骤导航）
+
+当前导航与进度规则（2026-02-27）：
+- 顶部仅保留一套全局步骤导航（导入/字段确认/问题修复/草图确认）。
+- 引入 `viewStep`（查看步骤）与 `step`（真实进度步骤）分离：
+  - 点击步骤用于切换页面视图（`viewStep`）。
+  - 仅在完成关键动作后推进真实进度（`step`）。
+- 未满足前置条件时允许进入页面只读预览（view-only），并显示原因提示；关键写操作与 AI 触发按钮禁用。
 
 ## 2. 已删除的旧流程壳（物理删除）
 

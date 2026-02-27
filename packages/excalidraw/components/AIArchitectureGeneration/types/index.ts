@@ -263,6 +263,7 @@ export interface DataFixSuggestion {
 /** AI 架构生成会话状态 */
 export interface AIArchitectureGenerationSessionState {
   step: GenerationStep;
+  viewStep?: GenerationStep;
   mode: GenerationMode;
   draftFilter: string;
   namingSuggestions: Record<string, string[]>;
@@ -288,6 +289,7 @@ export interface AIArchitectureGenerationSessionState {
 /** 默认会话状态 */
 export const DEFAULT_SESSION_STATE: AIArchitectureGenerationSessionState = {
   step: "ingest",
+  viewStep: undefined,
   mode: "safe",
   draftFilter: "",
   namingSuggestions: {},

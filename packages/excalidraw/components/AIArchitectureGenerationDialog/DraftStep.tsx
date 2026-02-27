@@ -45,6 +45,8 @@ const parseRowIdsInput = (raw: string): number[] =>
 interface DraftStepProps {
   onContinueCalibrate: () => void;
   onInsertToCanvas: () => void;
+  readOnly?: boolean;
+  readOnlyReason?: string;
   filter: string;
   onFilterChange: (value: string) => void;
   suggestions: Record<string, string[]>;
@@ -78,6 +80,8 @@ type DraftGridRow = {
 export const DraftStep: React.FC<DraftStepProps> = ({
   onContinueCalibrate,
   onInsertToCanvas,
+  readOnly = false,
+  readOnlyReason,
   filter,
   onFilterChange,
   suggestions,
@@ -250,6 +254,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   );
 
   const refreshBusinessScopes = useCallback(async () => {
+    if (readOnly) {
+      return;
+    }
     if (groups.length === 0 || rows.length === 0) {
       setAiBusinessScopes(null);
       return;
@@ -272,18 +279,24 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     }
     setAiBusinessScopes(projected);
     setGenerationNotice("已刷新业务分区。");
-  }, [groups, requestBusinessScopes, rows]);
+  }, [groups, readOnly, requestBusinessScopes, rows]);
 
   const loadSuggestions = useCallback(
     async (group: ServiceGroup) => {
+      if (readOnly) {
+        return;
+      }
       const result = await requestSuggestions(group, rows);
       onSuggestionsChange({ ...suggestions, [group.id]: result });
     },
-    [onSuggestionsChange, requestSuggestions, rows, suggestions],
+    [onSuggestionsChange, readOnly, requestSuggestions, rows, suggestions],
   );
 
   const applySuggestion = useCallback(
     (group: ServiceGroup, suggestedName: string) => {
+      if (readOnly) {
+        return;
+      }
       setEdits((prev) => {
         const next = { ...prev };
         group.rowIds.forEach((rowId) => {
@@ -296,10 +309,13 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       });
       setGenerationNotice(`已应用命名建议：${suggestedName}`);
     },
-    [setEdits],
+    [readOnly, setEdits],
   );
 
   const requestScopeArchitecture = useCallback(async () => {
+    if (readOnly) {
+      return null;
+    }
     if (!focusScope) {
       setGenerationNotice("请先选择主业务分区。");
       return null;
@@ -338,6 +354,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     groups,
     rows,
     requestBusinessArchitecture,
+    readOnly,
     updateLayerEditsForScope,
     onDiagramStatusByScopeChange,
     diagramStatusByScope,
@@ -345,6 +362,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   const updateLayer = useCallback(
     (layerIndex: number, patch: Partial<LayerDraft>) => {
+      if (readOnly) {
+        return;
+      }
       if (!focusScope) {
         return;
       }
@@ -361,6 +381,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     [
       focusScope,
       layerEditsByScope,
+      readOnly,
       updateLayerEditsForScope,
       onDiagramStatusByScopeChange,
       diagramStatusByScope,
@@ -369,6 +390,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
 
   const assignRowToLayer = useCallback(
     (targetLayerIndex: number, rowId: number) => {
+      if (readOnly) {
+        return;
+      }
       if (!focusScope) {
         return;
       }
@@ -390,6 +414,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     [
       focusScope,
       layerEditsByScope,
+      readOnly,
       updateLayerEditsForScope,
       onDiagramStatusByScopeChange,
       diagramStatusByScope,
@@ -397,6 +422,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   );
 
   const generateDiagram = useCallback(async () => {
+    if (readOnly) {
+      return;
+    }
     if (!focusScope) {
       setGenerationNotice("请先选择主业务分区。");
       return;
@@ -443,6 +471,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   }, [
     focusScope,
     layerEditsByScope,
+    readOnly,
     diagramStatusByScope,
     onDiagramStatusByScopeChange,
     businessSuggestionByScope,
@@ -452,6 +481,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   ]);
 
   const generatePanoramaDiagram = useCallback(async () => {
+    if (readOnly) {
+      return;
+    }
     if (selectedScopes.length === 0) {
       setGenerationNotice("请至少选择一个业务分区。");
       return;
@@ -496,6 +528,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     groups,
     onPanoramaDiagramChange,
     onPanoramaDiagramStatusChange,
+    readOnly,
     requestBusinessArchitecture,
     rows,
     selectedScopes,
@@ -532,6 +565,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
   }, [displayMermaid, mermaidToExcalidrawLib, theme]);
 
   const handleInsertToCanvas = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     if (panoramaDiagramStatus !== "ready") {
       setGenerationNotice("请先生成架构图后再插入画布。");
       return;
@@ -554,6 +590,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     onInsertToCanvas,
     panoramaDiagramStatus,
     previewError,
+    readOnly,
   ]);
 
   const scopeByGroupId = useMemo(
@@ -733,12 +770,18 @@ export const DraftStep: React.FC<DraftStepProps> = ({
             type="button"
             className="ai-architecture-generation-dialog__btn-primary"
             onClick={handlePrimaryAction}
-            disabled={isPrimaryActionDisabled}
+            disabled={isPrimaryActionDisabled || readOnly}
           >
             {primaryActionLabel}
           </button>
         </div>
       </div>
+
+      {readOnly && readOnlyReason && (
+        <div className="ai-architecture-generation-dialog__readonly-banner">
+          当前为只读预览：{readOnlyReason}
+        </div>
+      )}
 
       {generationNotice && <div className="ai-architecture-generation-dialog__success">{generationNotice}</div>}
 
@@ -750,17 +793,18 @@ export const DraftStep: React.FC<DraftStepProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectedScopeIdsChange(businessScopes.map((scope) => scope.id))}
+                disabled={readOnly}
               >
                 全选
               </button>
-              <button type="button" onClick={() => onSelectedScopeIdsChange([])}>
+              <button type="button" onClick={() => onSelectedScopeIdsChange([])} disabled={readOnly}>
                 清空
               </button>
             </div>
             <button
               type="button"
               onClick={() => void refreshBusinessScopes()}
-              disabled={isBusinessScopeStreaming}
+              disabled={isBusinessScopeStreaming || readOnly}
             >
               {isBusinessScopeStreaming ? "识别中..." : "重识别业务分区"}
             </button>
@@ -773,6 +817,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                   <input
                     type="checkbox"
                     checked={selectedScopeIdSet.has(scope.id)}
+                    disabled={readOnly}
                     onChange={(event) => {
                       const next = event.target.checked
                         ? Array.from(new Set([...selectedScopeIds, scope.id]))
@@ -788,7 +833,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                 <button
                   type="button"
                   onClick={() => onActiveScopeIdChange(scope.id)}
-                  disabled={activeScopeId === scope.id}
+                  disabled={activeScopeId === scope.id || readOnly}
                 >
                   设为主业务
                 </button>
@@ -802,6 +847,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
               <select
                 aria-label="显示模式"
                 value={viewMode}
+                disabled={readOnly}
                 onChange={(event) =>
                   onViewModeChange(event.target.value as "panorama" | "focus")
                 }
@@ -815,6 +861,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           <div className="ai-architecture-generation-dialog__inline-form">
             <input
               value={filter}
+              disabled={readOnly}
               onChange={(event) => onFilterChange(event.target.value)}
               placeholder="按服务名筛选"
               aria-label="按服务名筛选"
@@ -835,13 +882,17 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                   <article key={view.id} className="ai-architecture-generation-dialog__issue-card">
                     <strong>{view.name}</strong>
                     <div className="ai-architecture-generation-dialog__summary">资产: {view.vmCount}</div>
-                    <button type="button" onClick={() => void loadSuggestions(group)} disabled={isStreaming}>
+                    <button
+                      type="button"
+                      onClick={() => void loadSuggestions(group)}
+                      disabled={isStreaming || readOnly}
+                    >
                       AI命名建议
                     </button>
                     {(suggestions[group.id] ?? []).map((name) => (
                       <div key={`${group.id}:${name}`} className="ai-architecture-generation-dialog__inline-form">
                         <span>{name}</span>
-                        <button type="button" onClick={() => applySuggestion(group, name)}>
+                        <button type="button" onClick={() => applySuggestion(group, name)} disabled={readOnly}>
                           应用
                         </button>
                       </div>
@@ -856,14 +907,14 @@ export const DraftStep: React.FC<DraftStepProps> = ({
             <button
               type="button"
               onClick={() => void requestScopeArchitecture()}
-              disabled={!focusScope || isBusinessArchitectureStreaming}
+              disabled={!focusScope || isBusinessArchitectureStreaming || readOnly}
             >
               {isBusinessArchitectureStreaming ? "分析中..." : "分析主业务分层"}
             </button>
             <button
               type="button"
               onClick={() => void generateDiagram()}
-              disabled={!focusScope || selectedScopeDiagramStatus === "generating"}
+              disabled={!focusScope || selectedScopeDiagramStatus === "generating" || readOnly}
             >
               {selectedScopeDiagramStatus === "generating" ? "生成中..." : "生成主业务分层图"}
             </button>
@@ -880,9 +931,10 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                     层名称
                     <input
                       aria-label={`层名称-${index}`}
-                      value={layer.name}
-                      onChange={(event) => updateLayer(index, { name: event.target.value })}
-                    />
+                    value={layer.name}
+                    disabled={readOnly}
+                    onChange={(event) => updateLayer(index, { name: event.target.value })}
+                  />
                   </label>
                   <span className="ai-architecture-generation-dialog__summary">资产数: {layer.rowIds.length}</span>
                 </div>
@@ -891,6 +943,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                   className="ai-architecture-generation-dialog__layer-dropzone"
                   aria-label={`层卡片-${index}`}
                   onDragOver={(event) => {
+                    if (readOnly) {
+                      return;
+                    }
                     event.preventDefault();
                     if (draggingRowId !== null) {
                       setDragOverLayerIndex(index);
@@ -902,6 +957,9 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                     }
                   }}
                   onDrop={(event) => {
+                    if (readOnly) {
+                      return;
+                    }
                     event.preventDefault();
                     const dropped = Number(event.dataTransfer.getData("text/plain"));
                     if (!Number.isFinite(dropped)) {
@@ -923,6 +981,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                           type="button"
                           className="ai-architecture-generation-dialog__layer-asset-chip"
                           onClick={() => setActiveRowId(rowId)}
+                          disabled={readOnly}
                         >
                           Row {rowId}
                         </button>
@@ -935,6 +994,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                   <input
                     aria-label={`层资产-${index}`}
                     value={layer.rowIds.join(",")}
+                    disabled={readOnly}
                     onChange={(event) => updateLayer(index, { rowIds: parseRowIdsInput(event.target.value) })}
                   />
                 </label>

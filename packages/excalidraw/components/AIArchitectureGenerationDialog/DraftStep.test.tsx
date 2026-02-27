@@ -131,6 +131,7 @@ describe("DraftStep", () => {
       <DraftStep
         onContinueCalibrate={() => {}}
         onInsertToCanvas={() => {}}
+        readOnly={false}
         filter=""
         onFilterChange={() => {}}
         suggestions={suggestions}
@@ -187,5 +188,61 @@ describe("DraftStep", () => {
       const insertBtn = screen.getByRole("button", { name: "确认插入画布" });
       expect(insertBtn).not.toBeDisabled();
     });
+  });
+
+  it("disables key actions in read-only mode", async () => {
+    setupAtoms();
+
+    const ReadonlyHarness = () => {
+      const [suggestions, setSuggestions] = React.useState<Record<string, string[]>>({});
+      const [activeScopeId, setActiveScopeId] = React.useState<string | null>(null);
+      const [selectedScopeIds, setSelectedScopeIds] = React.useState<string[]>([]);
+      const [viewMode, setViewMode] = React.useState<"panorama" | "focus">("panorama");
+      const [layerEditsByScope, setLayerEditsByScope] = React.useState<Record<string, { name: string; description: string; rowIds: number[]; reason: string }[]>>({});
+      const [diagramByScope, setDiagramByScope] = React.useState<Record<string, string>>({});
+      const [diagramStatusByScope, setDiagramStatusByScope] = React.useState<Record<string, "idle" | "generating" | "ready" | "error">>({});
+      const [panoramaDiagram, setPanoramaDiagram] = React.useState<string>("");
+      const [panoramaDiagramStatus, setPanoramaDiagramStatus] = React.useState<
+        "idle" | "generating" | "ready" | "error"
+      >("idle");
+
+      return (
+        <DraftStep
+          onContinueCalibrate={() => {}}
+          onInsertToCanvas={() => {}}
+          readOnly
+          readOnlyReason="请先修复阻断问题"
+          filter=""
+          onFilterChange={() => {}}
+          suggestions={suggestions}
+          onSuggestionsChange={setSuggestions}
+          activeScopeId={activeScopeId}
+          onActiveScopeIdChange={setActiveScopeId}
+          selectedScopeIds={selectedScopeIds}
+          onSelectedScopeIdsChange={setSelectedScopeIds}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          layerEditsByScope={layerEditsByScope}
+          onLayerEditsByScopeChange={setLayerEditsByScope}
+          diagramByScope={diagramByScope}
+          onDiagramByScopeChange={setDiagramByScope}
+          diagramStatusByScope={diagramStatusByScope}
+          onDiagramStatusByScopeChange={setDiagramStatusByScope}
+          panoramaDiagram={panoramaDiagram}
+          onPanoramaDiagramChange={setPanoramaDiagram}
+          panoramaDiagramStatus={panoramaDiagramStatus}
+          onPanoramaDiagramStatusChange={setPanoramaDiagramStatus}
+        />
+      );
+    };
+
+    render(
+      <EditorJotaiProvider store={editorJotaiStore}>
+        <ReadonlyHarness />
+      </EditorJotaiProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "生成全景架构图" })).toBeDisabled();
+    expect(screen.getByText("当前为只读预览：请先修复阻断问题")).toBeInTheDocument();
   });
 });

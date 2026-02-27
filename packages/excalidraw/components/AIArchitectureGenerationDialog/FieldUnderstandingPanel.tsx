@@ -20,6 +20,7 @@ interface FieldUnderstandingPanelProps {
   onRequestAISuggestion: (field: StandardField) => void;
   aiSuggestingField: StandardField | null;
   defaultExpanded?: boolean;
+  readOnly?: boolean;
 }
 
 const getConfidenceLabel = (score: number | undefined) => {
@@ -59,6 +60,7 @@ export const FieldUnderstandingPanel: React.FC<FieldUnderstandingPanelProps> = (
   onChangeMapping,
   onRequestAISuggestion,
   aiSuggestingField,
+  readOnly = false,
 }) => {
   const viewItems = useMemo(
     () =>
@@ -130,6 +132,7 @@ export const FieldUnderstandingPanel: React.FC<FieldUnderstandingPanelProps> = (
                 onChange={(event) =>
                   onChangeMapping(item.field, event.target.value)
                 }
+                disabled={readOnly}
               >
                 <option value="">— 选择列名 —</option>
                 {item.field === "serviceName" && (
@@ -154,7 +157,7 @@ export const FieldUnderstandingPanel: React.FC<FieldUnderstandingPanelProps> = (
                   type="button"
                   className="ai-architecture-generation-dialog__table-ai-btn"
                   onClick={() => onRequestAISuggestion(item.field)}
-                  disabled={aiSuggestingField === item.field}
+                  disabled={readOnly || aiSuggestingField === item.field}
                 >
                   {aiSuggestingField === item.field ? "识别中..." : "🤖 AI建议"}
                 </button>
@@ -166,6 +169,5 @@ export const FieldUnderstandingPanel: React.FC<FieldUnderstandingPanelProps> = (
     </div>
   );
 };
-
 
 

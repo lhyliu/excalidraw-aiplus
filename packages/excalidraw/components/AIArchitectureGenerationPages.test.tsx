@@ -18,6 +18,7 @@ const {
   mockSubscribeAllTaskStatuses: vi.fn(() => () => {}),
   mockSession: {
     step: "issueResolve",
+    viewStep: "issueResolve",
     draftFilter: "",
     namingSuggestions: {},
     draftActiveScopeId: null,
@@ -64,6 +65,15 @@ vi.mock("../i18n", () => ({
       "labels.aiTaskStatusRunning": "Running",
       "labels.aiTaskActionCancel": "Cancel",
       "labels.aiTaskTypeUnknown": "Unknown task",
+      "labels.aiArchitectureGeneration": "AI Architecture Generation",
+      "labels.aiGenerationStepIngest": "Ingest",
+      "labels.aiGenerationStepFieldConfirm": "Field Confirm",
+      "labels.aiGenerationStepIssueResolve": "Issue Resolve",
+      "labels.aiGenerationStepDraftConfirm": "Draft Confirm",
+      "labels.aiGenerationReadOnlyMode": "Read-only",
+      "labels.aiGenerationReadOnlyReasonRequireCsv": "Import CSV first",
+      "labels.aiGenerationReadOnlyReasonRequireMapping": "Confirm required mapping first",
+      "labels.aiGenerationReadOnlyReasonRequireIssueResolve": "Resolve blocking issues first",
     };
     return dict[key] ?? key;
   },
@@ -147,8 +157,8 @@ describe("AIArchitectureGenerationPages", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
     expect(screen.getByText("streaming")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "问题修复" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "草图确认" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Issue Resolve/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Draft Confirm/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mockCancelAiTask).toHaveBeenCalledWith("task_1");

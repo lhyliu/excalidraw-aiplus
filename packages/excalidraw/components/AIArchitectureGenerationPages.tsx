@@ -23,10 +23,12 @@ import { t } from "../i18n";
 import { Dialog } from "./Dialog";
 import { CsvFixPage } from "./pages/ai/CsvFixPage";
 import { DraftConfirmPage } from "./pages/ai/DraftConfirmPage";
+import { GenerationWorkflowHeader } from "./pages/ai/GenerationWorkflowHeader";
 
 import "./AIArchitectureGenerationDialog.scss";
 
 type AiGenerationRoute = "/ai/csv-fix" | "/ai/draft-confirm";
+type StepAccessMode = "editable" | "viewOnly";
 
 interface AIArchitectureGenerationPagesProps {
   onClose: () => void;
@@ -70,6 +72,12 @@ const getTaskTypeLabel = (type?: string) => {
 const canStepRunInCsvFix = (step: GenerationStep) =>
   step === "ingest" || step === "fieldConfirm" || step === "issueResolve";
 
+const isGenerationStep = (step: unknown): step is GenerationStep =>
+  step === "ingest" ||
+  step === "fieldConfirm" ||
+  step === "issueResolve" ||
+  step === "draftConfirm";
+
 export const AIArchitectureGenerationPages: React.FC<
   AIArchitectureGenerationPagesProps
 > = ({ onClose, assistantTabs }) => {
@@ -80,9 +88,6 @@ export const AIArchitectureGenerationPages: React.FC<
   const edits = useAtomValue(editsAtom);
   useAtomValue(confidenceStateAtom);
   const [recentTasks, setRecentTasks] = useState<AITaskStatusSnapshot[]>([]);
-
-  const route: AiGenerationRoute =
-    session.step === "draftConfirm" ? "/ai/draft-confirm" : "/ai/csv-fix";
 
   const hasSourceData = importedCsv.rows.length > 0;
   const hasRequiredMapping = useMemo(() => {
@@ -125,21 +130,100 @@ export const AIArchitectureGenerationPages: React.FC<
   );
   const resolvedIssueCount = Math.max(0, issues.length - unresolvedIssueCount);
 
+  const activeViewStep: GenerationStep = useMemo(() => {
+    if (isGenerationStep(session.viewStep)) {
+      return session.viewStep;
+    }
+    return session.step;
+  }, [session.step, session.viewStep]);
+
+  const route: AiGenerationRoute =
+    activeViewStep === "draftConfirm" ? "/ai/draft-confirm" : "/ai/csv-fix";
+
+  const getStepAccess = useCallback(
+    (step: GenerationStep): { mode: StepAccessMode; reason?: string } => {
+      if (step === "ingest") {
+        return { mode: "editable" };
+      }
+      if (step === "fieldConfirm") {
+        if (!hasSourceData) {
+          return {
+            mode: "viewOnly",
+            reason: t("labels.aiGenerationReadOnlyReasonRequireCsv"),
+          };
+        }
+        return { mode: "editable" };
+      }
+      if (step === "issueResolve") {
+        if (!hasSourceData) {
+          return {
+            mode: "viewOnly",
+            reason: t("labels.aiGenerationReadOnlyReasonRequireCsv"),
+          };
+        }
+        if (!hasRequiredMapping) {
+          return {
+            mode: "viewOnly",
+            reason: t("labels.aiGenerationReadOnlyReasonRequireMapping"),
+          };
+        }
+        return { mode: "editable" };
+      }
+      if (!hasSourceData) {
+        return {
+          mode: "viewOnly",
+          reason: t("labels.aiGenerationReadOnlyReasonRequireCsv"),
+        };
+      }
+      if (!hasRequiredMapping) {
+        return {
+          mode: "viewOnly",
+          reason: t("labels.aiGenerationReadOnlyReasonRequireMapping"),
+        };
+      }
+      if (unresolvedErrorCount > 0) {
+        return {
+          mode: "viewOnly",
+          reason: t("labels.aiGenerationReadOnlyReasonRequireIssueResolve"),
+        };
+      }
+      return { mode: "editable" };
+    },
+    [hasRequiredMapping, hasSourceData, unresolvedErrorCount],
+  );
+
+  const stepAccess = useMemo(
+    () => ({
+      ingest: getStepAccess("ingest"),
+      fieldConfirm: getStepAccess("fieldConfirm"),
+      issueResolve: getStepAccess("issueResolve"),
+      draftConfirm: getStepAccess("draftConfirm"),
+    }),
+    [getStepAccess],
+  );
+
+  const activeStepAccess = stepAccess[activeViewStep];
+
   const requestRoute = useCallback(
     (nextRoute: AiGenerationRoute) => {
       if (nextRoute === "/ai/draft-confirm") {
-        if (!hasSourceData || !hasRequiredMapping || unresolvedErrorCount > 0) {
-          return;
-        }
-        setSession((prev) => ({ ...prev, step: "draftConfirm" }));
+        const draftAccess = getStepAccess("draftConfirm");
+        setSession((prev) => ({
+          ...prev,
+          viewStep: "draftConfirm",
+          step:
+            draftAccess.mode === "editable"
+              ? "draftConfirm"
+              : prev.step,
+        }));
         return;
       }
       setSession((prev) => ({
         ...prev,
-        step: canStepRunInCsvFix(prev.step) ? prev.step : "issueResolve",
+        viewStep: canStepRunInCsvFix(prev.step) ? prev.step : "issueResolve",
       }));
     },
-    [hasRequiredMapping, hasSourceData, setSession, unresolvedErrorCount],
+    [getStepAccess, setSession],
   );
 
   const setDraftFilter = useCallback(
@@ -379,24 +463,52 @@ export const AIArchitectureGenerationPages: React.FC<
           </section>
         )}
 
+        <GenerationWorkflowHeader
+          activeStep={activeViewStep}
+          progressStep={session.step}
+          blockingErrorCount={unresolvedErrorCount}
+          totalIssueCount={issues.length}
+          resolvedIssueCount={resolvedIssueCount}
+          stepAccess={stepAccess}
+          onStepSelect={(targetStep) =>
+            setSession((prev) => ({
+              ...prev,
+              viewStep: targetStep,
+            }))
+          }
+        />
+
+        {activeStepAccess.mode === "viewOnly" && activeStepAccess.reason && (
+          <div className="ai-architecture-generation-dialog__readonly-banner">
+            {t("labels.aiGenerationReadOnlyMode")}：{activeStepAccess.reason}
+          </div>
+        )}
+
         {route === "/ai/csv-fix" && (
           <CsvFixPage
-            step={session.step}
-            hasSourceData={hasSourceData}
-            hasRequiredMapping={hasRequiredMapping}
-            blockingErrorCount={unresolvedErrorCount}
-            totalIssueCount={issues.length}
-            resolvedIssueCount={resolvedIssueCount}
+            step={
+              activeViewStep === "draftConfirm"
+                ? "issueResolve"
+                : activeViewStep
+            }
             issueFilter={session.issueFilter ?? null}
-            onContinueFieldConfirm={() => setSession((prev) => ({ ...prev, step: "fieldConfirm" }))}
-            onContinueIssueResolve={() => setSession((prev) => ({ ...prev, step: "issueResolve" }))}
-            onEnterDraftConfirm={() => requestRoute("/ai/draft-confirm")}
-            onJumpToStep={(targetStep) =>
+            readOnly={activeStepAccess.mode === "viewOnly"}
+            readOnlyReason={activeStepAccess.reason}
+            onContinueFieldConfirm={() =>
               setSession((prev) => ({
                 ...prev,
-                step: targetStep,
+                step: "fieldConfirm",
+                viewStep: "fieldConfirm",
               }))
             }
+            onContinueIssueResolve={() =>
+              setSession((prev) => ({
+                ...prev,
+                step: "issueResolve",
+                viewStep: "issueResolve",
+              }))
+            }
+            onEnterDraftConfirm={() => requestRoute("/ai/draft-confirm")}
             onIssueFilterChange={setIssueFilter}
           />
         )}
@@ -405,6 +517,8 @@ export const AIArchitectureGenerationPages: React.FC<
           <DraftConfirmPage
             onContinueCalibrate={() => requestRoute("/ai/csv-fix")}
             onInsertToCanvas={onClose}
+            readOnly={activeStepAccess.mode === "viewOnly"}
+            readOnlyReason={activeStepAccess.reason}
             filter={session.draftFilter}
             onFilterChange={setDraftFilter}
             suggestions={session.namingSuggestions}

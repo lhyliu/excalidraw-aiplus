@@ -16,6 +16,7 @@ import { SharedAgGrid } from "./SharedAgGrid";
 interface ImportStepProps {
   onContinue: () => void;
   onGenerateDraft: () => void;
+  readOnly?: boolean;
 }
 
 const requiredFields: StandardField[] = ["hostname", "privateIp", "serviceName"];
@@ -23,6 +24,7 @@ const requiredFields: StandardField[] = ["hostname", "privateIp", "serviceName"]
 export const ImportStep: React.FC<ImportStepProps> = ({
   onContinue,
   onGenerateDraft,
+  readOnly = false,
 }) => {
   const [csvText, setCsvText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +104,9 @@ export const ImportStep: React.FC<ImportStepProps> = ({
 
   const parseAndContinue = useCallback(
     async (text: string) => {
+      if (readOnly) {
+        return;
+      }
       if (!text.trim()) {
         setError("请输入 CSV 内容");
         setNotice(null);
@@ -126,7 +131,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
         setIsParsing(false);
       }
     },
-    [ensureValidResult, onContinue],
+    [ensureValidResult, onContinue, readOnly],
   );
 
   const handleParseAndContinue = useCallback(() => {
@@ -135,6 +140,9 @@ export const ImportStep: React.FC<ImportStepProps> = ({
 
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (readOnly) {
+        return;
+      }
       const file = event.target.files?.[0];
       if (!file) {
         return;
@@ -159,21 +167,27 @@ export const ImportStep: React.FC<ImportStepProps> = ({
         setIsParsing(false);
       }
     },
-    [ensureValidResult, onContinue],
+    [ensureValidResult, onContinue, readOnly],
   );
 
   const handleReimport = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     setIsCollapsed(false);
-  }, []);
+  }, [readOnly]);
 
   const handleClearWorkspace = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     resetWorkspace();
     setCsvText("");
     setError(null);
     setNotice("已清空当前工作区数据");
     setIsCollapsed(false);
     setFileName(null);
-  }, [resetWorkspace]);
+  }, [readOnly, resetWorkspace]);
 
   return (
     <div className="ai-architecture-generation-dialog__step ai-architecture-generation-dialog__step--import">
@@ -185,7 +199,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
               type="button"
               className="ai-architecture-generation-dialog__btn-primary"
               onClick={onContinue}
-              disabled={isParsing}
+              disabled={isParsing || readOnly}
             >
               解析并进入字段确认
             </button>
@@ -193,7 +207,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
               type="button"
               className="ai-architecture-generation-dialog__btn-secondary"
               onClick={onGenerateDraft}
-              disabled={isParsing}
+              disabled={isParsing || readOnly}
             >
               直接进入草图确认
             </button>
@@ -220,6 +234,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
             type="button"
             className="ai-architecture-generation-dialog__btn-ghost"
             onClick={handleReimport}
+            disabled={readOnly}
           >
             重新导入
           </button>
@@ -227,6 +242,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
             type="button"
             className="ai-architecture-generation-dialog__btn-ghost"
             onClick={handleClearWorkspace}
+            disabled={readOnly}
           >
             清空当前数据
           </button>
@@ -241,6 +257,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
             rows={5}
             value={csvText}
             onChange={(event) => setCsvText(event.target.value)}
+            disabled={readOnly}
             placeholder="例如: Host Name,IP Address,Service"
           />
           <div className="ai-architecture-generation-dialog__import-controls">
@@ -255,6 +272,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
               type="button"
               className="ai-architecture-generation-dialog__btn-secondary"
               onClick={() => fileInputRef.current?.click()}
+              disabled={readOnly}
             >
               📁 选择文件
             </button>
@@ -262,7 +280,7 @@ export const ImportStep: React.FC<ImportStepProps> = ({
               type="button"
               className="ai-architecture-generation-dialog__btn-primary"
               onClick={handleParseAndContinue}
-              disabled={isParsing}
+              disabled={isParsing || readOnly}
             >
               {isParsing ? "解析中..." : "解析并进入字段确认"}
             </button>
