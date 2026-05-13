@@ -1,7 +1,7 @@
 # Topology Workbench Restart Design
 
 Date: 2026-05-14
-Status: Approved direction for implementation planning
+Status: Approved direction with product and interaction constraints
 
 ## Goal
 
@@ -15,6 +15,12 @@ The product is not a generic whiteboard. It is a tool for turning raw infrastruc
 
 Primary users import an asset inventory, review cleanup and classification suggestions, generate an initial topology, then refine the result manually or through natural language.
 
+Primary user roles:
+
+- Cloud architects who need layered cloud, application, and business-domain views.
+- Operations and network owners who need connectivity, boundary, environment, and risk visibility.
+- Application owners who need understandable upstream/downstream dependencies without reading raw asset tables.
+
 The main diagram style is cloud and business system architecture:
 
 - business domains, systems, applications, services
@@ -24,6 +30,8 @@ The main diagram style is cloud and business system architecture:
 - semantic relationships such as calls, depends on, data flow, deployed on, connects to, secured by
 
 Network device topology is supported as a secondary use case, mainly when it explains cloud/business system connectivity such as local IDC interconnects, leased lines, VPNs, firewalls, routers, switches, and gateways.
+
+The core product promise is: import imperfect asset data, get a useful first topology quickly, then improve it through focused review and safe edits.
 
 ## Non-Goals
 
@@ -45,13 +53,22 @@ Keep Cytoscape.js out of the first implementation. It can be introduced later fo
 
 Use CSV import as the first asset inventory ingestion path. CSV can continue to use PapaParse. XLSX should be added after the MVP import contract is stable.
 
+## Product Success Metrics
+
+- Time to first topology: a user can import a valid CSV template and see the first graph within one minute.
+- Auto-classification acceptance rate: high-confidence rule classifications should be accepted without manual correction in most rows.
+- Manual correction count: the product should minimize row-by-row cleanup and prefer batch review.
+- Patch acceptance rate: accepted AI-generated topology patches should outnumber rejected patches after users provide clear instructions.
+- Layout satisfaction: users should need minimal manual dragging after first layout and after patch application.
+- Import recoverability: non-blocking data issues should not prevent generation of a partial topology.
+
 ## Architecture
 
 The product should be rebuilt around a domain model, not around canvas elements.
 
 ```mermaid
 flowchart LR
-  A["Asset Inventory<br/>CSV/XLSX/CMDB export"] --> B["Importer"]
+  A["Asset Inventory<br/>CSV template"] --> B["Importer"]
   B --> C["Normalizer"]
   C --> D["Classifier"]
   D --> E["Topology Core"]
@@ -77,6 +94,8 @@ Responsibilities:
 - Accept CSV as the first supported raw inventory format.
 - Preserve the original columns and row IDs.
 - Detect headers and basic data types.
+- Auto-map known column aliases to the import contract.
+- Score import readiness before topology generation.
 - Produce an import preview before any topology generation.
 
 Inputs:
@@ -88,6 +107,45 @@ Outputs:
 
 - `RawAssetTable`
 - parse warnings with row and column references
+
+### Import Contract
+
+CSV is the first productized ingestion path. The first implementation should support a documented template and a tolerant mapper for common column aliases.
+
+Required fields:
+
+- `asset_id` or one stable identity field such as `resource_id`, `instance_id`, `hostname`, or `name`.
+- `name` or `hostname`.
+- `resource_type`, `service_type`, or enough provider-specific metadata to infer type.
+
+Recommended fields:
+
+- `provider`, `account`, `region`, `zone`
+- `environment`
+- `private_ip`, `public_ip`, `cidr`
+- `application`, `system`, `business_domain`, `owner`
+- `vpc`, `subnet`, `security_group`, `gateway`, `load_balancer`
+- `depends_on`, `connects_to`, `calls`, or equivalent relationship columns
+
+Optional fields:
+
+- `risk`, `criticality`, `tags`, `cost_center`, `description`
+- network details such as `vpn`, `leased_line`, `firewall`, `router`, `switch`
+
+Example CSV:
+
+```csv
+asset_id,name,resource_type,provider,account,region,environment,application,business_domain,private_ip,cidr,depends_on
+ecs-001,pay-api-01,ecs,aliyun,prod-main,cn-hangzhou,prod,payment,payment,10.0.1.12,,rds-001
+rds-001,pay-db,rds,aliyun,prod-main,cn-hangzhou,prod,payment,payment,10.0.2.18,,
+vpc-001,prod-vpc,vpc,aliyun,prod-main,cn-hangzhou,prod,,,,"10.0.0.0/16",
+```
+
+Import readiness rules:
+
+- High readiness: required identity, label, type, and environment can be resolved for most rows.
+- Medium readiness: topology can be generated, but the user should review missing groupings or ambiguous resource types.
+- Low readiness: the user should fix mappings before generation unless they explicitly choose partial generation.
 
 ### Normalizer
 
@@ -112,6 +170,7 @@ Responsibilities:
 - Suggest resource type, layer, environment, ownership, network boundary, and business grouping.
 - Ask AI only for ambiguous semantic classification such as business domain, application grouping, or unclear service purpose.
 - Present classification confidence and reasons to the user.
+- Use confidence tiers to reduce user workload: high-confidence suggestions auto-accept, medium-confidence suggestions support batch confirmation, and low-confidence suggestions require focused review.
 
 Outputs:
 
@@ -147,6 +206,7 @@ Responsibilities:
 
 - Render topology nodes and edges through React Flow.
 - Support selection, drag, zoom, minimap, fit view, connection editing, grouping, and property inspection.
+- Support topology-specific navigation: asset search, environment/domain/resource filters, upstream/downstream focus, boundary expand/collapse, source-row inspection, local relayout, and pinned node management.
 - Keep visual changes separate from semantic topology changes.
 - Emit domain-level edit commands instead of leaking React Flow object mutations into the core.
 
@@ -159,6 +219,7 @@ Responsibilities:
 - Suggest topology improvements after graph generation.
 - Convert natural-language user instructions into `TopologyPatch` proposals.
 - Never apply a generated patch without user review.
+- Present patch impact in product language before application: affected nodes, affected edges, added boundaries, removed relationships, and any validation risks.
 
 Example user instructions:
 
@@ -167,6 +228,44 @@ Example user instructions:
 - "补充本地 IDC 到阿里云 VPC 的专线"
 - "隐藏测试环境资源"
 - "把数据库相关风险标出来"
+
+### Patch Review
+
+The patch review UI is a core safety surface, not a generic confirmation dialog.
+
+Responsibilities:
+
+- Show a plain-language summary of the requested change and AI interpretation.
+- List each operation in the patch with affected topology objects.
+- Highlight affected nodes and edges on the canvas before application.
+- Allow users to accept the full patch, reject it, or disable individual operations when validation still passes.
+- Validate the resulting patch after any user changes.
+- Preserve a rollback entry after application.
+- Explain rejected operations with concrete reasons such as missing node, duplicate ID, invalid parent cycle, or unsupported edge kind.
+
+The review should prefer topology terms over implementation terms. For example, show "Move Redis to cache layer" instead of `update_node`.
+
+## Product Interaction Model
+
+The default user journey should optimize for fast first value and avoid row-by-row review unless the data requires it.
+
+1. Import CSV.
+2. Preview mapped fields and import readiness.
+3. Fix only blocking mapping issues.
+4. Generate a first topology with high-confidence classifications auto-applied.
+5. Review medium-confidence classifications in batches.
+6. Resolve low-confidence or blocking issues through a focused queue.
+7. Explore the topology with search, filters, focus mode, and boundary expand/collapse.
+8. Edit properties or relationships directly when the intent is precise.
+9. Use natural language when the intent spans multiple nodes or needs semantic regrouping.
+10. Review and apply a structured patch.
+
+Review workload rules:
+
+- Do not require users to approve every deterministic classification.
+- Do not block topology generation on issues that can be represented as warnings.
+- Prefer batch actions such as "accept all high-confidence VPC/subnet mappings" over individual row approval.
+- Keep original source rows visible for traceability whenever the user inspects a node, edge, or issue.
 
 ## Data Model
 
@@ -326,21 +425,24 @@ type TopologyPatch = {
 
 1. User imports an asset inventory.
 2. Importer creates raw rows and parse warnings.
-3. Normalizer creates normalized assets and quality issues.
-4. Classifier creates deterministic labels and AI-assisted suggestions.
-5. User confirms mappings, cleanup decisions, and classification suggestions.
-6. Topology core generates topology nodes, edges, boundaries, and provenance.
-7. Layout engine computes positions.
-8. React Flow renders the topology.
-9. User edits directly or asks for a natural-language change.
-10. AI assistant returns a `TopologyPatch`.
-11. User reviews the patch diff.
-12. Topology core validates and applies the patch.
-13. Layout reruns only for affected unpinned areas.
+3. User confirms or fixes blocking field mappings.
+4. Normalizer creates normalized assets and quality issues.
+5. Classifier creates deterministic labels and AI-assisted suggestions.
+6. High-confidence suggestions auto-apply; medium-confidence suggestions are queued for batch review; low-confidence suggestions require focused review.
+7. Topology core generates topology nodes, edges, boundaries, and provenance.
+8. Layout engine computes positions.
+9. React Flow renders the topology.
+10. User explores, filters, edits directly, or asks for a natural-language change.
+11. AI assistant returns a `TopologyPatch`.
+12. User reviews the patch summary, operation list, and canvas highlights.
+13. Topology core validates and applies the accepted patch.
+14. Layout reruns only for affected unpinned areas.
 
 ## Error Handling
 
 - Import parse errors must show row and column references when available.
+- Blocking field-mapping errors must prevent generation until fixed or explicitly skipped.
+- Non-blocking import and normalization issues must still allow partial topology generation.
 - Normalization issues must be grouped by fix type: missing required field, invalid IP/CIDR, duplicate asset, conflicting owner/environment, unknown resource type.
 - Classification suggestions with low confidence must be review-required.
 - AI failures must not block manual cleanup or topology editing.
@@ -353,9 +455,11 @@ type TopologyPatch = {
 Unit tests:
 
 - CSV parsing and header detection.
+- import contract mapping and readiness scoring.
 - normalization of hostnames, IP addresses, CIDR blocks, environments, providers, and regions.
 - duplicate and alias detection.
 - rule-based classification.
+- classification confidence tiering.
 - topology generation from classified assets.
 - topology patch validation and application.
 - layout input/output conversion.
@@ -370,24 +474,34 @@ Integration tests:
 UI tests:
 
 - import preview flow.
+- blocking mapping repair flow.
 - cleanup issue review flow.
-- classification confirmation flow.
+- batch classification confirmation flow.
 - topology canvas renders nodes, edges, groups, and selected properties.
+- topology search, filters, focus mode, and boundary expand/collapse.
 - patch review dialog displays proposed changes before application.
 
 ## Migration Strategy
 
 Do not begin by refactoring the current Excalidraw fork.
 
-Create a parallel proof of concept that validates the new product architecture:
+Create a parallel proof of concept in phased slices that validate the new product architecture without expanding the first deliverable. The proof of concept uses CSV only; XLSX and CMDB imports remain later product extensions.
+
+P0 proof of concept:
 
 1. Parse a representative CSV asset inventory.
-2. Normalize and classify assets.
+2. Normalize and classify assets with deterministic rules.
 3. Generate `Topology`.
 4. Render through React Flow.
 5. Layout with ELK.
-6. Apply a fixture `TopologyPatch`.
-7. Export JSON and SVG/PNG.
+6. Support basic search and filters.
+7. Export JSON.
+
+P1/P2/P3 proof extensions:
+
+- Apply a fixture `TopologyPatch`.
+- Validate patch review, operation toggling, validation, and rollback.
+- Export SVG/PNG after the JSON export and canvas rendering paths are stable.
 
 After the proof of concept works, migrate useful existing logic selectively:
 
@@ -397,22 +511,44 @@ After the proof of concept works, migrate useful existing logic selectively:
 
 The old Excalidraw-based flow should remain available only as a reference until the new topology workbench reaches parity for the selected MVP path.
 
-## MVP Scope
+## MVP Phasing
 
-The first working version should include:
+The first implementation should be phased so the product reaches value quickly before adding AI-heavy and export-heavy workflows.
 
-- CSV import.
-- field mapping and import preview.
-- normalization report.
-- rule-based classification with user confirmation.
-- AI-assisted classification for ambiguous rows.
-- topology generation.
-- React Flow canvas rendering.
-- ELK layout.
-- node and edge property editing.
-- natural-language topology adjustment through reviewed patches.
+P0: First usable topology
+
+- Documented CSV template and import contract.
+- CSV import with preview and basic field auto-mapping.
+- Blocking mapping repair for identity, label, and type fields.
+- Rule-based normalization and classification.
+- Topology generation from classified assets.
+- React Flow rendering with ELK layout.
+- Search, environment filter, business-domain filter, and resource-type filter.
+- Node and edge property inspection.
 - JSON export.
+
+P1: Review and cleanup efficiency
+
+- Import readiness score.
+- Normalization report.
+- Batch confirmation for medium-confidence classifications.
+- Focused queue for low-confidence or blocking classification issues.
+- Source-row traceability from nodes, edges, and issues.
+- Pinned positions and local relayout.
+
+P2: AI-assisted refinement
+
+- AI-assisted classification for ambiguous rows.
+- Natural-language topology adjustment through reviewed `TopologyPatch` proposals.
+- Patch review with canvas highlights, per-operation disablement, validation, and rollback.
+- Risk annotation prompts such as marking database-related risks.
+
+P3: Export and advanced topology work
+
 - SVG or PNG export.
+- XLSX import after CSV contract stability.
+- Advanced network connectivity views when needed for cloud/business topology.
+- Large-graph read-only analysis if Cytoscape.js becomes justified.
 
 ## Resolved Product Decisions
 
@@ -424,3 +560,4 @@ The following decisions are intentionally resolved for the first implementation:
 - ELK is the preferred layout engine.
 - Excalidraw is not a required dependency for the new foundation.
 - Network topology support is included when it explains cloud/business architecture connectivity.
+- The MVP should be phased; AI patching and image export are not required for the first usable topology.
