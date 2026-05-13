@@ -18,7 +18,7 @@ This file defines practical rules for coding agents working in this repository.
 ## Repository Facts
 
 - Monorepo with Yarn workspaces (`yarn@1.22.22`).
-- Node.js required: `>=18`.
+- Node.js required: `>=20.19.0` for the current monorepo toolchain.
 - Main app: `excalidraw-app/` (Vite dev server).
 - Core editor package: `packages/excalidraw/`.
 

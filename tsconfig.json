@@ -31,6 +31,6 @@
       "@excalidraw/utils/*": ["./packages/utils/src/*"]
     }
   },
-  "include": ["packages", "excalidraw-app"],
+  "include": ["packages", "excalidraw-app", "topology-workbench"],
   "exclude": ["examples", "dist", "types", "tests", "**/dist", "packages/**/dist"]
 }

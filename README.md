@@ -20,7 +20,7 @@ Design notes for architecture assistant: `AI_ARCHITECTURE_ASSISTANT.md`
 
 ## Verified Runtime Requirements / 运行环境要求（与代码一致）
 
-- Node.js: `>=18.0.0`
+- Node.js: `>=20.19.0`
 - Yarn: `1.22.x` (workspace uses `yarn@1.22.22`)
 
 ## Quick Start / 快速开始

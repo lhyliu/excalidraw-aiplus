@@ -6,7 +6,7 @@
 
 **Architecture:** Create a new `topology-workbench/` workspace with a structured topology domain model, deterministic import/normalization/classification pipeline, React Flow canvas, ELK/Dagre layout, reviewed AI patch workflow, and export/import extensions. The legacy Excalidraw code remains untouched except for workspace-level package metadata.
 
-**Tech Stack:** React 19, TypeScript, Vite, Vitest, `@xyflow/react`, `elkjs`, `@dagrejs/dagre`, `papaparse`, `read-excel-file`, `html-to-image`.
+**Tech Stack:** Latest stable/LTS-compatible React 19, TypeScript, Vite, Vitest, `@xyflow/react`, `elkjs`, `@dagrejs/dagre`, `papaparse`, `read-excel-file`, `html-to-image`.
 
 ---
 
@@ -80,6 +80,9 @@ Create `topology-workbench/package.json`:
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "start": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
@@ -92,18 +95,23 @@ Create `topology-workbench/package.json`:
     "elkjs": "0.11.1",
     "html-to-image": "1.11.13",
     "papaparse": "5.5.3",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "read-excel-file": "9.0.9"
   },
   "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/papaparse": "5.5.2",
-    "@types/react": "19.0.10",
-    "@types/react-dom": "19.0.4",
-    "@vitejs/plugin-react": "3.1.0",
-    "typescript": "5.9.3",
-    "vite": "5.0.12",
-    "vitest": "3.0.6"
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.1",
+    "jsdom": "29.1.1",
+    "typescript": "6.0.3",
+    "vite": "8.0.12",
+    "vitest": "4.1.6"
   }
 }
 ```

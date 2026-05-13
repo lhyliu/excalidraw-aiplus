@@ -5,7 +5,8 @@
   "workspaces": [
     "excalidraw-app",
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "topology-workbench"
   ],
   "devDependencies": {
     "@babel/preset-env": "7.26.9",
@@ -46,7 +47,7 @@
     "vitest-canvas-mock": "0.3.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   },
   "homepage": ".",
   "prettier": "@excalidraw/prettier-config",
@@ -59,18 +60,22 @@
     "build:excalidraw": "yarn --cwd ./packages/excalidraw build:esm",
     "build:math": "yarn --cwd ./packages/math build:esm",
     "build:packages": "yarn build:common && yarn build:math && yarn build:element && yarn build:excalidraw",
+    "build:topology": "yarn --cwd ./topology-workbench build",
     "build:version": "yarn --cwd ./excalidraw-app build:version",
     "build": "yarn --cwd ./excalidraw-app build",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
     "start": "concurrently -k -n app,proxy \"yarn start:frontend\" \"yarn start:ai-proxy\"",
     "start:frontend": "yarn --cwd ./excalidraw-app start",
     "start:ai-proxy": "npm --prefix ./backend-proxy install --no-audit --no-fund && npm --prefix ./backend-proxy start",
+    "start:topology": "yarn --cwd ./topology-workbench start",
     "start:production": "yarn --cwd ./excalidraw-app start:production",
     "start:example": "yarn build:packages && yarn --cwd ./examples/with-script-in-browser start",
     "test:all": "yarn test:typecheck && yarn test:guard:imports && yarn test:code && yarn test:other && yarn test:app --watch=false",
     "test:app": "vitest",
     "test:code": "eslint --max-warnings=0 --ext .js,.ts,.tsx .",
     "test:other": "yarn prettier --list-different",
+    "test:topology": "yarn --cwd ./topology-workbench test --run",
+    "test:topology:watch": "yarn --cwd ./topology-workbench test",
     "test:typecheck": "tsc",
     "test:update": "yarn test:app --update --watch=false",
     "test:architecture": "yarn test:guard:imports && node scripts/test-architecture-fix.js && node scripts/test-architecture-persistence.js",
@@ -92,8 +97,8 @@
     "release:test": "node scripts/release.js --tag=test",
     "release:next": "node scripts/release.js --tag=next",
     "release:latest": "node scripts/release.js --tag=latest",
-    "rm:build": "rimraf --glob excalidraw-app/build excalidraw-app/dist excalidraw-app/dev-dist packages/*/dist packages/*/build examples/*/build examples/*/dist",
-    "rm:node_modules": "rimraf --glob node_modules excalidraw-app/node_modules packages/*/node_modules",
+    "rm:build": "rimraf --glob excalidraw-app/build excalidraw-app/dist excalidraw-app/dev-dist packages/*/dist packages/*/build examples/*/build examples/*/dist topology-workbench/dist",
+    "rm:node_modules": "rimraf --glob node_modules excalidraw-app/node_modules packages/*/node_modules topology-workbench/node_modules",
     "clean-install": "yarn rm:node_modules && yarn install"
   },
   "resolutions": {
