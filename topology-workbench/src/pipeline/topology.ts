@@ -260,6 +260,9 @@ const matchesText = (node: TopologyNode, search: string) => {
 };
 
 const matchesFilter = (node: TopologyNode, filters: TopologyFilters) => {
+  if (node.data.hidden === true || node.data.visibility === "hidden") {
+    return false;
+  }
   if (filters.search && !matchesText(node, filters.search)) {
     return false;
   }

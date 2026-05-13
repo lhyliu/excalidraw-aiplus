@@ -263,7 +263,8 @@ dd {
 }
 
 .issue-list,
-.review-list {
+.review-list,
+.patch-operation-list {
   display: grid;
   gap: 8px;
   margin: 0;
@@ -272,7 +273,8 @@ dd {
 }
 
 .issue-list li,
-.review-list li {
+.review-list li,
+.patch-operation-list li {
   padding: 8px;
   border-radius: 6px;
   background: #f3f6fa;
@@ -287,6 +289,41 @@ dd {
 .review-list span,
 .review-list small {
   color: #66758c;
+}
+
+.patch-review textarea {
+  min-height: 86px;
+}
+
+.patch-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #eef5ff;
+  font-size: 0.86rem;
+}
+
+.patch-summary span,
+.patch-operation-list small {
+  color: #66758c;
+}
+
+.patch-operation-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.patch-operation-list label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.patch-operation-list input {
+  width: auto;
+  height: auto;
+  margin-top: 3px;
 }
 
 .canvas-region {

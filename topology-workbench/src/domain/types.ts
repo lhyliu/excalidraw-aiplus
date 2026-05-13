@@ -205,6 +205,101 @@ export type Topology = {
   readonly edges: TopologyEdge[];
 };
 
+export type TopologyPatchNodeChanges = Partial<
+  Omit<TopologyNode, "id" | "data" | "sourceRows">
+> & {
+  readonly sourceRows?: string[];
+  readonly data?: Record<string, unknown>;
+};
+
+export type TopologyPatchEdgeChanges = Partial<
+  Omit<TopologyEdge, "id" | "data" | "sourceRows">
+> & {
+  readonly sourceRows?: string[];
+  readonly data?: Record<string, unknown>;
+};
+
+export type TopologyPatchOperationBase = {
+  readonly id: string;
+  readonly enabled?: boolean;
+};
+
+export type TopologyPatchOperation =
+  | (TopologyPatchOperationBase & {
+      readonly type: "addNode";
+      readonly node: TopologyNode;
+    })
+  | (TopologyPatchOperationBase & {
+      readonly type: "updateNode";
+      readonly nodeId: string;
+      readonly changes: TopologyPatchNodeChanges;
+    })
+  | (TopologyPatchOperationBase & {
+      readonly type: "removeNode";
+      readonly nodeId: string;
+    })
+  | (TopologyPatchOperationBase & {
+      readonly type: "addEdge";
+      readonly edge: TopologyEdge;
+    })
+  | (TopologyPatchOperationBase & {
+      readonly type: "updateEdge";
+      readonly edgeId: string;
+      readonly changes: TopologyPatchEdgeChanges;
+    })
+  | (TopologyPatchOperationBase & {
+      readonly type: "removeEdge";
+      readonly edgeId: string;
+    });
+
+export type TopologyPatch = {
+  readonly id: string;
+  readonly instruction?: string;
+  readonly createdAt?: string;
+  readonly operations: TopologyPatchOperation[];
+};
+
+export type PatchRiskCode =
+  | "duplicate_node_id"
+  | "duplicate_edge_id"
+  | "invalid_node_reference"
+  | "missing_node"
+  | "missing_edge"
+  | "parent_cycle"
+  | "unsupported_node_kind"
+  | "unsupported_node_layer"
+  | "unsupported_edge_kind"
+  | "operation_warning";
+
+export type PatchValidationRisk = {
+  readonly severity: "error" | "warning";
+  readonly code: PatchRiskCode;
+  readonly message: string;
+  readonly operationId?: string;
+};
+
+export type PatchValidationResult = {
+  readonly valid: boolean;
+  readonly risks: PatchValidationRisk[];
+};
+
+export type PatchApplyResult = {
+  readonly topology: Topology;
+  readonly originalTopology: Topology;
+  readonly appliedPatch: TopologyPatch;
+  readonly appliedOperationIds: string[];
+  readonly validation: PatchValidationResult;
+};
+
+export type PatchSummary = {
+  readonly title: string;
+  readonly description: string;
+  readonly operationCount: number;
+  readonly enabledOperationCount: number;
+  readonly operationLabels: string[];
+  readonly validationRisks: PatchValidationRisk[];
+};
+
 export type TopologyFilters = {
   readonly search?: string;
   readonly environment?: string;

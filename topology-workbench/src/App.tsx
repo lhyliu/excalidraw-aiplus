@@ -2,14 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Inspector } from "./components/Inspector";
 import { ImportPanel, SAMPLE_CSV } from "./components/ImportPanel";
+import { PatchReview } from "./components/PatchReview";
 import { ReadinessPanel } from "./components/ReadinessPanel";
 import { ReviewQueue } from "./components/ReviewQueue";
 import { Toolbar } from "./components/Toolbar";
 import { TopologyCanvas } from "./components/TopologyCanvas";
 
+import { proposeTopologyPatch, summarizePatch } from "./ai/assistant";
 import { parseCsvInventory } from "./import/csv";
 import { mapImportFields, scoreImportReadiness } from "./import/mapping";
 import { layoutTopology } from "./layout/layout";
+import {
+  applyTopologyPatch,
+  rollbackTopologyPatch,
+  validateTopologyPatch,
+} from "./patch/patch";
 import { classifyAssets } from "./pipeline/classify";
 import { normalizeAssets } from "./pipeline/normalize";
 import { buildTopology, filterTopology } from "./pipeline/topology";
@@ -21,9 +28,11 @@ import type {
   ImportReadinessReport,
   ImportWarning,
   LayoutResult,
+  PatchApplyResult,
   Topology,
   TopologyFilters,
   TopologyNode,
+  TopologyPatch,
 } from "./domain/types";
 
 const uniqueSorted = (values: Array<string | undefined>) =>
@@ -54,6 +63,9 @@ const filteredLayout = (
   };
 };
 
+const hasEnabledPatchOperations = (patch: TopologyPatch) =>
+  patch.operations.some((operation) => operation.enabled !== false);
+
 export default function App() {
   const [csvInput, setCsvInput] = useState(SAMPLE_CSV);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -73,6 +85,9 @@ export default function App() {
   const [layout, setLayout] = useState<LayoutResult>();
   const [filters, setFilters] = useState<TopologyFilters>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>();
+  const [patchInstruction, setPatchInstruction] = useState("");
+  const [proposedPatch, setProposedPatch] = useState<TopologyPatch>();
+  const [lastPatchResult, setLastPatchResult] = useState<PatchApplyResult>();
 
   const options = useMemo(
     () => ({
@@ -92,6 +107,22 @@ export default function App() {
   const visibleLayout = useMemo(
     () => filteredLayout(layout, topology, filters),
     [filters, layout, topology],
+  );
+
+  const patchValidation = useMemo(
+    () =>
+      topology && proposedPatch
+        ? validateTopologyPatch(topology, proposedPatch)
+        : undefined,
+    [proposedPatch, topology],
+  );
+
+  const patchSummary = useMemo(
+    () =>
+      topology && proposedPatch
+        ? summarizePatch(topology, proposedPatch)
+        : undefined,
+    [proposedPatch, topology],
   );
 
   const selectedNode = useMemo(() => {
@@ -116,14 +147,6 @@ export default function App() {
     }
   }, [selectedNodeId, visibleLayout]);
 
-  const rebuildTopology = useCallback(async (assets: ClassifiedAsset[]) => {
-    const nextTopology = buildTopology(assets);
-    const nextLayout = await toLayout(nextTopology);
-
-    setTopology(nextTopology);
-    setLayout(nextLayout);
-  }, []);
-
   const generateTopology = useCallback(async () => {
     setIsGenerating(true);
     setGenerationError(undefined);
@@ -145,6 +168,8 @@ export default function App() {
       setLayout(nextLayout);
       setFilters({});
       setSelectedNodeId(undefined);
+      setProposedPatch(undefined);
+      setLastPatchResult(undefined);
     } catch (error) {
       setGenerationError(
         error instanceof Error ? error.message : "Failed to generate topology.",
@@ -155,6 +180,11 @@ export default function App() {
   }, [csvInput]);
 
   const acceptMediumConfidence = useCallback(async () => {
+    const acceptedAssetIds = new Set(
+      classifiedAssets
+        .filter((asset) => asset.confidence === "medium")
+        .map((asset) => `asset:${asset.identity}`),
+    );
     const acceptedAssets = classifiedAssets.map((asset) =>
       asset.confidence === "medium"
         ? { ...asset, reviewRequired: false }
@@ -162,8 +192,23 @@ export default function App() {
     );
 
     setClassifiedAssets(acceptedAssets);
-    await rebuildTopology(acceptedAssets);
-  }, [classifiedAssets, rebuildTopology]);
+    setLastPatchResult(undefined);
+    setProposedPatch(undefined);
+
+    if (topology) {
+      const nextTopology = {
+        ...topology,
+        nodes: topology.nodes.map((node) =>
+          acceptedAssetIds.has(node.id)
+            ? { ...node, reviewRequired: false }
+            : node,
+        ),
+      };
+
+      setTopology(nextTopology);
+      setLayout(await toLayout(nextTopology));
+    }
+  }, [classifiedAssets, topology]);
 
   const relayout = useCallback(async () => {
     if (topology) {
@@ -174,6 +219,71 @@ export default function App() {
   const selectNode = useCallback((node: TopologyNode) => {
     setSelectedNodeId(node.id);
   }, []);
+
+  const proposePatch = useCallback(() => {
+    if (!topology || !patchInstruction.trim()) {
+      return;
+    }
+
+    setProposedPatch(proposeTopologyPatch(topology, patchInstruction));
+  }, [patchInstruction, topology]);
+
+  const togglePatchOperation = useCallback(
+    (operationId: string, enabled: boolean) => {
+      setProposedPatch((current) =>
+        current
+          ? {
+              ...current,
+              operations: current.operations.map((operation) =>
+                operation.id === operationId
+                  ? { ...operation, enabled }
+                  : operation,
+              ),
+            }
+          : current,
+      );
+    },
+    [],
+  );
+
+  const applyPatch = useCallback(async () => {
+    if (
+      !topology ||
+      !proposedPatch ||
+      !hasEnabledPatchOperations(proposedPatch)
+    ) {
+      return;
+    }
+
+    const result = applyTopologyPatch(topology, proposedPatch);
+
+    if (!result.validation.valid) {
+      return;
+    }
+
+    setTopology(result.topology);
+    setLayout(await toLayout(result.topology));
+    setLastPatchResult(result);
+    setProposedPatch(undefined);
+    setSelectedNodeId(undefined);
+  }, [proposedPatch, topology]);
+
+  const rejectPatch = useCallback(() => {
+    setProposedPatch(undefined);
+  }, []);
+
+  const rollbackPatch = useCallback(async () => {
+    if (!lastPatchResult) {
+      return;
+    }
+
+    const rolledBackTopology = rollbackTopologyPatch(lastPatchResult);
+
+    setTopology(rolledBackTopology);
+    setLayout(await toLayout(rolledBackTopology));
+    setLastPatchResult(undefined);
+    setSelectedNodeId(undefined);
+  }, [lastPatchResult]);
 
   return (
     <main className="topology-workbench">
@@ -196,6 +306,20 @@ export default function App() {
         <ReviewQueue
           assets={classifiedAssets}
           onAcceptMedium={acceptMediumConfidence}
+        />
+        <PatchReview
+          canPropose={Boolean(topology && patchInstruction.trim())}
+          canRollback={Boolean(lastPatchResult)}
+          instruction={patchInstruction}
+          onApply={applyPatch}
+          onInstructionChange={setPatchInstruction}
+          onPropose={proposePatch}
+          onReject={rejectPatch}
+          onRollback={rollbackPatch}
+          onToggleOperation={togglePatchOperation}
+          patch={proposedPatch}
+          summary={patchSummary}
+          validation={patchValidation}
         />
       </aside>
 

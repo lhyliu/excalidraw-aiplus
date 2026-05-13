@@ -179,6 +179,117 @@ describe("Topology Workbench", () => {
     expect(screen.getByText("No reviewed assets waiting.")).toBeInTheDocument();
   });
 
+  it("reviews, toggles, applies, rejects, and rolls back AI patches", async () => {
+    const user = await generateSampleTopology();
+    const originalCount = Number(
+      screen.getByTestId("visible-node-count").textContent,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "AI patch instruction" }),
+      "Hide test environment and annotate database risk.",
+    );
+    await user.click(screen.getByRole("button", { name: "Propose patch" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Patch review" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Validation risks")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Enable operation database-risk-asset-rds-orders",
+      }),
+    ).toBeChecked();
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Enable operation database-risk-asset-rds-orders",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Apply patch" }));
+
+    expect(
+      Number(screen.getByTestId("visible-node-count").textContent),
+    ).toBeLessThan(originalCount);
+    expect(
+      screen.queryByRole("button", {
+        name: "Topology node Settlement Worker",
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Rollback patch" }));
+
+    expect(Number(screen.getByTestId("visible-node-count").textContent)).toBe(
+      originalCount,
+    );
+    expect(
+      screen.getByRole("button", { name: "Topology node Settlement Worker" }),
+    ).toBeInTheDocument();
+
+    await user.clear(
+      screen.getByRole("textbox", { name: "AI patch instruction" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "AI patch instruction" }),
+      "Create leased-line edge from IDC to VPC.",
+    );
+    await user.click(screen.getByRole("button", { name: "Propose patch" }));
+    expect(screen.getByText("leased line")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reject patch" }));
+
+    expect(screen.queryByText("leased line")).not.toBeInTheDocument();
+    expect(screen.getByText("No AI patch pending.")).toBeInTheDocument();
+  });
+
+  it("does not apply zero-operation AI patches", async () => {
+    const user = await generateSampleTopology();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "AI patch instruction" }),
+      "Make every node purple.",
+    );
+    await user.click(screen.getByRole("button", { name: "Propose patch" }));
+
+    expect(
+      screen.getByText(
+        "No supported topology operations were found for this instruction.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply patch" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Rollback patch" }),
+    ).toBeDisabled();
+  });
+
+  it("preserves applied patches when accepting medium-confidence suggestions", async () => {
+    const user = await generateSampleTopology();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "AI patch instruction" }),
+      "Hide test environment nodes from the topology.",
+    );
+    await user.click(screen.getByRole("button", { name: "Propose patch" }));
+    await user.click(screen.getByRole("button", { name: "Apply patch" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Topology node Settlement Worker" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Accept medium-confidence suggestions",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Topology node Settlement Worker" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Rollback patch" }),
+    ).toBeDisabled();
+  });
+
   it("renders the import rail and canvas region", () => {
     render(<App />);
 
