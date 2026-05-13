@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Inspector } from "./components/Inspector";
 import { ImportPanel, SAMPLE_CSV } from "./components/ImportPanel";
@@ -9,8 +9,14 @@ import { Toolbar } from "./components/Toolbar";
 import { TopologyCanvas } from "./components/TopologyCanvas";
 
 import { proposeTopologyPatch, summarizePatch } from "./ai/assistant";
+import {
+  exportTopologyJson,
+  exportTopologyPng,
+  exportTopologySvg,
+} from "./export/exporters";
 import { parseCsvInventory } from "./import/csv";
 import { mapImportFields, scoreImportReadiness } from "./import/mapping";
+import { parseXlsxInventory } from "./import/xlsx";
 import { layoutTopology } from "./layout/layout";
 import {
   applyTopologyPatch,
@@ -29,6 +35,7 @@ import type {
   ImportWarning,
   LayoutResult,
   PatchApplyResult,
+  RawAssetTable,
   Topology,
   TopologyFilters,
   TopologyNode,
@@ -52,7 +59,10 @@ const filteredLayout = (
     return undefined;
   }
 
-  const filtered = filterTopology(topology, filters);
+  const visibilityFilters: TopologyFilters = filters.networkOnly
+    ? { ...filters, networkOnly: false }
+    : filters;
+  const filtered = filterTopology(topology, visibilityFilters);
   const visibleNodeIds = new Set(filtered.nodes.map((node) => node.id));
   const visibleEdgeIds = new Set(filtered.edges.map((edge) => edge.id));
 
@@ -66,9 +76,63 @@ const filteredLayout = (
 const hasEnabledPatchOperations = (patch: TopologyPatch) =>
   patch.operations.some((operation) => operation.enabled !== false);
 
+const visibleTopology = (
+  topology: Topology | undefined,
+  layout: LayoutResult | undefined,
+): Topology | undefined => {
+  if (!topology || !layout) {
+    return undefined;
+  }
+
+  const visibleNodeIds = new Set(layout.nodes.map((node) => node.id));
+  const visibleEdgeIds = new Set(layout.edges.map((edge) => edge.id));
+
+  return {
+    nodes: topology.nodes.filter((node) => visibleNodeIds.has(node.id)),
+    edges: topology.edges.filter((edge) => visibleEdgeIds.has(edge.id)),
+  };
+};
+
+const downloadHref = (href: string, filename: string) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.userAgent.toLowerCase().includes("jsdom")
+  ) {
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+};
+
+const downloadText = (filename: string, contents: string, type: string) => {
+  const blob = new Blob([contents], { type });
+  const canCreateObjectUrl =
+    typeof URL !== "undefined" && typeof URL.createObjectURL === "function";
+  const href = canCreateObjectUrl
+    ? URL.createObjectURL(blob)
+    : `data:${type};charset=utf-8,${encodeURIComponent(contents)}`;
+
+  downloadHref(href, filename);
+
+  if (canCreateObjectUrl) {
+    setTimeout(() => URL.revokeObjectURL(href), 0);
+  }
+};
+
 export default function App() {
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [csvInput, setCsvInput] = useState(SAMPLE_CSV);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string>();
   const [readiness, setReadiness] = useState<ImportReadinessReport>();
   const [importWarnings, setImportWarnings] = useState<ImportWarning[]>([]);
   const [normalizationIssues, setNormalizationIssues] = useState<
@@ -107,6 +171,10 @@ export default function App() {
   const visibleLayout = useMemo(
     () => filteredLayout(layout, topology, filters),
     [filters, layout, topology],
+  );
+  const currentTopology = useMemo(
+    () => visibleTopology(topology, visibleLayout),
+    [topology, visibleLayout],
   );
 
   const patchValidation = useMemo(
@@ -147,29 +215,33 @@ export default function App() {
     }
   }, [selectedNodeId, visibleLayout]);
 
+  const importTable = useCallback(async (table: RawAssetTable) => {
+    const mapping = mapImportFields(table.headers);
+    const nextReadiness = scoreImportReadiness(table, mapping);
+    const normalized = normalizeAssets(table, mapping);
+    const classified = classifyAssets(normalized.assets);
+    const nextTopology = buildTopology(classified.assets);
+    const nextLayout = await toLayout(nextTopology);
+
+    setReadiness(nextReadiness);
+    setImportWarnings(table.warnings);
+    setNormalizationIssues(normalized.issues);
+    setClassificationIssues(classified.issues);
+    setClassifiedAssets(classified.assets);
+    setTopology(nextTopology);
+    setLayout(nextLayout);
+    setFilters({});
+    setSelectedNodeId(undefined);
+    setProposedPatch(undefined);
+    setLastPatchResult(undefined);
+    setExportStatus(undefined);
+  }, []);
+
   const generateTopology = useCallback(async () => {
     setIsGenerating(true);
     setGenerationError(undefined);
     try {
-      const table = parseCsvInventory(csvInput);
-      const mapping = mapImportFields(table.headers);
-      const nextReadiness = scoreImportReadiness(table, mapping);
-      const normalized = normalizeAssets(table, mapping);
-      const classified = classifyAssets(normalized.assets);
-      const nextTopology = buildTopology(classified.assets);
-      const nextLayout = await toLayout(nextTopology);
-
-      setReadiness(nextReadiness);
-      setImportWarnings(table.warnings);
-      setNormalizationIssues(normalized.issues);
-      setClassificationIssues(classified.issues);
-      setClassifiedAssets(classified.assets);
-      setTopology(nextTopology);
-      setLayout(nextLayout);
-      setFilters({});
-      setSelectedNodeId(undefined);
-      setProposedPatch(undefined);
-      setLastPatchResult(undefined);
+      await importTable(parseCsvInventory(csvInput));
     } catch (error) {
       setGenerationError(
         error instanceof Error ? error.message : "Failed to generate topology.",
@@ -177,7 +249,26 @@ export default function App() {
     } finally {
       setIsGenerating(false);
     }
-  }, [csvInput]);
+  }, [csvInput, importTable]);
+
+  const importXlsx = useCallback(
+    async (file: File) => {
+      setIsGenerating(true);
+      setGenerationError(undefined);
+      try {
+        await importTable(await parseXlsxInventory(file));
+      } catch (error) {
+        setGenerationError(
+          error instanceof Error
+            ? error.message
+            : "Failed to import XLSX inventory.",
+        );
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [importTable],
+  );
 
   const acceptMediumConfidence = useCallback(async () => {
     const acceptedAssetIds = new Set(
@@ -285,6 +376,54 @@ export default function App() {
     setSelectedNodeId(undefined);
   }, [lastPatchResult]);
 
+  const exportJson = useCallback(() => {
+    if (!currentTopology) {
+      return;
+    }
+
+    try {
+      downloadText(
+        "topology.json",
+        exportTopologyJson(currentTopology),
+        "application/json",
+      );
+      setExportStatus("JSON exported");
+    } catch {
+      setExportStatus("JSON export failed");
+    }
+  }, [currentTopology]);
+
+  const exportSvg = useCallback(() => {
+    if (!currentTopology || !visibleLayout) {
+      return;
+    }
+
+    try {
+      downloadText(
+        "topology.svg",
+        exportTopologySvg(currentTopology, visibleLayout),
+        "image/svg+xml",
+      );
+      setExportStatus("SVG exported");
+    } catch {
+      setExportStatus("SVG export failed");
+    }
+  }, [currentTopology, visibleLayout]);
+
+  const exportPng = useCallback(async () => {
+    if (!canvasRef.current) {
+      return;
+    }
+
+    try {
+      const dataUrl = await exportTopologyPng(canvasRef.current);
+      downloadHref(dataUrl, "topology.png");
+      setExportStatus("PNG exported");
+    } catch {
+      setExportStatus("PNG export failed");
+    }
+  }, []);
+
   return (
     <main className="topology-workbench">
       <aside className="import-rail" aria-label="Import controls">
@@ -294,6 +433,7 @@ export default function App() {
           onCsvInputChange={setCsvInput}
           onGenerate={generateTopology}
           onLoadSample={() => setCsvInput(SAMPLE_CSV)}
+          onXlsxImport={importXlsx}
           readiness={readiness}
         />
         <ReadinessPanel
@@ -331,15 +471,25 @@ export default function App() {
           </div>
           <Toolbar
             businessDomains={options.businessDomains}
+            canExport={Boolean(topology && layout)}
             environments={options.environments}
+            exportStatus={exportStatus}
             filters={filters}
+            onExportJson={exportJson}
+            onExportPng={exportPng}
+            onExportSvg={exportSvg}
             onFiltersChange={setFilters}
             onRelayout={relayout}
             resourceTypes={options.resourceTypes}
           />
         </header>
 
-        <TopologyCanvas layout={visibleLayout} onSelectNode={selectNode} />
+        <TopologyCanvas
+          layout={visibleLayout}
+          networkMode={filters.networkOnly === true}
+          rootRef={canvasRef}
+          onSelectNode={selectNode}
+        />
       </section>
 
       <Inspector node={selectedNode} />

@@ -202,12 +202,27 @@ select {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 150px)) auto auto;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 150px)) repeat(6, auto);
   gap: 10px;
   align-items: end;
 }
 
 .toolbar button {
+  white-space: nowrap;
+}
+
+.toolbar-button--active {
+  border-color: #d97706;
+  background: #fff7e8;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.export-status {
+  align-self: center;
+  color: #17633a;
+  font-size: 0.82rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -393,6 +408,25 @@ dd {
 .topology-node--data_resource {
   border-color: #9333ea;
   background: #faf0ff;
+}
+
+.topology-node--network-focus {
+  border-color: #b45309;
+  background: #fff3d6;
+  box-shadow: 0 0 0 3px rgb(217 119 6 / 22%);
+}
+
+.topology-node--dimmed {
+  opacity: 0.28;
+}
+
+.react-flow__edge.topology-edge--network-focus .react-flow__edge-path {
+  stroke: #d97706;
+  stroke-width: 3;
+}
+
+.react-flow__edge.topology-edge--dimmed {
+  opacity: 0.24;
 }
 
 @media (max-width: 1100px) {

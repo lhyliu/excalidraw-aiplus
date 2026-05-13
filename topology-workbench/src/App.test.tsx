@@ -6,6 +6,25 @@ import { vi } from "vitest";
 
 import App from "./App";
 
+import type { LayoutResult, Topology } from "./domain/types";
+
+const mocks = vi.hoisted(() => ({
+  exportTopologyJson: vi.fn(() => '{\n  "metadata": {}\n}'),
+  exportTopologyPng: vi.fn(async () => "data:image/png;base64,topology"),
+  exportTopologySvg: vi.fn(() => "<svg></svg>"),
+  parseXlsxInventory: vi.fn(),
+}));
+
+vi.mock("./export/exporters", () => ({
+  exportTopologyJson: mocks.exportTopologyJson,
+  exportTopologyPng: mocks.exportTopologyPng,
+  exportTopologySvg: mocks.exportTopologySvg,
+}));
+
+vi.mock("./import/xlsx", () => ({
+  parseXlsxInventory: mocks.parseXlsxInventory,
+}));
+
 vi.mock("@xyflow/react", () => ({
   Background: () => null,
   Controls: () => null,
@@ -14,9 +33,14 @@ vi.mock("@xyflow/react", () => ({
     nodes,
     onNodeClick,
   }: {
-    readonly edges: Array<{ readonly id: string; readonly label?: string }>;
+    readonly edges: Array<{
+      readonly id: string;
+      readonly className?: string;
+      readonly label?: string;
+    }>;
     readonly nodes: Array<{
       readonly id: string;
+      readonly className?: string;
       readonly data: { readonly label: string; readonly kind: string };
     }>;
     readonly onNodeClick?: (
@@ -33,12 +57,22 @@ vi.mock("@xyflow/react", () => ({
       {nodes.map((node) => (
         <button
           aria-label={`Topology node ${node.data.label}`}
+          className={node.className}
           key={node.id}
           onClick={() => onNodeClick?.({}, node)}
           type="button"
         >
           {node.data.label}
         </button>
+      ))}
+      {edges.map((edge) => (
+        <div
+          className={edge.className}
+          data-testid={`edge-${edge.id}`}
+          key={edge.id}
+        >
+          {edge.label}
+        </div>
       ))}
     </div>
   ),
@@ -55,6 +89,13 @@ const generateSampleTopology = async () => {
 };
 
 describe("Topology Workbench", () => {
+  beforeEach(() => {
+    mocks.exportTopologyJson.mockClear();
+    mocks.exportTopologyPng.mockClear();
+    mocks.exportTopologySvg.mockClear();
+    mocks.parseXlsxInventory.mockReset();
+  });
+
   it("imports the sample CSV and renders a topology", async () => {
     await generateSampleTopology();
 
@@ -118,6 +159,129 @@ describe("Topology Workbench", () => {
     expect(
       screen.queryByRole("button", { name: "Topology node Orders Database" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("imports XLSX inventory files through the topology pipeline", async () => {
+    const user = userEvent.setup();
+    mocks.parseXlsxInventory.mockResolvedValueOnce({
+      headers: [
+        "instance_id",
+        "name",
+        "service_type",
+        "environment",
+        "business_domain",
+        "application",
+      ],
+      rows: [
+        {
+          rowId: "row-1",
+          cells: {
+            instance_id: "xlsx-api",
+            name: "API XLSX",
+            service_type: "ECS",
+            environment: "prod",
+            business_domain: "Commerce",
+            application: "Checkout",
+          },
+        },
+      ],
+      warnings: [],
+    });
+
+    render(<App />);
+    const file = new File(["workbook"], "inventory.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    await user.upload(screen.getByLabelText("XLSX file"), file);
+
+    expect(mocks.parseXlsxInventory).toHaveBeenCalledWith(file);
+    expect(
+      await screen.findByRole("button", { name: "Topology node API XLSX" }),
+    ).toBeInTheDocument();
+  });
+
+  it("exports the generated topology as JSON, SVG, and PNG", async () => {
+    const user = await generateSampleTopology();
+
+    await user.click(screen.getByRole("button", { name: "Export JSON" }));
+    expect(mocks.exportTopologyJson).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "JSON exported",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Export SVG" }));
+    expect(mocks.exportTopologySvg).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveTextContent("SVG exported");
+
+    await user.click(screen.getByRole("button", { name: "Export PNG" }));
+    expect(mocks.exportTopologyPng).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveTextContent("PNG exported");
+  });
+
+  it("exports the currently visible topology and layout", async () => {
+    const user = await generateSampleTopology();
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search topology" }),
+      "Orders",
+    );
+    await user.click(screen.getByRole("button", { name: "Export SVG" }));
+
+    expect(mocks.exportTopologySvg).toHaveBeenCalled();
+    const exportCall = mocks.exportTopologySvg.mock.calls.at(-1);
+    expect(exportCall).toBeDefined();
+    const [exportedTopology, exportedLayout] = exportCall as unknown as [
+      Topology,
+      LayoutResult,
+    ];
+
+    expect(exportedTopology.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Orders Database" }),
+      ]),
+    );
+    expect(exportedTopology.nodes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Checkout API" }),
+      ]),
+    );
+    expect(exportedLayout.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Orders Database" }),
+      ]),
+    );
+    expect(exportedLayout.nodes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Checkout API" }),
+      ]),
+    );
+  });
+
+  it("enables a network-focused view that keeps network objects visible and dims apps", async () => {
+    const user = await generateSampleTopology();
+
+    await user.click(screen.getByRole("button", { name: "Network view" }));
+
+    expect(
+      screen.getByRole("button", { name: "Topology node Core VPC" }),
+    ).toHaveClass("topology-node--network-focus");
+    expect(
+      screen.getByRole("button", { name: "Topology node Checkout API" }),
+    ).toHaveClass("topology-node--dimmed");
+    expect(
+      Number(screen.getByTestId("visible-edge-count").textContent),
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByTestId(
+        "edge-asset:svc-checkout->network_connects->asset:vpc-core",
+      ),
+    ).toHaveClass("topology-edge--network-focus");
+    expect(
+      screen.getByTestId(
+        "edge-asset:svc-checkout->depends_on->asset:rds-orders",
+      ),
+    ).toHaveClass("topology-edge--dimmed");
   });
 
   it("clicking a node opens the inspector with source row IDs", async () => {

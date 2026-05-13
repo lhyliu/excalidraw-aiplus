@@ -6,15 +6,25 @@ type ToolbarProps = {
   readonly businessDomains: readonly string[];
   readonly resourceTypes: readonly string[];
   readonly onFiltersChange: (filters: TopologyFilters) => void;
+  readonly onExportJson: () => void;
+  readonly onExportPng: () => void;
+  readonly onExportSvg: () => void;
   readonly onRelayout: () => void;
+  readonly canExport: boolean;
+  readonly exportStatus?: string;
 };
 
 export function Toolbar({
+  canExport,
+  exportStatus,
   filters,
   environments,
   businessDomains,
   resourceTypes,
   onFiltersChange,
+  onExportJson,
+  onExportPng,
+  onExportSvg,
   onRelayout,
 }: ToolbarProps) {
   const updateFilter = (patch: TopologyFilters) => {
@@ -91,7 +101,28 @@ export function Toolbar({
       <button onClick={onRelayout} type="button">
         Relayout
       </button>
-      <button type="button">Export</button>
+      <button
+        aria-pressed={filters.networkOnly === true}
+        className={filters.networkOnly ? "toolbar-button--active" : undefined}
+        onClick={() => updateFilter({ networkOnly: !filters.networkOnly })}
+        type="button"
+      >
+        Network view
+      </button>
+      <button disabled={!canExport} onClick={onExportJson} type="button">
+        Export JSON
+      </button>
+      <button disabled={!canExport} onClick={onExportSvg} type="button">
+        Export SVG
+      </button>
+      <button disabled={!canExport} onClick={onExportPng} type="button">
+        Export PNG
+      </button>
+      {exportStatus ? (
+        <span className="export-status" role="status">
+          {exportStatus}
+        </span>
+      ) : null}
     </div>
   );
 }

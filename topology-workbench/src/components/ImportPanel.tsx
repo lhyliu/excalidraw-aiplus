@@ -16,6 +16,7 @@ type ImportPanelProps = {
   readonly onCsvInputChange: (value: string) => void;
   readonly onGenerate: () => void;
   readonly onLoadSample: () => void;
+  readonly onXlsxImport: (file: File) => void;
 };
 
 export function ImportPanel({
@@ -25,6 +26,7 @@ export function ImportPanel({
   onCsvInputChange,
   onGenerate,
   onLoadSample,
+  onXlsxImport,
 }: ImportPanelProps) {
   return (
     <section className="panel import-panel" aria-labelledby="import-title">
@@ -57,6 +59,22 @@ export function ImportPanel({
           {isGenerating ? "Generating..." : "Generate topology"}
         </button>
       </div>
+
+      <label className="field">
+        <span>XLSX file</span>
+        <input
+          accept=".xlsx"
+          disabled={isGenerating}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (file) {
+              onXlsxImport(file);
+              event.currentTarget.value = "";
+            }
+          }}
+          type="file"
+        />
+      </label>
 
       {readiness ? (
         <div className={`readiness-pill readiness-pill--${readiness.level}`}>
