@@ -135,10 +135,11 @@ Optional fields:
 Example CSV:
 
 ```csv
-asset_id,name,resource_type,provider,account,region,environment,application,business_domain,private_ip,cidr,depends_on
-ecs-001,pay-api-01,ecs,aliyun,prod-main,cn-hangzhou,prod,payment,payment,10.0.1.12,,rds-001
-rds-001,pay-db,rds,aliyun,prod-main,cn-hangzhou,prod,payment,payment,10.0.2.18,,
-vpc-001,prod-vpc,vpc,aliyun,prod-main,cn-hangzhou,prod,,,,"10.0.0.0/16",
+instance_id,name,service_type,environment,business_domain,application,system,private_ip,public_ip,cidr,depends_on,connects_to,calls,tags
+svc-checkout,Checkout API,service,prod,Commerce,Checkout,Order,10.0.1.10,,,rds-orders,vpc-core,worker-settlement,team=payments;tier=api
+rds-orders,Orders Database,RDS,prod,Commerce,Checkout,Order,10.0.2.20,,,,,,risk=pii;tier=data
+vpc-core,Core VPC,VPC,prod,Shared,Network,Core,,,10.0.0.0/16,,vpn-idc,,owner=network
+vpn-idc,IDC Direct Connect,leased_line,prod,Shared,Network,WAN,,,172.16.0.0/16,,,,provider=carrier
 ```
 
 Import readiness rules:
@@ -486,6 +487,8 @@ UI tests:
 Do not begin by refactoring the current Excalidraw fork.
 
 Create a parallel proof of concept in phased slices that validate the new product architecture without expanding the first deliverable. The proof of concept uses CSV only; XLSX and CMDB imports remain later product extensions.
+
+Current implementation note: the P3 slice includes `.xlsx` import using the same import contract after the CSV pipeline stabilized; legacy `.xls` is intentionally not advertised.
 
 P0 proof of concept:
 

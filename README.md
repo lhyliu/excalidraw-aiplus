@@ -99,9 +99,46 @@ Example:
 - `yarn fix`  
   Run formatting and ESLint autofix.
 
+## Topology Workbench / 拓扑工作台
+
+The new topology workbench is a separate Vite workspace for asset-inventory-driven cloud/business architecture and network topology diagrams.
+
+Run it locally:
+
+```bash
+npx -y yarn@1.22.22 start:topology
+```
+
+Validate it:
+
+```bash
+npx -y yarn@1.22.22 test:topology
+npx -y yarn@1.22.22 build:topology
+```
+
+Supported inventory inputs:
+
+- CSV paste using the template fields below.
+- `.xlsx` file import using the same field mapping pipeline.
+
+Recommended CSV columns:
+
+```csv
+instance_id,name,service_type,environment,business_domain,application,system,private_ip,public_ip,cidr,depends_on,connects_to,calls,tags
+svc-checkout,Checkout API,service,prod,Commerce,Checkout,Order,10.0.1.10,,,rds-orders,vpc-core,worker-settlement,team=payments;tier=api
+rds-orders,Orders Database,RDS,prod,Commerce,Checkout,Order,10.0.2.20,,,,,,risk=pii;tier=data
+vpc-core,Core VPC,VPC,prod,Shared,Network,Core,,,10.0.0.0/16,,vpn-idc,,owner=network
+vpn-idc,IDC Direct Connect,leased_line,prod,Shared,Network,WAN,,,172.16.0.0/16,,,,provider=carrier
+```
+
+Common aliases are mapped automatically, including `asset_id`, `resource_id`, `instance_id`, `resource_type`, `service_type`, `private_ip`, `public_ip`, `business_domain`, `application`, `system`, `environment`, `depends_on`, `connects_to`, and `calls`.
+
+The workbench supports reviewed natural-language topology patches, JSON/SVG/PNG export, and a network-focused view.
+
 ## Repository Layout / 目录结构
 
 - `excalidraw-app/`: app shell, Vite config, integration layer
+- `topology-workbench/`: asset inventory import, topology generation, React Flow canvas, reviewed patch workflow
 - `packages/excalidraw/`: main editor package (UI/components/services)
 - `packages/common/`, `packages/element/`, `packages/math/`, `packages/utils/`: shared workspace packages
 - `examples/`: integration examples
