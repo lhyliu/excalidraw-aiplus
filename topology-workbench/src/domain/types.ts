@@ -165,3 +165,66 @@ export type ClassificationResult = {
   readonly assets: ClassifiedAsset[];
   readonly issues: ClassificationIssue[];
 };
+
+export type TopologyPosition = {
+  readonly x: number;
+  readonly y: number;
+};
+
+export type TopologyNode = {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: TopologyNodeKind;
+  readonly layer: TopologyLayer;
+  readonly sourceRows: string[];
+  readonly parentId?: string;
+  readonly confidence?: ClassificationConfidence;
+  readonly reviewRequired?: boolean;
+  readonly resourceType?: string;
+  readonly environment?: string;
+  readonly businessDomain?: string;
+  readonly application?: string;
+  readonly system?: string;
+  readonly position?: TopologyPosition;
+  readonly pinnedPosition?: TopologyPosition;
+  readonly data: Record<string, unknown>;
+};
+
+export type TopologyEdge = {
+  readonly id: string;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly kind: TopologyEdgeKind;
+  readonly sourceRows: string[];
+  readonly label?: string;
+  readonly data?: Record<string, unknown>;
+};
+
+export type Topology = {
+  readonly nodes: TopologyNode[];
+  readonly edges: TopologyEdge[];
+};
+
+export type TopologyFilters = {
+  readonly search?: string;
+  readonly environment?: string;
+  readonly businessDomain?: string;
+  readonly resourceType?: string;
+  readonly nodeKind?: TopologyNodeKind;
+  readonly networkOnly?: boolean;
+};
+
+export type LayoutOptions = {
+  readonly forceFallback?: boolean;
+  readonly preservePinned?: boolean;
+};
+
+export type PositionedTopologyNode = TopologyNode & {
+  readonly position: TopologyPosition;
+};
+
+export type LayoutResult = {
+  readonly nodes: PositionedTopologyNode[];
+  readonly edges: TopologyEdge[];
+  readonly engine: "elk" | "dagre";
+};
