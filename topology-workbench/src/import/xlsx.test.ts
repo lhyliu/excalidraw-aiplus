@@ -3,16 +3,18 @@ import { parseXlsxInventory } from "./xlsx";
 const encoder = new TextEncoder();
 
 class FakeWorkbookFile extends File {
+  constructor(
+    private readonly workbookRows: readonly (readonly string[])[] = [
+      ["instance_id", "name", "类型"],
+      ["i-001", "api", "ECS"],
+      ["i-002", "db", "RDS"],
+    ],
+  ) {
+    super([], "inventory.xlsx");
+  }
+
   async arrayBuffer() {
-    return encoder
-      .encode(
-        JSON.stringify([
-          ["instance_id", "name", "类型"],
-          ["i-001", "api", "ECS"],
-          ["i-002", "db", "RDS"],
-        ]),
-      )
-      .buffer;
+    return encoder.encode(JSON.stringify(this.workbookRows)).buffer;
   }
 }
 
@@ -25,9 +27,7 @@ vi.mock("read-excel-file/browser", () => ({
 
 describe("parseXlsxInventory", () => {
   it("parses first sheet rows into the raw table shape", async () => {
-    const table = await parseXlsxInventory(
-      new FakeWorkbookFile([], "inventory.xlsx"),
-    );
+    const table = await parseXlsxInventory(new FakeWorkbookFile());
 
     expect(table).toEqual({
       headers: ["instance_id", "name", "类型"],
@@ -47,15 +47,10 @@ describe("parseXlsxInventory", () => {
 
   it("sanitizes blank and duplicate headers into stable unique labels", async () => {
     const table = await parseXlsxInventory(
-      new File(
-        [
-          JSON.stringify([
-            ["name", "name", "", "类型"],
-            ["api", "api-copy", "orphan", "ECS"],
-          ]),
-        ],
-        "inventory.xlsx",
-      ),
+      new FakeWorkbookFile([
+        ["name", "name", "", "类型"],
+        ["api", "api-copy", "orphan", "ECS"],
+      ]),
     );
 
     expect(table.headers).toEqual(["name", "name_2", "column_3", "类型"]);

@@ -7440,9 +7440,9 @@ jake@^10.8.5:
     filelist "^1.0.4"
     minimatch "^3.1.2"
 
-jest-canvas-mock@~2.5.2:
+jest-canvas-mock@2.5.2:
   version "2.5.2"
-  resolved "https://registry.npmjs.org/jest-canvas-mock/-/jest-canvas-mock-2.5.2.tgz"
+  resolved "https://registry.yarnpkg.com/jest-canvas-mock/-/jest-canvas-mock-2.5.2.tgz#7e21ebd75e05ab41c890497f6ba8a77f915d2ad6"
   integrity sha512-vgnpPupjOL6+L5oJXzxTxFrlGEIbHdZqFU+LFNdtLxZ3lRDCl17FlTMM7IatoRQkrcyOTMlDinjUguqmQ6bR2A==
   dependencies:
     cssfontparser "^1.2.1"
@@ -10568,13 +10568,6 @@ vite@8.0.12, "vite@^6.0.0 || ^7.0.0 || ^8.0.0":
     rollup "^4.30.1"
   optionalDependencies:
     fsevents "~2.3.3"
-
-vitest-canvas-mock@0.3.3:
-  version "0.3.3"
-  resolved "https://registry.npmjs.org/vitest-canvas-mock/-/vitest-canvas-mock-0.3.3.tgz"
-  integrity sha512-3P968tYBpqYyzzOaVtqnmYjqbe13576/fkjbDEJSfQAkHtC5/UjuRHOhFEN/ZV5HVZIkaROBUWgazDKJ+Ibw+Q==
-  dependencies:
-    jest-canvas-mock "~2.5.2"
 
 vitest@3.0.6:
   version "3.0.6"

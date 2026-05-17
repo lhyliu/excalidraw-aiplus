@@ -93,14 +93,16 @@ const visibleTopology = (
   };
 };
 
+const isHeadlessTestRuntime = () =>
+  import.meta.env.MODE === "test" ||
+  (typeof navigator !== "undefined" &&
+    navigator.userAgent.toLowerCase().includes("jsdom"));
+
 const downloadHref = (href: string, filename: string) => {
   if (typeof document === "undefined") {
     return;
   }
-  if (
-    typeof navigator !== "undefined" &&
-    navigator.userAgent.toLowerCase().includes("jsdom")
-  ) {
+  if (isHeadlessTestRuntime()) {
     return;
   }
 
@@ -114,6 +116,10 @@ const downloadHref = (href: string, filename: string) => {
 };
 
 const downloadText = (filename: string, contents: string, type: string) => {
+  if (isHeadlessTestRuntime()) {
+    return;
+  }
+
   const blob = new Blob([contents], { type });
   const canCreateObjectUrl =
     typeof URL !== "undefined" && typeof URL.createObjectURL === "function";

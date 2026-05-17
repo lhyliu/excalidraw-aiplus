@@ -1,13 +1,40 @@
 import fs from "fs";
 
-// vitest.setup.ts
-import "vitest-canvas-mock";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
 import polyfill from "./packages/excalidraw/polyfill";
 import { yellow } from "./packages/excalidraw/tests/helpers/colorize";
 import { testPolyfills } from "./packages/excalidraw/tests/helpers/polyfills";
+
+const CANVAS_APIS = [
+  "Path2D",
+  "CanvasGradient",
+  "CanvasPattern",
+  "CanvasRenderingContext2D",
+  "DOMMatrix",
+  "ImageData",
+  "TextMetrics",
+  "ImageBitmap",
+  "createImageBitmap",
+] as const;
+
+const setupCanvasMock = () => {
+  const getCanvasWindowModule = require("jest-canvas-mock/lib/window");
+  const getCanvasWindow =
+    getCanvasWindowModule.default?.default ??
+    getCanvasWindowModule.default ??
+    getCanvasWindowModule;
+  const canvasWindow = getCanvasWindow({ document: window.document });
+
+  for (const api of CANVAS_APIS) {
+    globalThis[api] = canvasWindow[api];
+    window[api] = canvasWindow[api];
+  }
+};
+
+(globalThis as any).jest = vi;
+setupCanvasMock();
 
 // mock for pep.js not working with setPointerCapture()
 HTMLElement.prototype.setPointerCapture = vi.fn();

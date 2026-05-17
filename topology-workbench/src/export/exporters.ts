@@ -1,5 +1,3 @@
-import { toPng } from "html-to-image";
-
 import type { LayoutResult, Topology, TopologyEdge } from "../domain/types";
 
 const SCHEMA_VERSION = "topology-workbench.v1";
@@ -112,5 +110,10 @@ ${nodes.join("\n")}
 </svg>`;
 };
 
-export const exportTopologyPng = (element: HTMLElement): Promise<string> =>
-  toPng(element);
+export const exportTopologyPng = async (
+  element: HTMLElement,
+): Promise<string> => {
+  const { toPng } = await import("html-to-image");
+
+  return toPng(element);
+};

@@ -1,5 +1,3 @@
-import dagre from "@dagrejs/dagre";
-import ELK from "elkjs/lib/elk.bundled.js";
 import type {
   LayoutOptions,
   LayoutResult,
@@ -13,6 +11,28 @@ const NODE_WIDTH = 180;
 const NODE_HEIGHT = 72;
 
 type LayoutEngine = LayoutResult["engine"];
+
+const isJsdomRuntime = () =>
+  typeof navigator !== "undefined" &&
+  navigator.userAgent.toLowerCase().includes("jsdom");
+
+const createElk = async () => {
+  if (
+    !import.meta.env.PROD &&
+    (typeof Worker === "undefined" || isJsdomRuntime())
+  ) {
+    const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
+
+    return new ELK();
+  }
+
+  const [{ default: ELK }, { default: workerUrl }] = await Promise.all([
+    import("elkjs/lib/elk-api.js"),
+    import("elkjs/lib/elk-worker.min.js?url"),
+  ]);
+
+  return new ELK({ workerUrl });
+};
 
 const pinnedPosition = (node: TopologyNode): TopologyPosition | undefined =>
   node.pinnedPosition;
@@ -44,39 +64,51 @@ const cloneEdges = (topology: Topology): LayoutResult["edges"] =>
 const layoutWithElk = async (
   topology: Topology,
 ): Promise<PositionedTopologyNode[]> => {
-  const elk = new ELK();
-  const graph = await elk.layout({
-    id: "root",
-    layoutOptions: {
-      "elk.algorithm": "layered",
-      "elk.direction": "RIGHT",
-      "elk.spacing.nodeNode": "60",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "90",
-    },
-    children: topology.nodes.map((node) => ({
-      id: node.id,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-    })),
-    edges: topology.edges.map((edge) => ({
-      id: edge.id,
-      sources: [edge.sourceId],
-      targets: [edge.targetId],
-    })),
-  });
-  const positions = new Map(
-    graph.children?.map((node) => [
-      node.id,
-      { x: node.x ?? 0, y: node.y ?? 0 },
-    ]) ?? [],
-  );
+  const elk = await createElk();
 
-  return topology.nodes.map((node) =>
-    toPositionedNode(node, positions.get(node.id) ?? { x: 0, y: 0 }),
-  );
+  try {
+    const graph = await elk.layout({
+      id: "root",
+      layoutOptions: {
+        "elk.algorithm": "layered",
+        "elk.direction": "RIGHT",
+        "elk.spacing.nodeNode": "60",
+        "elk.layered.spacing.nodeNodeBetweenLayers": "90",
+      },
+      children: topology.nodes.map((node) => ({
+        id: node.id,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      })),
+      edges: topology.edges.map((edge) => ({
+        id: edge.id,
+        sources: [edge.sourceId],
+        targets: [edge.targetId],
+      })),
+    });
+    const positions = new Map(
+      graph.children?.map((node) => [
+        node.id,
+        { x: node.x ?? 0, y: node.y ?? 0 },
+      ]) ?? [],
+    );
+
+    return topology.nodes.map((node) =>
+      toPositionedNode(node, positions.get(node.id) ?? { x: 0, y: 0 }),
+    );
+  } finally {
+    try {
+      elk.terminateWorker();
+    } catch {
+      // elkjs fake workers used in tests do not always expose terminate().
+    }
+  }
 };
 
-const layoutWithDagre = (topology: Topology): PositionedTopologyNode[] => {
+const layoutWithDagre = async (
+  topology: Topology,
+): Promise<PositionedTopologyNode[]> => {
+  const { default: dagre } = await import("@dagrejs/dagre");
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 90 });
   graph.setDefaultEdgeLabel(() => ({}));
@@ -112,13 +144,13 @@ export const layoutTopology = async (
 
   if (options.forceFallback) {
     engine = "dagre";
-    nodes = layoutWithDagre(topology);
+    nodes = await layoutWithDagre(topology);
   } else {
     try {
       nodes = await layoutWithElk(topology);
     } catch {
       engine = "dagre";
-      nodes = layoutWithDagre(topology);
+      nodes = await layoutWithDagre(topology);
     }
   }
 
